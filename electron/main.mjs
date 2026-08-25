@@ -17,6 +17,7 @@ import { recentThreadModels, targetProviderForProfile } from "../provider-sync.j
 import { addMarketplace, installLocalPlugin, listLocalPlugins } from "../plugin-manager.js";
 import { cleanupCompletedAutomations, getAutomationSettings, previewCompletedAutomations, setAutomationSettings } from "../automation-cleanup.js";
 import { cleanupInvalidProjects, previewInvalidProjects } from "../project-cleanup.js";
+import { AppUpdater } from "../app-updater.js";
 
 const appRoot = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const codexPaths = defaultPaths();
@@ -39,9 +40,19 @@ let codexVersionOverlayRefreshing = false;
 let codexVersionOverlayIntervalMs = 0;
 let nativeCodexWindowApiPromise = null;
 let nativeCodexWindowApi = null;
+let updateCheckTimer = null;
 const responsesGateway = new ResponsesGateway({
   fetchUpstream: (url, options) => net.fetch(url, options),
   onModelResolved: ({ profileId, configuredModel, resolvedModel }) => setResolvedModel(profileId, configuredModel, resolvedModel, dataPaths),
+});
+const appUpdater = new AppUpdater({
+  currentVersion: app.getVersion(),
+  platform: process.platform,
+  arch: process.arch,
+  fetcher: (url, options) => net.fetch(url, options),
+  openRelease: (url) => shell.openExternal(url),
+  launchInstaller: launchVerifiedInstaller,
+  onStatus: broadcastUpdateStatus,
 });
 
 function result(task) {
@@ -77,7 +88,39 @@ async function getState() {
     gateway: { ...responsesGateway.status, error: gatewayStartupError },
     plugins,
     automation: { settings: automation.settings, completedFiles: automation.preview.files.length, completedRuns: automation.preview.rows || 0, completedBytes: automation.preview.bytes },
+    update: { ...appUpdater.status },
   };
+}
+
+function broadcastUpdateStatus(status) {
+  if (mainWindow && !mainWindow.isDestroyed() && !mainWindow.webContents.isDestroyed()) {
+    mainWindow.webContents.send("codex-galaxy:update-status", status);
+  }
+}
+
+async function launchVerifiedInstaller(installerPath) {
+  if (process.platform !== "win32") throw new Error("当前平台不支持直接启动更新安装包。");
+  const child = spawn(installerPath, [], {
+    detached: true,
+    stdio: "ignore",
+    windowsHide: false,
+  });
+  await waitForSpawn(child);
+  child.unref();
+  setTimeout(() => {
+    quitting = true;
+    responsesGateway.stop()
+      .catch(() => {})
+      .finally(() => app.quit());
+  }, 500).unref?.();
+}
+
+function startUpdateChecks() {
+  appUpdater.check().catch(() => {});
+  updateCheckTimer = setInterval(() => {
+    appUpdater.check().catch(() => {});
+  }, 6 * 60 * 60 * 1000);
+  updateCheckTimer.unref?.();
 }
 
 function showMainWindow() {
@@ -436,6 +479,36 @@ function registerHandlers() {
     pending.resolve(payload?.confirmed === true);
   });
   ipcMain.handle("codex-galaxy:get-state", () => result(getState));
+  ipcMain.handle("codex-galaxy:check-update", () => result(() => appUpdater.check()));
+  ipcMain.handle("codex-galaxy:install-update", (event, request) => result(async () => {
+    const status = appUpdater.status.available
+      ? { ...appUpdater.status }
+      : await appUpdater.check();
+    if (!status.available) return { current: true, status };
+    if (status.action === "open-release") return appUpdater.act();
+
+    const english = request?.language === "en";
+    const owner = BrowserWindow.fromWebContents(event.sender) || undefined;
+    const options = {
+      type: "warning",
+      title: english ? "Update Codex Galaxy" : "更新 Codex Galaxy",
+      message: english
+        ? `Download and install Codex Galaxy ${status.latestVersion}?`
+        : `下载并安装 Codex Galaxy ${status.latestVersion}？`,
+      detail: english
+        ? "Setup will close Galaxy and its local API gateway. Finish any active Codex response first; otherwise the current request may be interrupted. Local profiles and chats are retained."
+        : "安装程序会关闭 Galaxy 和本地 API 网关。若 Codex 正在生成回复，请先等待当前回复完成，否则请求可能中断；本地账号配置和聊天记录会保留。",
+      buttons: english ? ["Cancel", "Download and install"] : ["取消", "下载并安装"],
+      defaultId: 0,
+      cancelId: 0,
+      noLink: true,
+    };
+    const choice = owner && !owner.isDestroyed()
+      ? await dialog.showMessageBox(owner, options)
+      : await dialog.showMessageBox(options);
+    if (choice.response !== 1) return { cancelled: true, status };
+    return appUpdater.act();
+  }));
   ipcMain.handle("codex-galaxy:sync", (event, request) => result(() => exclusiveRefresh(async () => {
     const { data } = await loadProfiles(dataPaths);
     const report = progressReporter(event, request?.operationId, "codex-galaxy:sync-progress");
@@ -661,6 +734,7 @@ if (!hasSingleInstanceLock) {
     registerHandlers();
     createWindow();
     startCodexVersionOverlay();
+    startUpdateChecks();
     app.on("activate", () => {
       if (BrowserWindow.getAllWindows().length === 0) createWindow();
     });
@@ -673,6 +747,10 @@ if (!hasSingleInstanceLock) {
 
 app.on("before-quit", () => {
   quitting = true;
+  if (updateCheckTimer) {
+    clearInterval(updateCheckTimer);
+    updateCheckTimer = null;
+  }
   destroyCodexVersionOverlay();
 });
 

@@ -9,6 +9,7 @@ Codex Galaxy 是运行在用户电脑上的 Codex 多账号切换与项目续接
 ## 核心能力
 
 - Windows 与 macOS 共用一套本地 Electron 桌面程序
+- 启动时自动检查 GitHub 最新正式版本，顶部按钮可手动检查；Windows 可校验后启动更新，macOS 无签名阶段一键打开固定最新版页面
 - 配置任意数量的官方账号或中转 API
 - 不需要官方账号也能添加并切换多个纯 API；API 凭据之间切换时不会生成或依赖官方 OAuth 快照
 - 账号名称可在创建后随时修改，改名不影响凭据和线程
@@ -60,6 +61,8 @@ Codex 的项目线程保存在本机 Codex Home 中。Codex Galaxy 将账号凭�
 
 当前构建未签名。Windows SmartScreen 或 macOS Gatekeeper 可能提示未知开发者；正式发布时应配置代码签名证书与 Apple notarization。
 
+客户端会自动检查更新。Windows 可在顶部按钮中下载并校验官方安装包；macOS 因当前没有 Apple Developer 签名证书，按钮只会打开固定最新版页面 `https://github.com/guanjingyang0015/Codex-Galaxy/releases/latest`，由用户按 Intel x64 或 Apple Silicon arm64 选择 DMG。
+
 ## 首次使用
 
 1. 只使用中转 API 时，无需登录官方账号；点击账号区的 RightAPI 或 ZYG Token 按钮复制注册地址，粘贴到浏览器完成注册。
@@ -92,6 +95,14 @@ Galaxy 以现代 Codex 根 `state_5.sqlite` 的可见状态为权威：已归档
 如果 Galaxy 正在显示账号切换进度，请先等待切换成功或自动回滚结束，再启动安装包。使用 API 时也应先完成 Codex 当前任务，因为安装器会关闭包括托盘在内的旧版网关。普通空闲运行状态不需要手动关闭。
 
 ## 版本说明
+
+### 1.4.0
+
+- 新增启动自动检查、每 6 小时检查和顶部手动检查更新。
+- Windows 可一键下载精确匹配的 GitHub Release 安装包，校验官方地址与 SHA-256 后才启动安装；失败文件会自动删除。
+- macOS 无 Apple Developer 签名证书时只打开项目固定最新版页面，不在应用内下载、挂载或启动未签名 DMG。
+- GitHub Actions 改为 Windows x64、原生 Intel macOS x64、原生 Apple Silicon macOS arm64 分平台构建，并自动生成安装包校验文件和正式 Release。
+- 这是新增功能版本，按项目规则从 1.3.1 升级为 1.4.0。
 
 ### 1.3.1
 

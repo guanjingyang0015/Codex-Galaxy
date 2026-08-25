@@ -1,7 +1,7 @@
 const $ = (selector) => document.querySelector(selector);
 const state = {
   profiles: [],
-  version: "1.3.1",
+  version: "1.4.0",
   threads: [],
   currentId: null,
   selectedProfileId: null,
@@ -21,6 +21,15 @@ const state = {
   librarySyncedAt: null,
   plugins: [],
   automation: { settings: { autoCleanCompleted: false }, completedFiles: 0, completedBytes: 0 },
+  update: {
+    phase: "idle",
+    currentVersion: "1.4.0",
+    latestVersion: null,
+    available: false,
+    action: "install",
+    percent: 0,
+    error: null,
+  },
 };
 const bridge = window.codexGalaxy;
 
@@ -30,6 +39,7 @@ const translations = {
     "status.switching": "切换中",
     "status.refreshing": "刷新中",
     "status.cleaning": "清理中",
+    "status.updating": "更新中",
     "status.gatewayRunning": "本地网关运行中",
     "status.localProgram": "本机程序",
     "common.localError": "本地操作失败",
@@ -64,6 +74,18 @@ const translations = {
     "actions.tutorial": "使用教程",
     "actions.refresh": "刷新项目",
     "actions.refreshTitle": "重新扫描本机 Codex 项目记录",
+    "update.check": "检查更新",
+    "update.checking": "检查中…",
+    "update.current": "已是最新版",
+    "update.retry": "重试更新",
+    "update.install": "更新到 v{version}",
+    "update.openMac": "获取 v{version}",
+    "update.downloading": "下载 {percent}%",
+    "update.starting": "正在启动安装",
+    "update.availableNotice": "发现 Codex Galaxy {version}，点击顶部更新按钮即可升级。",
+    "update.currentNotice": "当前 {version} 已是 GitHub 最新正式版本。",
+    "update.cancelled": "已取消更新，当前任务不会受影响。",
+    "update.macOpened": "已打开 GitHub 最新版页面。请按 Mac 芯片选择 x64 或 arm64 DMG；当前包未签名，请遵循 macOS 系统提示。",
     "page.title": "账号与项目",
     "status.boardLabel": "当前使用状态",
     "status.account": "当前账号",
@@ -215,6 +237,7 @@ const translations = {
     "status.switching": "Switching",
     "status.refreshing": "Refreshing",
     "status.cleaning": "Cleaning",
+    "status.updating": "Updating",
     "status.gatewayRunning": "Local gateway running",
     "status.localProgram": "Local app",
     "common.localError": "Local operation failed",
@@ -249,6 +272,18 @@ const translations = {
     "actions.tutorial": "Guide",
     "actions.refresh": "Refresh projects",
     "actions.refreshTitle": "Rescan local Codex project records",
+    "update.check": "Check updates",
+    "update.checking": "Checking…",
+    "update.current": "Up to date",
+    "update.retry": "Retry update",
+    "update.install": "Update to v{version}",
+    "update.openMac": "Get v{version}",
+    "update.downloading": "Downloading {percent}%",
+    "update.starting": "Starting setup",
+    "update.availableNotice": "Codex Galaxy {version} is available. Use the update button at the top to upgrade.",
+    "update.currentNotice": "Version {version} is the latest GitHub release.",
+    "update.cancelled": "Update cancelled. The current task is unaffected.",
+    "update.macOpened": "The latest GitHub release page is open. Choose the x64 or arm64 DMG for your Mac. The current build is unsigned; follow the macOS security prompts.",
     "page.title": "Accounts and projects",
     "status.boardLabel": "Current usage status",
     "status.account": "Current account",
@@ -401,7 +436,7 @@ const translations = {
     "tutorial.step5.body": "<p>API traffic passes through Galaxy’s loopback Responses gateway. Closing the main window minimizes Galaxy to the system tray; keep it running until the task finishes or you switch back to an official account. Exiting Galaxy in API mode stops the gateway.</p>",
     "tutorial.step6.body": "<ol><li>Refresh rebuilds the visible list from current Codex state and does not delete source data.</li><li>Clean Data can remove explicitly archived/deleted projects and completed automation history only after creating a recoverable backup.</li><li>Galaxy never deletes user project folders or source code.</li></ol>",
     "tutorial.step7.body": "<ol><li>If switching fails, read the progress message. Galaxy attempts to restore the previous credentials, provider, gateway, and current-account marker.</li><li>Only one Galaxy instance may switch accounts; stale locks from dead processes are reclaimed automatically.</li><li>DNS, TLS, proxy, upstream overload, and authentication errors originate outside the local project index. Error messages never include API keys or request bodies.</li><li>If recovery is incomplete, keep the screenshot and report it without exposing secrets; do not manually edit the <code>.codex</code> files.</li></ol>",
-    "tutorial.step8.body": "<ol><li>Finish any active API-backed Codex task before upgrading because the installer closes Galaxy and its local gateway.</li><li>Run the new installer over the existing version; manual uninstall is unnecessary, and local profiles/project records are retained.</li><li>Version 1.1.0 removes the ambiguous mixed-login mode. Existing API profiles are automatically migrated to independent pure-API login without changing their encrypted API keys.</li><li>Version 1.3.0 adds a click-through Codex Galaxy version badge that follows the external Codex Desktop window’s top-right area on Windows. It hides when Codex is not the foreground window and never edits Codex files.</li><li>For extra safety, back up <code>.codex-galaxy</code> locally and never upload it to Git.</li></ol>",
+    "tutorial.step8.body": "<ol><li>Galaxy checks the latest stable GitHub release at startup; the top update button can also check manually.</li><li>On Windows, one click downloads the exact installer, verifies its official Release URL and SHA-256, and starts setup. Finish active API-backed Codex work first because setup closes Galaxy and its local gateway.</li><li>The current macOS packages have no Apple Developer signature, so the update button only opens the project’s latest GitHub release page. Choose the Intel x64 or Apple Silicon arm64 DMG and follow macOS security prompts without bypassing Gatekeeper.</li><li>Install over the existing version; manual uninstall is unnecessary, and local profiles and records are retained.</li><li>For extra safety, back up <code>.codex-galaxy</code> locally and never upload it to Git.</li></ol>",
     "tutorial.step9.body": "<ol><li>The Plugins window installs local plugin folders or adds a marketplace. The remote public catalog requires an official ChatGPT login, so switch to a captured official account for that catalog. Users without an official account can still use independent local plugins.</li><li>Galaxy preserves image/file request fields. Actual multimodal support still depends on the relay and selected model.</li><li>Automation cleanup only removes completed/archived run history after backup. Its automatic switch-time option is off by default and is independent from project cleanup.</li></ol>",
   },
 };
@@ -457,6 +492,7 @@ function applyLanguage() {
   renderThreads();
   renderPlugins();
   updateStatusBoard();
+  renderUpdateAction();
 }
 
 function setLanguage(language) {
@@ -468,7 +504,11 @@ function setLanguage(language) {
 }
 
 function operationBusy() {
-  return state.switching || state.refreshing || state.cleaning;
+  return state.switching || state.refreshing || state.cleaning || updateOperationBusy();
+}
+
+function updateOperationBusy(update = state.update) {
+  return ["downloading", "ready", "installing"].includes(update?.phase);
 }
 
 function updateStatusPill() {
@@ -478,6 +518,8 @@ function updateStatusPill() {
       ? t("status.refreshing")
       : state.cleaning
         ? t("status.cleaning")
+        : updateOperationBusy()
+          ? t("status.updating")
         : state.gatewayRunning
           ? t("status.gatewayRunning")
           : t("status.localProgram");
@@ -491,10 +533,64 @@ function updateOperationControls() {
   $("#addProfileBtn").disabled = busy;
   $("#search").disabled = busy;
   $("#projectFilter").disabled = busy;
+  renderUpdateAction();
   $("#profileForm").querySelectorAll("button, input, select").forEach((control) => { control.disabled = busy; });
   updateStatusPill();
   renderProfiles();
   renderThreads();
+}
+
+function renderUpdateAction() {
+  const button = $("#updateBtn");
+  if (!button) return;
+  const update = state.update || {};
+  const version = update.latestVersion || update.currentVersion || state.version;
+  button.classList.toggle("available", update.available === true);
+  button.title = update.error || (update.available ? t("update.availableNotice", { version }) : "");
+  if (update.phase === "checking") button.textContent = t("update.checking");
+  else if (update.phase === "downloading") button.textContent = t("update.downloading", { percent: Math.max(0, Math.min(100, Number(update.percent) || 0)) });
+  else if (update.phase === "ready" || update.phase === "installing") button.textContent = t("update.starting");
+  else if (update.available) button.textContent = update.action === "open-release"
+    ? t("update.openMac", { version })
+    : t("update.install", { version });
+  else if (update.phase === "current") button.textContent = t("update.current");
+  else if (update.phase === "error") button.textContent = t("update.retry");
+  else button.textContent = t("update.check");
+  button.disabled = state.switching
+    || state.refreshing
+    || state.cleaning
+    || ["checking", "downloading", "ready", "installing"].includes(update.phase);
+}
+
+function applyUpdateStatus(status) {
+  const wasBusy = updateOperationBusy(state.update);
+  state.update = { ...state.update, ...(status || {}) };
+  const isBusy = updateOperationBusy(state.update);
+  if (wasBusy !== isBusy) updateOperationControls();
+  else {
+    renderUpdateAction();
+    updateStatusPill();
+  }
+}
+
+async function handleUpdateAction() {
+  if (state.switching || state.refreshing || state.cleaning || updateOperationBusy()) return;
+  try {
+    if (!state.update.available) {
+      const status = unwrap(await bridge.checkUpdate());
+      applyUpdateStatus(status);
+      notice(status.available
+        ? t("update.availableNotice", { version: status.latestVersion })
+        : t("update.currentNotice", { version: status.currentVersion }));
+      return;
+    }
+    const response = unwrap(await bridge.installUpdate(currentLanguage));
+    if (response.cancelled) notice(t("update.cancelled"));
+    else if (response.opened) notice(t("update.macOpened"));
+    else if (response.current) notice(t("update.currentNotice", { version: response.status?.currentVersion || state.version }));
+  } catch (error) {
+    notice(error.message, true);
+  }
 }
 
 function escapeHtml(value) {
@@ -629,6 +725,7 @@ async function refresh() {
   state.threads = snapshot.library.threads;
   state.plugins = snapshot.plugins || [];
   state.automation = snapshot.automation || state.automation;
+  state.update = snapshot.update || state.update;
   state.gatewayRunning = Boolean(snapshot.gateway?.running);
   state.codexRunning = Boolean(snapshot.codex.running);
   state.codexProvider = snapshot.codex.provider || null;
@@ -918,6 +1015,7 @@ function closeProfileForm() {
 }
 
 $("#syncBtn").addEventListener("click", sync);
+$("#updateBtn").addEventListener("click", handleUpdateAction);
 $("#languageSelect").addEventListener("change", (event) => setLanguage(event.currentTarget.value));
 $("#tutorialBtn").addEventListener("click", () => $("#tutorialDialog").showModal());
 $("#pluginBtn").addEventListener("click", openPlugins);
@@ -1072,6 +1170,7 @@ if (!bridge) {
   bridge.onCleanupProgress((progress) => {
     if (progress.operationId === state.cleanupOperationId) updateCleanupProgress(progress);
   });
+  bridge.onUpdateStatus(applyUpdateStatus);
   bridge.onSwitchConfirmation(showSwitchConfirmation);
   refresh().catch((error) => notice(error.message, true));
 }

@@ -53,6 +53,9 @@ button:focus-visible, input:focus-visible, select:focus-visible, [tabindex]:focu
 .top-actions { display: flex; min-width: 0; align-items: center; justify-content: flex-end; gap: 7px; }
 .language-control select { min-height: 32px; padding: 6px 25px 6px 9px; border: 1px solid var(--line); border-radius: 7px; background: var(--surface-2); color: var(--text); font-size: 11px; }
 .status-pill { padding: 6px 9px; border: 1px solid #3f6959; border-radius: 999px; color: var(--accent); font-size: 11px; }
+.update-action { min-width: 92px; white-space: nowrap; }
+.update-action.available { border-color: #9f7f43; background: #2c2518; color: #f1ca7a; box-shadow: 0 0 0 1px rgba(237, 196, 111, 0.08); }
+.update-action.available:hover { border-color: var(--amber); color: #ffe0a1; }
 
 .workspace { position: relative; display: flex; width: min(1220px, calc(100vw - 32px)); min-height: 0; flex: 1; flex-direction: column; gap: 9px; margin: 0 auto; padding: 10px 0; overflow: hidden; }
 .page-heading { display: flex; flex: 0 0 auto; align-items: end; justify-content: space-between; gap: 24px; margin: 0; }

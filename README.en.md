@@ -22,6 +22,7 @@ A typical workflow starts on an official account, switches to a relay when the q
 - Show clear real-time switching, scan, cleanup, and launch progress.
 - Keep the main workbench within a single 1240×820 window, with Simplified Chinese and English UI options.
 - Show a click-through `Codex Galaxy x.x.x` marker on the active external Codex Desktop window on Windows.
+- Check GitHub releases automatically. Windows can download and verify the official installer; unsigned macOS builds open the fixed latest-release page instead.
 
 ## Install
 
@@ -34,6 +35,8 @@ Download the package for your platform from GitHub Releases:
 The current builds are unsigned. Windows SmartScreen or macOS Gatekeeper may display an unknown-developer warning. macOS packages are built by GitHub Actions but still require real-device validation and signing.
 
 Existing users can install a newer version over version 0.1.0 or later. The installer retains both `~/.codex-galaxy` and `~/.codex`. Finish any active API-backed task before upgrading because the installer closes Galaxy and its local gateway.
+
+The top update action checks GitHub automatically. On Windows it downloads the exact installer and verifies SHA-256 before setup. On macOS, where current builds have no Apple Developer signature, it only opens `https://github.com/guanjingyang0015/Codex-Galaxy/releases/latest` so the user can choose the Intel x64 or Apple Silicon arm64 DMG.
 
 ## First use
 
@@ -48,6 +51,13 @@ In the thread list, **View details** only reads the local thread summary. **Cont
 When an API profile is active, closing the Galaxy window sends it to the system tray so the local gateway can continue serving Codex. Exiting Galaxy from the tray stops the gateway and may interrupt an active API task.
 
 The app includes copy-only registration buttons for RightAPI and ZYG Token. These URLs contain the author's referral parameters; using them is optional.
+
+## Version 1.4.0
+
+- Added automatic startup checks, six-hour periodic checks, and a visible manual update action.
+- Windows downloads only the exact installer from the trusted project Release and launches setup only after SHA-256 verification.
+- macOS opens the fixed official latest-release page and never downloads, mounts, or launches an unsigned DMG inside Galaxy.
+- GitHub Actions builds Windows x64 and native macOS x64/arm64 packages, generates checksum files, and publishes tagged Releases.
 
 ## Version 1.3.1
 

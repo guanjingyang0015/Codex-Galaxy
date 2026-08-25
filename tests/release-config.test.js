@@ -13,10 +13,12 @@ test("release identity stays compatible with 0.1.0 upgrades and preserves user d
   const styles = await fs.readFile(path.join(root, "public", "styles.css"), "utf8");
   const gateway = await fs.readFile(path.join(root, "responses-gateway.js"), "utf8");
   const providerSync = await fs.readFile(path.join(root, "provider-sync.js"), "utf8");
+  const updater = await fs.readFile(path.join(root, "app-updater.js"), "utf8");
   const electronMain = await fs.readFile(path.join(root, "electron", "main.mjs"), "utf8");
+  const preload = await fs.readFile(path.join(root, "electron", "preload.cjs"), "utf8");
   const overlayHtml = await fs.readFile(path.join(root, "public", "codex-overlay.html"), "utf8");
   const overlayHelper = await fs.readFile(path.join(root, "electron", "windows-codex-window.mjs"), "utf8");
-  assert.equal(packageJson.version, "1.3.1");
+  assert.equal(packageJson.version, "1.4.0");
   assert.equal(packageJson.author, "Guan Jingyang <guanjingyang@gmail.com>");
   assert.equal(packageJson.license, "MIT");
   assert.equal(packageJson.build.appId, "io.github.codex-galaxy.app");
@@ -28,6 +30,7 @@ test("release identity stays compatible with 0.1.0 upgrades and preserves user d
   assert.ok(packageJson.build.files.includes("responses-gateway.js"));
   assert.ok(packageJson.build.files.includes("model-catalog.js"));
   assert.ok(packageJson.build.files.includes("project-cleanup.js"));
+  assert.ok(packageJson.build.files.includes("app-updater.js"));
   assert.ok(packageJson.build.files.includes("electron/windows-codex-window.mjs"));
   assert.ok(packageJson.build.files.includes("public/codex-overlay.html"));
   assert.ok(packageJson.build.files.includes("node_modules/koffi/**/*"));
@@ -45,6 +48,15 @@ test("release identity stays compatible with 0.1.0 upgrades and preserves user d
   assert.match(electronMain, /version: app\.getVersion\(\)/);
   assert.match(electronMain, /startCodexVersionOverlay/);
   assert.match(electronMain, /nativeWindowHandleFromBuffer/);
+  assert.match(electronMain, /startUpdateChecks\(\)/);
+  assert.match(electronMain, /codex-galaxy:check-update/);
+  assert.match(electronMain, /codex-galaxy:install-update/);
+  assert.match(preload, /checkUpdate/);
+  assert.match(preload, /installUpdate/);
+  assert.match(preload, /onUpdateStatus/);
+  assert.match(updater, /RELEASES_LATEST_PAGE_URL/);
+  assert.match(updater, /guanjingyang0015\/Codex-Galaxy\/releases\/latest/);
+  assert.match(updater, /SHA-256 校验失败/);
   assert.match(overlayHtml, /Codex Galaxy/);
   assert.match(overlayHtml, /id="version"/);
   assert.match(overlayHelper, /QueryFullProcessImageNameW/);
@@ -54,6 +66,7 @@ test("release identity stays compatible with 0.1.0 upgrades and preserves user d
   assert.equal(html.match(/https:\/\/www\.rightapi\.ai\/register\?aff=d910c1b8/g)?.length, 2);
   assert.doesNotMatch(html, /id="appVersionBadge"|class="app-version-badge"|id="appVersion"/);
   assert.match(html, /id="appVersionInline"/);
+  assert.match(html, /id="updateBtn"/);
   assert.match(renderer, /state\.version = String\(snapshot\.version \|\| state\.version\)/);
   assert.match(renderer, /\$\("#appVersionInline"\)\.textContent = state\.version/);
   assert.doesNotMatch(renderer, /\$\("#appVersion"\)/);

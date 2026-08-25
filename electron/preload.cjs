@@ -2,6 +2,8 @@ const { contextBridge, ipcRenderer } = require("electron");
 
 contextBridge.exposeInMainWorld("codexGalaxy", {
   getState: () => ipcRenderer.invoke("codex-galaxy:get-state"),
+  checkUpdate: () => ipcRenderer.invoke("codex-galaxy:check-update"),
+  installUpdate: (language) => ipcRenderer.invoke("codex-galaxy:install-update", { language }),
   sync: (operationId) => ipcRenderer.invoke("codex-galaxy:sync", { operationId }),
   saveProfile: (profile) => ipcRenderer.invoke("codex-galaxy:save-profile", profile),
   captureProfile: (id) => ipcRenderer.invoke("codex-galaxy:capture-profile", id),
@@ -31,6 +33,11 @@ contextBridge.exposeInMainWorld("codexGalaxy", {
     const listener = (_, progress) => callback(progress);
     ipcRenderer.on("codex-galaxy:cleanup-progress", listener);
     return () => ipcRenderer.removeListener("codex-galaxy:cleanup-progress", listener);
+  },
+  onUpdateStatus: (callback) => {
+    const listener = (_, status) => callback(status);
+    ipcRenderer.on("codex-galaxy:update-status", listener);
+    return () => ipcRenderer.removeListener("codex-galaxy:update-status", listener);
   },
   onSwitchConfirmation: (callback) => {
     const listener = (_, request) => callback(request);
