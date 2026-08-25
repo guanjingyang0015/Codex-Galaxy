@@ -1,0 +1,100 @@
+{
+  "name": "codex-galaxy",
+  "version": "1.3.1",
+  "private": true,
+  "author": "Guan Jingyang <guanjingyang@gmail.com>",
+  "description": "Codex Galaxy: local account switching and cross-model project continuity for Codex.",
+  "main": "electron/main.mjs",
+  "type": "module",
+  "scripts": {
+    "start": "electron .",
+    "dev": "electron . --dev",
+    "icons": "electron scripts/generate-icon.mjs",
+    "test": "node --test",
+    "dist:win": "electron-builder --win nsis --x64",
+    "dist:mac": "electron-builder --mac dmg --x64 --arm64"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "devDependencies": {
+    "electron": "^43.4.1",
+    "electron-builder": "^26.15.3"
+  },
+  "dependencies": {
+    "@iarna/toml": "^2.2.5",
+    "koffi": "^3.1.6"
+  },
+  "license": "MIT",
+  "build": {
+    "appId": "io.github.codex-galaxy.app",
+    "productName": "Codex Galaxy",
+    "icon": "build/icon.png",
+    "asar": true,
+    "asarUnpack": [
+      "node_modules/koffi/**/*",
+      "node_modules/@koromix/koffi-win32-x64/**/*"
+    ],
+    "files": [
+      "electron/**/*",
+      "build/icon.png",
+      "public/**/*",
+      "codex.js",
+      "launcher.js",
+      "profiles.js",
+      "provider-sync.js",
+      "responses-gateway.js",
+      "model-catalog.js",
+      "account-switch.js",
+      "plugin-manager.js",
+      "automation-cleanup.js",
+      "project-cleanup.js",
+      "desktop-process.js",
+      "sync.js",
+      "vault.js",
+      "electron/windows-codex-window.mjs",
+      "public/codex-overlay.html",
+      "package.json",
+      "node_modules/@iarna/toml/**/*",
+      "node_modules/koffi/**/*",
+      "node_modules/@koromix/koffi-win32-x64/**/*"
+    ],
+    "directories": {
+      "output": "dist"
+    },
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "artifactName": "Codex-Galaxy-${version}-Windows-${arch}.${ext}"
+    },
+    "nsis": {
+      "guid": "566d1898-c777-51ee-b4e6-4cb1f476cadd",
+      "oneClick": false,
+      "perMachine": false,
+      "deleteAppDataOnUninstall": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Codex Galaxy"
+    },
+    "mac": {
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        }
+      ],
+      "category": "public.app-category.developer-tools",
+      "artifactName": "Codex-Galaxy-${version}-macOS-${arch}.${ext}"
+    }
+  }
+}

@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Codex Galaxy</title>
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+  <div class="shell">
+    <header class="topbar">
+      <div class="brand"><span class="brand-mark">CG</span><div><div class="brand-name">Codex Galaxy</div><div class="brand-sub">v<span id="appVersionInline">1.3.1</span></div></div></div>
+      <div class="top-actions">
+        <label class="language-control" title="语言 / Language">
+          <span class="sr-only">语言 / Language</span>
+          <select id="languageSelect" aria-label="语言 / Language">
+            <option value="zh-CN" data-i18n="language.chinese">简体中文</option>
+            <option value="en" data-i18n="language.english">English</option>
+          </select>
+        </label>
+        <span id="statusPill" class="status-pill" data-i18n="status.connecting">连接中</span>
+        <button id="pluginBtn" class="button secondary" data-i18n="actions.plugins">插件</button>
+        <button id="cleanupBtn" class="button secondary" data-i18n="actions.cleanup">清理数据</button>
+        <button id="tutorialBtn" class="button secondary" data-i18n="actions.tutorial">使用教程</button>
+        <button id="syncBtn" class="button secondary" title="重新扫描本机 Codex 项目记录" data-i18n="actions.refresh" data-i18n-title="actions.refreshTitle">刷新项目</button>
+      </div>
+    </header>
+    <main class="workspace">
+      <section class="page-heading"><div><p class="eyebrow">CODEX GALAXY</p><h1 data-i18n="page.title">账号与项目</h1></div><div class="current-context"><span data-i18n="status.account">当前账号</span><strong id="currentProfileName">未选择</strong></div></section>
+      <section class="status-board" aria-label="当前使用状态" data-i18n-aria-label="status.boardLabel">
+        <div class="status-cell"><span class="mini-label" data-i18n="status.account">当前账号</span><strong id="statusProfile">未选择</strong></div>
+        <div class="status-cell"><span class="mini-label" data-i18n="status.loginMode">登录模式</span><strong id="statusLoginMode">检测中</strong></div>
+        <div class="status-cell"><span class="mini-label" data-i18n="status.model">当前模型</span><strong id="statusModel">检测中</strong></div>
+        <div class="status-cell"><span class="mini-label" data-i18n="status.gateway">本地网关</span><strong id="statusGateway">检测中</strong></div>
+        <div class="status-cell"><span class="mini-label" data-i18n="status.codex">Codex 状态</span><strong id="statusCodex">检测中</strong></div>
+      </section>
+      <div id="notice" class="notice" hidden></div>
+      <div id="refreshProgress" class="refresh-progress" role="status" aria-live="polite" hidden>
+        <div><span id="refreshProgressMessage">正在准备扫描本地项目</span><strong id="refreshProgressPercent">0%</strong></div>
+        <progress id="refreshProgressBar" max="100" value="0"></progress>
+        <small id="refreshProgressCount">等待扫描</small>
+      </div>
+      <section class="grid">
+        <div class="panel accounts-panel">
+          <div class="panel-head"><div><p class="eyebrow">PROFILES</p><h2 data-i18n="profiles.title">账号</h2></div><button id="addProfileBtn" class="icon-button" title="添加账号" aria-label="添加账号" data-i18n-title="profiles.add">+</button></div>
+          <div id="profiles" class="profile-list"></div>
+          <form id="profileForm" class="profile-form" hidden>
+            <input name="id" type="hidden" />
+            <div id="profileFormTitle" class="form-title">添加账号</div>
+            <label><span data-i18n="profileForm.name">账号名称</span><input name="name" placeholder="例如：工作 API" data-i18n-placeholder="profileForm.namePlaceholder" maxlength="80" required /></label>
+            <label><span data-i18n="profileForm.type">类型</span><select name="kind"><option value="official" data-i18n="profileForm.official">Codex 官方账号</option><option value="api" data-i18n="profileForm.api">中转 API</option></select></label>
+            <label class="api-field">Base URL<input name="baseUrl" type="url" placeholder="https://api.example.com/v1" /></label>
+            <label class="api-field">API Key<input name="apiKey" type="password" autocomplete="new-password" placeholder="留空则保留已保存的 Key" data-i18n-placeholder="profileForm.keyPlaceholder" /></label>
+            <label><span data-i18n="profileForm.model">模型 ID</span> <span class="api-field" data-i18n="profileForm.optional">（可选）</span><input name="model" placeholder="留空自动发现，或填 gpt-5.6、provider/model" data-i18n-placeholder="profileForm.modelPlaceholder" maxlength="160" /></label>
+            <div class="protocol-note api-field" data-i18n="profileForm.protocol">API 账号始终使用独立纯 API 登录，不需要官方账号。模型 ID 可留空，由中转站模型列表自动选择；接口必须兼容 OpenAI Responses API。</div>
+            <div class="form-actions"><button type="button" id="cancelProfileBtn" class="button secondary" data-i18n="common.cancel">取消</button><button class="button primary" data-i18n="common.save">保存</button></div>
+          </form>
+          <div class="api-guide">
+            <div class="api-guide-head"><span class="api-guide-badge" data-i18n="apiGuide.badge">纯 API</span><strong data-i18n="apiGuide.title">无官方账号也能用：手机号/邮箱注册中转站即可</strong></div>
+            <p data-i18n-html="apiGuide.description">点击中转站即可复制注册地址。注册后，将 <code>Base URL</code> 和 <code>API Key</code> 填入“添加账号”即可使用。</p>
+            <div class="api-relay-links">
+              <button type="button" class="relay-copy" data-copy="https://www.rightapi.ai/register?aff=d910c1b8" data-name="RightAPI" aria-label="复制 RightAPI 注册链接" data-i18n-aria-label="apiGuide.copyRight">RightAPI<span class="relay-url">https://www.rightapi.ai/register?aff=d910c1b8</span><span class="relay-copied" data-i18n="common.copied">已复制</span></button>
+              <button type="button" class="relay-copy" data-copy="https://api.zygtoken.com/register?aff=Z3xM" data-name="ZYG Token" aria-label="复制 ZYG Token 注册链接" data-i18n-aria-label="apiGuide.copyZyg">ZYG Token<span class="relay-url">https://api.zygtoken.com/register?aff=Z3xM</span><span class="relay-copied" data-i18n="common.copied">已复制</span></button>
+            </div>
+          </div>
+          <div class="switch-zone">
+            <div class="selected-profile"><span data-i18n="switch.target">准备切换到</span><strong id="selectedProfileName">请选择账号</strong><small id="selectedProfileModel">选择后可切换</small></div>
+            <button id="switchOpenBtn" class="button primary wide" disabled data-i18n="switch.open">切换并打开 Codex</button>
+            <div id="switchProgress" class="switch-progress" role="status" aria-live="polite" hidden>
+              <div><span id="progressMessage">准备切换</span><strong id="progressPercent">0%</strong></div>
+              <progress id="progressBar" max="100" value="0"></progress>
+            </div>
+          </div>
+        </div>
+        <div class="panel threads-panel"><div class="panel-head"><div><p class="eyebrow">PROJECT THREADS</p><h2 data-i18n="threads.title">项目继续入口</h2></div><span id="threadCount" class="count">0 条线程</span></div><div class="thread-toolbar"><input id="search" placeholder="按项目、标题或账号搜索" data-i18n-placeholder="threads.search" /><select id="projectFilter"><option value="" data-i18n="threads.allProjects">全部项目</option></select></div><div id="threads" class="thread-list"></div></div>
+      </section>
+      <section class="footer-strip"><div><span class="mini-label" data-i18n="footer.codexHome">CODEX HOME</span><code id="codexHome">检测中</code></div><div><span class="mini-label" data-i18n="footer.library">本地项目库</span><strong id="libraryMeta">未同步</strong></div><div><span class="mini-label" data-i18n="footer.author">作者邮箱</span><strong>guanjingyang@gmail.com</strong></div></section>
+    </main>
+  </div>
+  <dialog id="threadDialog"><div class="dialog-head"><div><p class="eyebrow">THREAD DETAIL</p><h2 id="dialogTitle">线程</h2></div><button id="closeDialog" class="icon-button" title="关闭" data-i18n-title="dialog.close" aria-label="关闭" data-i18n-aria-label="dialog.close">×</button></div><div id="dialogMeta" class="dialog-meta"></div><div id="dialogCompatibility" class="compatibility-note" hidden></div><div id="dialogMessages" class="messages"></div><div class="resume-zone"><span class="mini-label" data-i18n="threads.selectAccountResume">选择账号并继续</span><div id="resumeProfiles" class="resume-profiles"></div></div><div class="dialog-actions"><button id="launchBtn" class="button primary" data-i18n="threads.launchWithCurrent">用当前账号继续</button><button id="copyResumeBtn" class="button secondary" data-i18n="threads.copyResume">复制 resume 命令</button></div></dialog>
+  <dialog id="tutorialDialog" class="tutorial-dialog">
+    <div class="dialog-head"><div><p class="eyebrow">SAFE SWITCHING GUIDE</p><h2 data-i18n="tutorial.title">安全切换教程</h2></div><button id="closeTutorial" class="icon-button" title="关闭教程" data-i18n-title="dialog.closeTutorial" aria-label="关闭教程" data-i18n-aria-label="dialog.closeTutorial">×</button></div>
+    <div class="tutorial-intro" data-i18n="tutorial.intro">项目和完整聊天记录始终保存在本机同一个 Codex Home 中。Codex Galaxy 切换的是登录凭据、API provider 和继续项目所需的本地索引，不会把聊天上传到其他账号。</div>
+    <div class="tutorial-content">
+      <section class="tutorial-section"><span class="step-number">1</span><div><h3 data-i18n="tutorial.step1.title">保存第一个官方账号</h3><div data-i18n-en-html="tutorial.step1.body"><ol><li>先在 Codex Desktop 中正常登录官方账号，并等待项目列表加载完成。</li><li>回到 Galaxy，点击账号区右上角“+”，添加一个“Codex 官方账号”。名称可随时修改。</li><li>点击该账号右侧“捕获”。看到保存成功后，这个官方登录状态才可在以后恢复。</li></ol></div></div></section>
+      <section class="tutorial-section"><span class="step-number">2</span><div><h3 data-i18n="tutorial.step2.title">添加一个或多个中转 API</h3><div data-i18n-en-html="tutorial.step2.body"><ol><li>点击“+”，类型选择“中转 API”。</li><li>填写自定义名称、Base URL 和 API Key。模型 ID 可以留空，切换时 Galaxy 会读取中转站的标准模型列表，优先复用该账号最近成功的模型，否则选择列表中的第一个模型并显示结果。</li><li>每个 API 账号都使用独立纯 API 登录，不需要官方账号，也可以在多个 API 之间直接切换。</li></ol></div></div></section>
+      <section class="tutorial-section"><span class="step-number">3</span><div><h3 data-i18n="tutorial.step3.title">一键安全切换</h3><div data-i18n-en-html="tutorial.step3.body"><ol><li>点选目标账号，确认下方显示的名称和模型正确。</li><li>点击“切换并打开 Codex”。如果 Codex 仍在运行，Galaxy 会提醒正在进行的任务可能被中断；有任务时请选择取消，先回到 Codex 手动停止。</li><li>确认继续后，Galaxy 会关闭 Codex 并等待其停止写入，先保存最新本地项目记录，再切换目标凭据和 provider。API 账号还会启动只监听本机的 Responses 网关。</li><li>兼容性检查只处理新增或变化的历史；点击“在 Codex 中继续”打开具体线程时优先检查该线程，不会每次重复扫描整个 Codex Home。</li><li>等待进度到 100%。Galaxy 会再次刷新目标账号的项目列表，然后重新打开 Codex。</li></ol></div></div></section>
+      <section class="tutorial-section"><span class="step-number">4</span><div><h3 data-i18n="tutorial.step4.title">继续处理原项目</h3><div data-i18n-en-html="tutorial.step4.body"><ol><li>Codex 重新打开后，从原来的项目或任务进入即可看到此前的聊天内容。</li><li>“查看详情”只在 Galaxy 中查看本机线程信息，不切换账号；“在 Codex 中继续”会使用当前选中的账号完成必要的切换/同步并恢复该项目。</li><li>历史消息不会因 GPT、DeepSeek 或其他模型之间的切换而改写；新回复使用当前目标模型。</li><li>如果任务详情提示含加密推理状态，只表示另一家 provider 可能无法复用原 provider 的隐藏推理片段，不会删除聊天或项目文件。</li></ol></div></div></section>
+      <section class="tutorial-section"><span class="step-number">5</span><div><h3 data-i18n="tutorial.step5.title">API 模式保持托盘运行</h3><div data-i18n-en-html="tutorial.step5.body"><p>使用中转 API 时，Codex 会经过 Galaxy 的本地 Responses 网关。关闭 Galaxy 主窗口只会缩到系统托盘；请保持托盘运行，直到任务完成或切回官方账号。官方直连切换完成后可以退出 Galaxy；API 模式下退出主程序会同时停止本地网关。</p></div></div></section>
+      <section class="tutorial-section"><span class="step-number">6</span><div><h3 data-i18n="tutorial.step6.title">刷新项目与清理数据</h3><div data-i18n-en-html="tutorial.step6.body"><ol><li>“刷新项目”只重建显示列表，不删除原始数据。</li><li>需要彻底删除时，点击顶部“清理数据”，勾选“已归档/已删除项目”。Galaxy 会先创建可恢复备份，再清理对应的本地记录。</li><li>清理不会删除任何用户项目源代码目录。</li></ol></div></div></section>
+      <section class="tutorial-section"><span class="step-number">7</span><div><h3 data-i18n="tutorial.step7.title">异常恢复</h3><div data-i18n-en-html="tutorial.step7.body"><ol><li>切换失败时先看进度区提示。新版会自动恢复切换前的凭据、provider、网关和当前账号标记。</li><li>Galaxy 只允许一个程序实例执行切换；上次异常退出遗留的同步锁会在确认原进程已不存在后自动回收。</li><li>如果 Codex 提示 DNS、TLS、系统代理、上游内存过载或认证失败，先确认中转站及电脑网络正常；Galaxy 不会在错误信息中显示 API Key 或请求正文。</li><li>若自动恢复未完全成功，不要手改 <code>.codex</code> 文件；保留脱敏错误截图并提交反馈。</li></ol></div></div></section>
+      <section class="tutorial-section"><span class="step-number">8</span><div><h3 data-i18n="tutorial.step8.title">升级 Codex Galaxy</h3><div data-i18n-en-html="tutorial.step8.body"><ol><li>若正在使用 API，请先完成 Codex 当前任务；安装会关闭 Galaxy 及其本地网关。</li><li>直接运行新版安装包覆盖安装，不需要手动卸载旧版。账号配置和本地记录会保留。</li><li>1.1.0 已移除容易产生身份歧义的混合登录模式；旧 API 配置会自动迁移为独立纯 API 登录，不会改变加密保存的 API Key。</li><li>1.3.0 会在 Windows 外部 Codex Desktop 窗口右上区域显示可穿透鼠标的 Codex Galaxy 版本标识；Codex 不在前台或最小化时标识自动隐藏，也不会改写 Codex 文件。</li><li>如需额外保险，可先备份 <code>.codex-galaxy</code>，不要上传或提交到 Git。</li></ol></div></div></section>
+      <section class="tutorial-section"><span class="step-number">9</span><div><h3 data-i18n="tutorial.step9.title">插件、图片和自动化清理</h3><div data-i18n-en-html="tutorial.step9.body"><ol><li>顶部“插件”可以安装本地插件目录或添加插件市场。远程公共目录需要切换到已捕获的官方 ChatGPT 账号；没有官方账号时仍可使用不依赖远程目录的独立本地插件。</li><li>图片/文件能力取决于中转站与模型的实际支持，Galaxy 会原样转发请求内容。</li><li>自动化清理只处理完成/归档的运行历史，执行前备份，默认关闭；它与项目清理彼此独立。</li></ol></div></div></section>
+    </div>
+    <div class="dialog-actions"><button id="finishTutorial" class="button primary" data-i18n="dialog.finish">我知道了</button></div>
+  </dialog>
+  <dialog id="switchConfirmDialog" class="switch-confirm-dialog">
+    <div class="dialog-head"><div><p class="eyebrow">SAFE SWITCH</p><h2 id="switchConfirmTitle">Codex 可能仍有任务进行中</h2></div><span class="confirm-warning" aria-hidden="true">!</span></div>
+    <div class="confirm-body"><p id="switchConfirmMessage" class="confirm-message">检测到 Codex Desktop 正在运行。</p><p id="switchConfirmDetail" class="confirm-detail"></p></div>
+    <div class="dialog-actions"><button id="cancelSwitchConfirm" class="button secondary" data-i18n="confirm.cancel">取消，先处理任务</button><button id="continueSwitchConfirm" class="button primary" data-i18n="confirm.continue">继续切换</button></div>
+  </dialog>
+  <dialog id="pluginDialog" class="tutorial-dialog">
+    <div class="dialog-head"><div><p class="eyebrow">PLUGINS</p><h2 data-i18n="plugin.title">插件与插件市场</h2></div><button id="closePlugins" class="icon-button" title="关闭插件管理" data-i18n-title="dialog.closePlugins" aria-label="关闭插件管理" data-i18n-aria-label="dialog.closePlugins">×</button></div>
+    <div class="tutorial-intro" data-i18n="plugin.intro">插件目录留在本机 Codex Home，不随账号切换删除。API 账号使用独立纯 API 登录，账号之间切换不会借用或保留官方 OAuth。</div>
+    <p class="compatibility-note" data-i18n="plugin.authBoundary">远程公共插件目录需要先切换到已捕获的官方 ChatGPT 账号。使用纯 API 或没有官方账号时，仍可安装不依赖远程目录的独立本地插件。</p>
+    <div id="pluginList" class="messages"></div>
+    <div class="dialog-actions"><button id="installLocalPlugin" class="button primary" data-i18n="plugin.installLocal">安装本地插件目录</button></div>
+    <label><span data-i18n="plugin.marketplaceLabel">添加插件市场（GitHub owner/repo、Git URL 或本地目录）</span><input id="marketplaceSource" placeholder="例如：owner/repo" data-i18n-placeholder="plugin.marketplacePlaceholder" /></label>
+    <div class="dialog-actions"><button id="addMarketplace" class="button secondary" data-i18n="plugin.addMarketplace">添加插件市场</button><button id="finishPlugins" class="button primary" data-i18n="plugin.finish">完成</button></div>
+    <label class="api-field"><input id="autoCleanupCompleted" type="checkbox" /> <span data-i18n="plugin.autoCleanupLabel">切换账号时自动清理已完成自动化的历史记录（仅清理完成/归档状态，保留配置；执行前自动备份）</span></label>
+  </dialog>
+  <dialog id="cleanupDialog" class="switch-confirm-dialog cleanup-dialog">
+    <div class="dialog-head"><div><p class="eyebrow">SAFE DATA CLEANUP</p><h2 data-i18n="cleanup.title">清理本地无效数据</h2></div><button id="closeCleanup" class="icon-button" title="关闭数据清理" data-i18n-title="dialog.close" aria-label="关闭数据清理" data-i18n-aria-label="dialog.close">×</button></div>
+    <div class="confirm-body">
+      <p class="confirm-message" data-i18n="cleanup.select">选择要清理的数据</p>
+      <p id="cleanupWarning" class="confirm-detail" data-i18n="cleanup.scanningDetail">正在统计本机 Codex 数据，请稍候。</p>
+      <label class="cleanup-choice"><input id="cleanupProjects" type="checkbox" checked /><span><strong data-i18n="cleanup.projects">已归档/已删除项目</strong><small id="cleanupProjectsMeta" data-i18n="cleanup.scanning">正在扫描…</small></span></label>
+      <label class="cleanup-choice"><input id="cleanupAutomations" type="checkbox" /><span><strong data-i18n="cleanup.automations">已完成自动化运行历史</strong><small id="cleanupAutomationsMeta" data-i18n="cleanup.scanning">正在扫描…</small></span></label>
+      <div id="cleanupProgress" class="switch-progress" hidden>
+        <div><span id="cleanupProgressMessage">准备清理</span><strong id="cleanupProgressPercent">0%</strong></div>
+        <progress id="cleanupProgressBar" max="100" value="0"></progress>
+      </div>
+      <p class="cleanup-note" data-i18n-html="cleanup.note">项目会话会先压缩备份到 <code>.codex/backups_state</code>。不会删除用户项目文件夹或源代码。</p>
+    </div>
+    <div class="dialog-actions"><button id="cancelCleanup" class="button secondary" data-i18n="common.cancel">取消</button><button id="runCleanup" class="button primary" disabled data-i18n="cleanup.run">备份并清理</button></div>
+  </dialog>
+  <script src="./app.js"></script>
+</body>
+</html>

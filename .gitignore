@@ -1,0 +1,17 @@
+node_modules/
+dist/
+.codex/
+.codex-galaxy/
+.galaxy-channel/
+.env
+.env.*
+.npmrc
+auth.json
+*.key
+*.pem
+*.p12
+*.pfx
+coverage/
+*.log
+.DS_Store
+.codex-project/
