@@ -18,7 +18,7 @@ test("release identity stays compatible with 0.1.0 upgrades and preserves user d
   const preload = await fs.readFile(path.join(root, "electron", "preload.cjs"), "utf8");
   const overlayHtml = await fs.readFile(path.join(root, "public", "codex-overlay.html"), "utf8");
   const overlayHelper = await fs.readFile(path.join(root, "electron", "windows-codex-window.mjs"), "utf8");
-  assert.equal(packageJson.version, "1.5.0");
+  assert.equal(packageJson.version, "1.5.1");
   assert.equal(packageJson.author, "Guan Jingyang <guanjingyang@gmail.com>");
   assert.equal(packageJson.license, "MIT");
   assert.equal(packageJson.build.appId, "io.github.codex-galaxy.app");
@@ -77,8 +77,12 @@ test("release identity stays compatible with 0.1.0 upgrades and preserves user d
   assert.equal(html.match(/https:\/\/api\.zygtoken\.com\/register\?aff=Z3xM/g)?.length, 1);
   assert.match(html, /data-name="中转站 A"/);
   assert.match(html, /data-name="中转站 B"/);
-  assert.match(renderer, /relay A registration link/);
-  assert.match(renderer, /relay B registration link/);
+  assert.match(html, /点击获取中转站链接/);
+  assert.match(html, /按服务商提示完成开通/);
+  assert.match(renderer, /Get relay A link/);
+  assert.match(renderer, /Get relay B link/);
+  assert.doesNotMatch(html, /点击复制注册链接|注册链接/);
+  assert.doesNotMatch(renderer, /registration link|registration URL|注册链接|注册地址/);
   assert.match(renderer, /expandPluginMarketplace/);
   assert.match(electronMain, /codex-galaxy:expand-plugin-marketplace/);
   assert.match(preload, /expandPluginMarketplace/);
