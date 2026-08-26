@@ -315,7 +315,7 @@ async function restoreCurrentApiGateway() {
   const profile = await profileForSwitch(data.currentId, dataPaths);
   if (profile.kind !== "api") return;
   const live = await liveProfileMatch(codexPaths, profile, dataPaths.vault);
-  if (!live.matches) return;
+  if (!live.matches && !live.recoverableConfig) return;
   const runtime = await prepareProfileRuntime(profile);
   await applyProfile(codexPaths, runtime.profile, dataPaths.vault);
   await runtime.commit?.();
@@ -381,10 +381,18 @@ async function launchableThread(id) {
 async function launchThread(id, selectedProfile = null) {
   const thread = await launchableThread(id);
   const profile = selectedProfile || await currentProfile();
-  if (profile.kind === "api" && responsesGateway.status.profileId !== profile.id) {
-    const runtime = await prepareProfileRuntime(profile);
-    await applyProfile(codexPaths, runtime.profile, dataPaths.vault);
-    await runtime.commit?.();
+  if (profile.kind === "api") {
+    const live = await liveProfileMatch(codexPaths, profile, dataPaths.vault);
+    if (responsesGateway.status.profileId !== profile.id || !live.matches) {
+      const runtime = await prepareProfileRuntime(profile);
+      await applyProfile(codexPaths, runtime.profile, dataPaths.vault);
+      const verified = await liveProfileMatch(codexPaths, runtime.profile, dataPaths.vault);
+      if (!verified.matches) {
+        await runtime.rollback?.();
+        throw new Error(`中转 API 配置未能完整写入（${verified.reason || "状态不一致"}），已阻止 Codex 使用残缺配置启动。`);
+      }
+      await runtime.commit?.();
+    }
   }
   const cli = await findCodexCli();
   if (cli) {

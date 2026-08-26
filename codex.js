@@ -47,11 +47,23 @@ export async function liveProfileMatch(paths, profile, vaultFile) {
 
   if (profile.kind === "api") {
     const provider = String(profile.runtimeProvider || profile.providerKey || profile.id).trim();
-    const matches = config.model_provider === provider
-      && String(auth.auth_mode || "").toLowerCase() === "apikey"
-      && auth.OPENAI_API_KEY === profile.apiKey
-      && credentialConfigMatches(config);
-    return { matches, reason: matches ? "api-match" : "api-mismatch" };
+    const selected = config.model_provider === provider;
+    const authMatches = String(auth.auth_mode || "").toLowerCase() === "apikey"
+      && auth.OPENAI_API_KEY === profile.apiKey;
+    const credentialsMatch = credentialConfigMatches(config);
+    const definition = config.model_providers?.[provider];
+    const providerExists = Boolean(definition && typeof definition === "object" && !Array.isArray(definition));
+    const providerValid = providerExists
+      && String(definition.wire_api || "").toLowerCase() === "responses"
+      && Boolean(String(definition.base_url || "").trim());
+    const matches = selected && authMatches && credentialsMatch && providerValid;
+    const recoverableConfig = selected && authMatches && credentialsMatch && !providerValid;
+    const reason = matches
+      ? "api-match"
+      : recoverableConfig
+        ? providerExists ? "api-provider-invalid" : "api-provider-missing"
+        : "api-mismatch";
+    return { matches, reason, recoverableConfig };
   }
 
   const fingerprint = officialAuthFingerprint(authText);

@@ -279,6 +279,45 @@ test("API switching writes the prepared local gateway URL and commits its runtim
   assert.equal(result.profile.baseUrl, "https://relay.invalid/v1");
 });
 
+test("reselecting the active API profile repairs a missing provider table before launch", async () => {
+  const item = await fixture();
+  const effectiveProfile = {
+    ...(await profileForSwitch(item.api.id, item.dataPaths)),
+    baseUrl: "http://127.0.0.1:43821/v1",
+  };
+  await switchProfile(item.codexPaths, effectiveProfile, item.dataPaths.vault);
+  await setCurrent(item.api.id, item.dataPaths);
+  const broken = TOML.parse(await fs.readFile(item.codexPaths.config, "utf8"));
+  delete broken.model_providers;
+  broken.mcp_servers = { keep: { command: "keep-me" } };
+  await fs.writeFile(item.codexPaths.config, TOML.stringify(broken));
+  let launchSawCompleteProvider = false;
+
+  await switchAccountTransaction({
+    profileId: item.api.id,
+    codexPaths: item.codexPaths,
+    dataPaths: item.dataPaths,
+    stopCodexDesktop: async () => ({ stopped: 0, processIds: [] }),
+    prepareRuntime: async () => ({
+      profile: effectiveProfile,
+      forceApply: false,
+      commit: async () => {},
+      rollback: async () => {},
+    }),
+    launch: async () => {
+      const config = TOML.parse(await fs.readFile(item.codexPaths.config, "utf8"));
+      launchSawCompleteProvider = config.model_providers?.galaxy?.wire_api === "responses"
+        && config.model_providers.galaxy.base_url === "http://127.0.0.1:43821/v1";
+      return { method: "test" };
+    },
+  });
+
+  const repaired = TOML.parse(await fs.readFile(item.codexPaths.config, "utf8"));
+  assert.equal(launchSawCompleteProvider, true);
+  assert.equal(repaired.mcp_servers.keep.command, "keep-me");
+  assert.equal(repaired.model_providers.galaxy.wire_api, "responses");
+});
+
 test("a failed launch rolls back the prepared gateway runtime", async () => {
   const item = await fixture();
   let committed = false;

@@ -101,6 +101,51 @@ test("GPT relay switching keeps every GPT catalog entry and excludes other vendo
   assert.deepEqual(catalog.models.map((model) => model.display_name), ["GPT-5.6 Sol", "GPT-5.6 Terra", "GPT-5.4"]);
 });
 
+test("an API profile does not match when its selected provider definition is missing", async () => {
+  const home = await fs.mkdtemp(path.join(os.tmpdir(), "galaxy-codex-missing-provider-"));
+  const paths = {
+    home,
+    config: path.join(home, "config.toml"),
+    auth: path.join(home, "auth.json"),
+    modelCatalog: path.join(home, "catalog.json"),
+    backupDir: path.join(home, "backups"),
+  };
+  const vaultFile = path.join(home, "vault.json");
+  const profile = {
+    id: "api-a",
+    name: "API A",
+    kind: "api",
+    providerKey: "galaxy",
+    runtimeProvider: "galaxy",
+    baseUrl: "http://127.0.0.1:43821/v1",
+    apiKey: "test-key-not-real",
+    model: "gpt-5.6",
+  };
+  await fs.writeFile(paths.config, [
+    'model = "gpt-5.6"',
+    'model_provider = "galaxy"',
+    'cli_auth_credentials_store = "file"',
+    "",
+    "[mcp_servers.keep]",
+    'command = "keep-me"',
+    "",
+  ].join("\n"));
+  await fs.writeFile(paths.auth, '{"auth_mode":"apikey","OPENAI_API_KEY":"test-key-not-real"}\n');
+
+  const broken = await liveProfileMatch(paths, profile, vaultFile);
+  assert.equal(broken.matches, false);
+  assert.equal(broken.reason, "api-provider-missing");
+  assert.equal(broken.recoverableConfig, true);
+
+  await switchProfile(paths, profile, vaultFile);
+  const repaired = TOML.parse(await fs.readFile(paths.config, "utf8"));
+  assert.equal(repaired.model_provider, "galaxy");
+  assert.equal(repaired.model_providers.galaxy.wire_api, "responses");
+  assert.equal(repaired.model_providers.galaxy.base_url, "http://127.0.0.1:43821/v1");
+  assert.equal(repaired.mcp_servers.keep.command, "keep-me");
+  assert.equal((await liveProfileMatch(paths, profile, vaultFile)).matches, true);
+});
+
 test("official switching restores file credentials and removes stale forced-login settings", async () => {
   const home = await fs.mkdtemp(path.join(os.tmpdir(), "galaxy-codex-official-restore-"));
   const paths = { home, config: path.join(home, "config.toml"), auth: path.join(home, "auth.json"), modelCatalog: path.join(home, "catalog.json"), backupDir: path.join(home, "backups") };
