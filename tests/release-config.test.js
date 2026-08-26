@@ -16,9 +16,10 @@ test("release identity stays compatible with 0.1.0 upgrades and preserves user d
   const updater = await fs.readFile(path.join(root, "app-updater.js"), "utf8");
   const electronMain = await fs.readFile(path.join(root, "electron", "main.mjs"), "utf8");
   const preload = await fs.readFile(path.join(root, "electron", "preload.cjs"), "utf8");
+  const threadRepair = await fs.readFile(path.join(root, "thread-repair.js"), "utf8");
   const overlayHtml = await fs.readFile(path.join(root, "public", "codex-overlay.html"), "utf8");
   const overlayHelper = await fs.readFile(path.join(root, "electron", "windows-codex-window.mjs"), "utf8");
-  assert.equal(packageJson.version, "1.5.1");
+  assert.equal(packageJson.version, "1.6.0");
   assert.equal(packageJson.author, "Guan Jingyang <guanjingyang@gmail.com>");
   assert.equal(packageJson.license, "MIT");
   assert.equal(packageJson.build.appId, "io.github.codex-galaxy.app");
@@ -30,6 +31,7 @@ test("release identity stays compatible with 0.1.0 upgrades and preserves user d
   assert.ok(packageJson.build.files.includes("responses-gateway.js"));
   assert.ok(packageJson.build.files.includes("model-catalog.js"));
   assert.ok(packageJson.build.files.includes("project-cleanup.js"));
+  assert.ok(packageJson.build.files.includes("thread-repair.js"));
   assert.ok(packageJson.build.files.includes("app-updater.js"));
   assert.ok(packageJson.build.files.includes("electron/windows-codex-window.mjs"));
   assert.ok(packageJson.build.files.includes("public/codex-overlay.html"));
@@ -56,6 +58,11 @@ test("release identity stays compatible with 0.1.0 upgrades and preserves user d
   assert.match(preload, /checkUpdate/);
   assert.match(preload, /installUpdate/);
   assert.match(preload, /onUpdateStatus/);
+  assert.match(preload, /repairThread/);
+  assert.match(electronMain, /diagnoseThreadRollout/);
+  assert.match(electronMain, /repairThreadRollout/);
+  assert.match(threadRepair, /byte-exact/i);
+  assert.match(threadRepair, /session_meta/);
   assert.match(updater, /RELEASES_LATEST_PAGE_URL/);
   assert.match(updater, /guanjingyang0015\/Codex-Galaxy\/releases\/latest/);
   assert.match(updater, /SHA-256 校验失败/);

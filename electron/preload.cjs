@@ -9,6 +9,7 @@ contextBridge.exposeInMainWorld("codexGalaxy", {
   captureProfile: (id) => ipcRenderer.invoke("codex-galaxy:capture-profile", id),
   switchProfile: (profileId, operationId) => ipcRenderer.invoke("codex-galaxy:switch-profile", { profileId, operationId }),
   getThread: (id) => ipcRenderer.invoke("codex-galaxy:get-thread", id),
+  repairThread: (id) => ipcRenderer.invoke("codex-galaxy:repair-thread", id),
   launchThread: (id) => ipcRenderer.invoke("codex-galaxy:launch-thread", id),
   switchAndLaunch: (profileId, threadId, operationId) => ipcRenderer.invoke("codex-galaxy:switch-and-launch", { profileId, threadId, operationId }),
   copyText: (text) => ipcRenderer.invoke("codex-galaxy:copy-text", text),

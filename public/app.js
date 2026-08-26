@@ -1,7 +1,7 @@
 const $ = (selector) => document.querySelector(selector);
 const state = {
   profiles: [],
-  version: "1.5.1",
+  version: "1.6.0",
   threads: [],
   currentId: null,
   selectedProfileId: null,
@@ -14,6 +14,7 @@ const state = {
   switching: false,
   refreshing: false,
   cleaning: false,
+  repairing: false,
   gatewayRunning: false,
   gatewayError: null,
   codexRunning: false,
@@ -23,7 +24,7 @@ const state = {
   automation: { settings: { autoCleanCompleted: false }, completedFiles: 0, completedBytes: 0 },
   update: {
     phase: "idle",
-    currentVersion: "1.5.1",
+    currentVersion: "1.6.0",
     latestVersion: null,
     available: false,
     action: "install",
@@ -39,6 +40,7 @@ const translations = {
     "status.switching": "切换中",
     "status.refreshing": "刷新中",
     "status.cleaning": "清理中",
+    "status.repairing": "修复中",
     "status.updating": "更新中",
     "status.gatewayRunning": "本地网关运行中",
     "status.localProgram": "本机程序",
@@ -148,6 +150,18 @@ const translations = {
     "threads.dialogTitle": "线程",
     "threads.dialogCompatibility": "兼容性说明：此任务包含由原 provider 加密的推理状态。聊天和项目文件仍会保留，但另一家 provider 可能无法复用这段隐藏状态。",
     "threads.launched": "已用 {model} 打开原线程。",
+    "threads.healthHealthy": "会话结构正常，可直接继续。",
+    "threads.healthRepairRollout": "新版 Codex 要求 session_meta 必须是会话文件的第一条记录。Galaxy 已在原会话中找到匹配的真实元数据，可先完整备份，再安全调整记录顺序。",
+    "threads.healthRepairBackup": "原会话缺少开头元数据，但 Galaxy 找到了该线程的可信历史备份。可先完整备份当前文件，再恢复真实元数据。",
+    "threads.healthRepairRunning": " Codex 当前正在运行；请先完成任务并彻底退出 Codex，再点击修复。",
+    "threads.healthBlockedMismatch": "会话中的元数据属于另一个线程。为避免串错聊天，Galaxy 不会自动修复，请保留原文件进行人工恢复。",
+    "threads.healthBlockedMissing": "没有找到可验证的真实 session_meta 或可信 Galaxy 备份。Galaxy 不会伪造元数据，请保留原文件进行人工恢复。",
+    "threads.healthBlocked": "该会话无法自动安全修复。原文件不会被覆盖，请保留文件和错误截图进行人工恢复。",
+    "threads.healthUnavailable": "此项目没有可直接检查的 rollout 文件；Galaxy 会继续使用 Codex 本地索引恢复。",
+    "threads.repair": "备份并修复旧会话",
+    "threads.repairing": "正在备份并修复…",
+    "threads.repaired": "旧会话已安全修复，原文件的字节级备份保存在 {path}。现在可以继续该任务。",
+    "threads.repairedWithWarning": "旧会话已修复，字节级备份保存在 {path}。附加记录未能完整保存：{warning}",
     "switching": "准备切换",
     "switching.openText": "切换并打开 Codex",
     "switching.resyncText": "重新同步并打开 Codex",
@@ -241,6 +255,7 @@ const translations = {
     "status.switching": "Switching",
     "status.refreshing": "Refreshing",
     "status.cleaning": "Cleaning",
+    "status.repairing": "Repairing",
     "status.updating": "Updating",
     "status.gatewayRunning": "Local gateway running",
     "status.localProgram": "Local app",
@@ -350,6 +365,18 @@ const translations = {
     "threads.dialogTitle": "Thread",
     "threads.dialogCompatibility": "Compatibility note: this task contains encrypted reasoning state from the original provider. The chat and project files remain, but another provider may not be able to reuse that hidden state.",
     "threads.launched": "Opened the original thread with {model}.",
+    "threads.healthHealthy": "The session structure is healthy and can be resumed.",
+    "threads.healthRepairRollout": "New Codex versions require session_meta to be the first rollout record. Galaxy found matching real metadata in this rollout and can create a full backup before safely moving it.",
+    "threads.healthRepairBackup": "The rollout is missing its opening metadata, but Galaxy found a trusted historical backup for this thread. It can back up the current file before restoring the real metadata.",
+    "threads.healthRepairRunning": " Codex is running. Finish the current task and fully quit Codex before repairing.",
+    "threads.healthBlockedMismatch": "The metadata belongs to a different thread. Galaxy will not risk joining the wrong chats; keep the original file for manual recovery.",
+    "threads.healthBlockedMissing": "No verifiable real session_meta or trusted Galaxy backup was found. Galaxy will not invent metadata; keep the original file for manual recovery.",
+    "threads.healthBlocked": "This session cannot be repaired automatically and safely. The original file will not be overwritten; keep it and the error screenshot for manual recovery.",
+    "threads.healthUnavailable": "This project has no rollout file that Galaxy can inspect directly. Codex's local index will be used to resume it.",
+    "threads.repair": "Back up and repair old session",
+    "threads.repairing": "Backing up and repairing…",
+    "threads.repaired": "The old session was repaired safely. A byte-exact backup is stored at {path}. You can resume the task now.",
+    "threads.repairedWithWarning": "The old session was repaired and its byte-exact backup is stored at {path}. The additional audit record was not fully saved: {warning}",
     "switching": "Preparing switch",
     "switching.openText": "Switch and open Codex",
     "switching.resyncText": "Resync and open Codex",
@@ -512,7 +539,7 @@ function setLanguage(language) {
 }
 
 function operationBusy() {
-  return state.switching || state.refreshing || state.cleaning || updateOperationBusy();
+  return state.switching || state.refreshing || state.cleaning || state.repairing || updateOperationBusy();
 }
 
 function updateOperationBusy(update = state.update) {
@@ -526,6 +553,8 @@ function updateStatusPill() {
       ? t("status.refreshing")
       : state.cleaning
         ? t("status.cleaning")
+        : state.repairing
+          ? t("status.repairing")
         : updateOperationBusy()
           ? t("status.updating")
         : state.gatewayRunning
@@ -546,6 +575,7 @@ function updateOperationControls() {
   updateStatusPill();
   renderProfiles();
   renderThreads();
+  if (state.selectedThread && $("#threadDialog").open) renderThreadDialog(state.selectedThread);
 }
 
 function renderUpdateAction() {
@@ -567,6 +597,7 @@ function renderUpdateAction() {
   button.disabled = state.switching
     || state.refreshing
     || state.cleaning
+    || state.repairing
     || ["checking", "downloading", "ready", "installing"].includes(update.phase);
 }
 
@@ -582,7 +613,7 @@ function applyUpdateStatus(status) {
 }
 
 async function handleUpdateAction() {
-  if (state.switching || state.refreshing || state.cleaning || updateOperationBusy()) return;
+  if (operationBusy() || state.update.phase === "checking") return;
   try {
     if (!state.update.available) {
       const status = unwrap(await bridge.checkUpdate());
@@ -690,7 +721,7 @@ function renderProfiles() {
   const selected = selectedProfile();
   $("#selectedProfileName").textContent = selected?.name || t("common.pleaseSelect");
   $("#selectedProfileModel").textContent = selected ? `${profileLoginModeLabel(selected)} · ${profileModelLabel(selected)}` : t("common.selectToSwitch");
-  $("#switchOpenBtn").disabled = !selected || state.switching || state.refreshing || state.cleaning;
+  $("#switchOpenBtn").disabled = !selected || operationBusy();
   $("#switchOpenBtn").textContent = selected?.id === state.currentId ? t("switching.resyncText") : t("switching.openText");
   const current = state.profiles.find((profile) => profile.id === state.currentId);
   $("#currentProfileName").textContent = current?.name || t("common.notSelected");
@@ -799,7 +830,7 @@ function updateCleanupProgress({ percent = 0, message = t("cleanup.progress") })
 }
 
 async function openCleanup() {
-  if (state.switching || state.refreshing || state.cleaning) return;
+  if (operationBusy()) return;
   const dialog = $("#cleanupDialog");
   state.cleanupPreview = null;
   $("#cleanupProjectsMeta").textContent = t("cleanup.scanning");
@@ -836,7 +867,7 @@ async function openCleanup() {
 }
 
 async function runCleanup() {
-  if (state.cleaning) return;
+  if (operationBusy()) return;
   const projects = $("#cleanupProjects").checked;
   const automations = $("#cleanupAutomations").checked;
   if (!projects && !automations) return;
@@ -864,7 +895,7 @@ async function runCleanup() {
 }
 
 async function sync() {
-  if (state.switching || state.refreshing || state.cleaning) return;
+  if (operationBusy()) return;
   state.refreshOperationId = crypto.randomUUID();
   setRefreshing(true);
   updateRefreshProgress({ percent: 1, message: t("refresh.preparing"), completed: 0, total: 0 });
@@ -937,8 +968,13 @@ function setRefreshing(value) {
   updateOperationControls();
 }
 
+function setRepairing(value) {
+  state.repairing = value;
+  updateOperationControls();
+}
+
 async function switchAccount(profileId, threadId = null) {
-  if (state.switching || state.refreshing || state.cleaning) return;
+  if (operationBusy()) return;
   const profile = state.profiles.find((item) => item.id === profileId);
   if (!profile) return notice(t("switching.pleaseSelectAccount"), true);
   state.switchOperationId = crypto.randomUUID();
@@ -966,22 +1002,76 @@ async function switchAccount(profileId, threadId = null) {
   }
 }
 
-async function showThread(id) {
-  const thread = unwrap(await bridge.getThread(id));
-  state.selectedThread = thread;
+function threadHealthBlocksResume(thread) {
+  return ["repairable", "blocked"].includes(thread?.health?.status);
+}
+
+function threadHealthMessage(thread) {
+  const health = thread?.health || { status: "unavailable" };
+  if (health.status === "healthy") return t("threads.healthHealthy");
+  if (health.status === "repairable") {
+    const message = health.repairSource === "galaxy-backup"
+      ? t("threads.healthRepairBackup")
+      : t("threads.healthRepairRollout");
+    return `${message}${state.codexRunning ? t("threads.healthRepairRunning") : ""}`;
+  }
+  if (health.status === "blocked" && health.issue === "thread-mismatch") return t("threads.healthBlockedMismatch");
+  if (health.status === "blocked" && ["empty", "missing-metadata"].includes(health.issue)) return t("threads.healthBlockedMissing");
+  if (health.status === "blocked") return t("threads.healthBlocked");
+  return t("threads.healthUnavailable");
+}
+
+function renderThreadDialog(thread) {
   $("#dialogTitle").textContent = thread.title || t("common.unnamedThread");
   $("#dialogMeta").textContent = `${thread.cwd || t("common.noProjectDir")} · ${thread.provider || t("common.providerUnrecorded")} · ${formatDate(thread.updatedAt)}`;
+  const health = $("#dialogHealth");
+  health.className = `thread-health ${thread.health?.status || "unavailable"}`;
+  health.textContent = threadHealthMessage(thread);
   const compatibility = $("#dialogCompatibility");
   compatibility.hidden = !thread.compatibility?.encryptedContent;
   compatibility.textContent = thread.compatibility?.encryptedContent
     ? t("threads.dialogCompatibility")
     : "";
   $("#dialogMessages").innerHTML = (thread.messages || []).slice(-80).map((message) => `<div class="message ${escapeHtml(message.role)}"><div class="message-label">${escapeHtml(message.role)} · ${formatDate(message.timestamp)}</div>${escapeHtml(message.content)}</div>`).join("") || `<div class="empty">${t("threads.messagesEmpty")}</div>`;
-  $("#resumeProfiles").innerHTML = state.profiles.map((profile) => `<button data-profile-id="${escapeHtml(profile.id)}">${escapeHtml(profile.name)}<small>${escapeHtml(profileModelLabel(profile))}</small></button>`).join("") || `<span class="empty">${t("threads.addAccountFirst")}</span>`;
+  const blocked = threadHealthBlocksResume(thread);
+  const disabled = blocked || operationBusy() ? " disabled" : "";
+  $("#resumeProfiles").innerHTML = state.profiles.map((profile) => `<button data-profile-id="${escapeHtml(profile.id)}"${disabled}>${escapeHtml(profile.name)}<small>${escapeHtml(profileModelLabel(profile))}</small></button>`).join("") || `<span class="empty">${t("threads.addAccountFirst")}</span>`;
+  const repairButton = $("#repairThreadBtn");
+  repairButton.hidden = thread.health?.status !== "repairable";
+  repairButton.disabled = state.repairing || state.switching || state.refreshing || state.cleaning || updateOperationBusy();
+  repairButton.textContent = state.repairing ? t("threads.repairing") : t("threads.repair");
+  $("#launchBtn").disabled = blocked || operationBusy();
+  $("#copyResumeBtn").disabled = blocked || operationBusy();
+}
+
+async function showThread(id) {
+  const thread = unwrap(await bridge.getThread(id));
+  state.selectedThread = thread;
+  renderThreadDialog(thread);
   $("#threadDialog").showModal();
 }
 
+async function repairSelectedThread() {
+  if (!state.selectedThread || operationBusy()) return;
+  setRepairing(true);
+  try {
+    const repaired = unwrap(await bridge.repairThread(state.selectedThread.id));
+    state.selectedThread = repaired.thread;
+    state.codexRunning = false;
+    renderThreadDialog(state.selectedThread);
+    notice(t(repaired.warning ? "threads.repairedWithWarning" : "threads.repaired", {
+      path: repaired.backupFile,
+      warning: repaired.warning || "",
+    }), Boolean(repaired.warning));
+  } catch (error) {
+    notice(error.message, true);
+  } finally {
+    setRepairing(false);
+  }
+}
+
 async function launch(id) {
+  if (operationBusy()) return;
   const profileId = state.selectedProfileId || state.currentId;
   const profile = state.profiles.find((item) => item.id === profileId);
   if (profileId && (profileId !== state.currentId || profile?.kind === "api")) return switchAccount(profileId, id);
@@ -1032,6 +1122,7 @@ $("#finishTutorial").addEventListener("click", () => $("#tutorialDialog").close(
 $("#closePlugins").addEventListener("click", () => $("#pluginDialog").close());
 $("#finishPlugins").addEventListener("click", () => $("#pluginDialog").close());
 $("#autoCleanupCompleted").addEventListener("change", async (event) => {
+  if (operationBusy()) return;
   try {
     state.automation.settings = unwrap(await bridge.automationSettings({ autoCleanCompleted: event.currentTarget.checked }));
     notice(event.currentTarget.checked ? t("plugin.autoCleanupOn") : t("plugin.autoCleanupOff"), false);
@@ -1047,6 +1138,7 @@ $("#cleanupDialog").addEventListener("cancel", (event) => {
   if (state.cleaning) event.preventDefault();
 });
 $("#installLocalPlugin").addEventListener("click", async () => {
+  if (operationBusy()) return;
   try {
     const result = unwrap(await bridge.installLocalPlugin());
     if (!result.cancelled) {
@@ -1057,6 +1149,7 @@ $("#installLocalPlugin").addEventListener("click", async () => {
   } catch (error) { notice(error.message, true); }
 });
 $("#expandPluginMarketplace").addEventListener("click", async () => {
+  if (operationBusy()) return;
   try {
     const result = unwrap(await bridge.expandPluginMarketplace());
     if (result.cancelled) return;
@@ -1067,6 +1160,7 @@ $("#expandPluginMarketplace").addEventListener("click", async () => {
   } catch (error) { notice(error.message, true); }
 });
 $("#addMarketplace").addEventListener("click", async () => {
+  if (operationBusy()) return;
   const source = $("#marketplaceSource").value.trim();
   if (!source) return notice(t("plugin.marketplaceRequired"), true);
   try {
@@ -1093,12 +1187,13 @@ $("#switchConfirmDialog").addEventListener("close", () => {
 });
 
 $("#copyResumeBtn").addEventListener("click", async () => {
-  if (!state.selectedThread) return;
+  if (!state.selectedThread || threadHealthBlocksResume(state.selectedThread) || operationBusy()) return;
   const profile = selectedProfile() || state.profiles.find((item) => item.id === state.currentId);
   const model = profile?.model ? ` --model "${profile.model}"` : "";
   unwrap(await bridge.copyText(`codex resume "${state.selectedThread.id}"${model}`));
   notice(t("resume.copied"));
 });
+$("#repairThreadBtn").addEventListener("click", repairSelectedThread);
 
 document.querySelectorAll(".relay-copy").forEach((button) => {
   button.addEventListener("click", async () => {
@@ -1118,7 +1213,7 @@ document.querySelectorAll(".relay-copy").forEach((button) => {
 $("#launchBtn").addEventListener("click", () => state.selectedThread && launch(state.selectedThread.id));
 $("#resumeProfiles").addEventListener("click", (event) => {
   const button = event.target.closest("button[data-profile-id]");
-  if (button && state.selectedThread) switchAccount(button.dataset.profileId, state.selectedThread.id);
+  if (button && state.selectedThread && !threadHealthBlocksResume(state.selectedThread)) switchAccount(button.dataset.profileId, state.selectedThread.id);
 });
 
 $("#profileForm").addEventListener("submit", async (event) => {

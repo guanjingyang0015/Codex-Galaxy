@@ -11,6 +11,7 @@ Codex Galaxy is a local desktop utility for switching between Codex accounts and
 - Switch between an official account and multiple API profiles
 - Use API-to-API switching without an official account
 - Resume existing local tasks with less repeated setup
+- Check old session format and safely restore it from a verified backup when needed
 - Manage local plugins, downloaded marketplaces, and project data
 - Check for updates automatically; Windows can install them and macOS opens the latest download page
 - Use Simplified Chinese or English

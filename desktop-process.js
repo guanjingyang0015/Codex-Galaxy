@@ -24,6 +24,19 @@ export function isWindowsCodexDesktopProcess(processInfo) {
     && /(?:^|\s)app-server(?:\s|$)/i.test(String(processInfo?.commandLine || ""));
 }
 
+export function isWindowsCodexCliProcess(processInfo) {
+  const name = String(processInfo?.name || "");
+  const executable = String(processInfo?.executablePath || "").replaceAll("/", "\\").toLowerCase();
+  const commandLine = String(processInfo?.commandLine || "");
+  if (!/^codex\.exe$/i.test(name)) return false;
+  if (isWindowsCodexDesktopProcess(processInfo)) return false;
+  if (!executable || executable.includes("\\windowsapps\\")) return false;
+  // A missing command line is not enough evidence to terminate a process.
+  // WMI can return unrelated executables with the same basename; only treat
+  // an invocation that identifies codex.exe as a Codex CLI writer as trusted.
+  return Boolean(commandLine) && /(?:^|[\\/])codex\.exe(?:["'\s]|$)/i.test(commandLine);
+}
+
 function run(command, args, allowedExitCodes = [0]) {
   return new Promise((resolve, reject) => {
     const child = spawn(command, args, { windowsHide: true, stdio: ["ignore", "pipe", "pipe"] });
@@ -51,6 +64,20 @@ async function windowsDesktopProcesses() {
       commandLine: item.CommandLine,
     }))
     .filter((item) => Number.isInteger(item.pid) && item.pid > 0 && isWindowsCodexDesktopProcess(item));
+}
+
+async function windowsCodexCliProcesses() {
+  const script = "$ErrorActionPreference='Stop'; @(Get-CimInstance Win32_Process | Select-Object ProcessId,Name,ExecutablePath,CommandLine) | ConvertTo-Json -Compress";
+  const output = await run("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", script]);
+  const parsed = output.trim() ? JSON.parse(output) : [];
+  return (Array.isArray(parsed) ? parsed : [parsed])
+    .map((item) => ({
+      pid: Number(item.ProcessId),
+      name: item.Name,
+      executablePath: item.ExecutablePath,
+      commandLine: item.CommandLine,
+    }))
+    .filter((item) => Number.isInteger(item.pid) && item.pid > 0 && isWindowsCodexCliProcess(item));
 }
 
 const windowsDesktopWindowScript = `
@@ -146,6 +173,14 @@ async function macDesktopProcesses() {
   return [...ids].map((pid) => ({ pid }));
 }
 
+async function macCodexCliProcesses() {
+  const output = await run("/usr/bin/pgrep", ["-x", "codex"], [0, 1]);
+  return output.split(/\r?\n/)
+    .map((line) => Number(line.trim()))
+    .filter((pid) => Number.isInteger(pid) && pid > 0)
+    .map((pid) => ({ pid, name: "codex" }));
+}
+
 async function desktopProcesses(platform) {
   if (platform === "win32") return windowsDesktopProcesses();
   if (platform === "darwin") return macDesktopProcesses();
@@ -154,6 +189,20 @@ async function desktopProcesses(platform) {
 
 export function findCodexDesktopProcesses(platform = process.platform) {
   return desktopProcesses(platform);
+}
+
+export async function findCodexWriterProcesses(platform = process.platform) {
+  if (platform === "win32") {
+    const [desktop, cli] = await Promise.all([windowsDesktopProcesses(), windowsCodexCliProcesses()]);
+    const byPid = new Map([...desktop, ...cli].map((item) => [item.pid, item]));
+    return [...byPid.values()];
+  }
+  if (platform === "darwin") {
+    const [desktop, cli] = await Promise.all([macDesktopProcesses(), macCodexCliProcesses()]);
+    const byPid = new Map([...desktop, ...cli].map((item) => [item.pid, item]));
+    return [...byPid.values()];
+  }
+  return [];
 }
 
 export function findCodexDesktopWindows(platform = process.platform) {
@@ -168,7 +217,7 @@ function wait(milliseconds) {
 export async function stopCodexDesktopAndWait({
   platform = process.platform,
   timeoutMs = STOP_TIMEOUT_MS,
-  listProcesses = () => findCodexDesktopProcesses(platform),
+  listProcesses = () => findCodexWriterProcesses(platform),
   terminate = (pid) => process.kill(pid, platform === "darwin" ? "SIGTERM" : "SIGKILL"),
   pollIntervalMs = POLL_INTERVAL_MS,
 } = {}) {
@@ -195,5 +244,5 @@ export async function stopCodexDesktopAndWait({
     }
     await wait(Math.max(0, pollIntervalMs));
   }
-  throw new Error(`无法完全关闭 Codex Desktop 及其后台服务（进程 ${remaining.join(", ") || "仍在重启"}），请手动退出后重试。`);
+  throw new Error(`无法完全关闭 Codex 及其写入进程（进程 ${remaining.join(", ") || "仍在重启"}），请手动退出后重试。`);
 }

@@ -10,7 +10,7 @@ import { syncConversations, readLibrary, readThreadDetail } from "../sync.js";
 import { setPlatformSecretProvider } from "../vault.js";
 import { buildMacTerminalArgs, buildResumeArgs, formatResumeCommand, waitForSpawn } from "../launcher.js";
 import { switchAccountTransaction } from "../account-switch.js";
-import { findCodexDesktopProcesses, findCodexDesktopWindows, stopCodexDesktopAndWait } from "../desktop-process.js";
+import { findCodexDesktopWindows, findCodexWriterProcesses, stopCodexDesktopAndWait } from "../desktop-process.js";
 import { codexOverlayBounds, CODEX_VERSION_OVERLAY_SIZE, selectCodexOverlayTarget } from "./codex-overlay.mjs";
 import { prepareGatewayRuntime, ResponsesGateway } from "../responses-gateway.js";
 import { recentThreadModels, targetProviderForProfile } from "../provider-sync.js";
@@ -18,6 +18,7 @@ import { addMarketplace, expandMarketplace, installLocalPlugin, listLocalPlugins
 import { cleanupCompletedAutomations, getAutomationSettings, previewCompletedAutomations, setAutomationSettings } from "../automation-cleanup.js";
 import { cleanupInvalidProjects, previewInvalidProjects } from "../project-cleanup.js";
 import { AppUpdater } from "../app-updater.js";
+import { diagnoseThreadRollout, repairThreadRollout } from "../thread-repair.js";
 
 const appRoot = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const codexPaths = defaultPaths();
@@ -27,6 +28,8 @@ const hasSingleInstanceLock = app.requestSingleInstanceLock();
 let switching = false;
 let refreshing = false;
 let cleaning = false;
+let repairing = false;
+let launching = false;
 let mainWindow = null;
 let tray = null;
 let quitting = false;
@@ -74,7 +77,7 @@ async function getState() {
     library = await readLibrary(dataPaths.library);
   }
   const codex = await inspectCodex(codexPaths);
-  const running = await findCodexDesktopProcesses();
+  const running = await findCodexWriterProcesses();
   const plugins = await listLocalPlugins(codexPaths.home);
   const automation = { settings: await getAutomationSettings(dataPaths.settings), preview: await previewCompletedAutomations(codexPaths.home) };
   return {
@@ -352,10 +355,31 @@ async function currentProfile() {
   return profileForSwitch(data.currentId, dataPaths);
 }
 
-async function launchThread(id, selectedProfile = null) {
+async function libraryThread(id) {
   const library = await readLibrary(dataPaths.library);
   const thread = library.threads.find((item) => item.id === id);
   if (!thread) throw new Error("找不到该项目线程，请先刷新项目。");
+  return thread;
+}
+
+function assertThreadLaunchable(health) {
+  if (health.status === "repairable") {
+    throw new Error("这个旧会话不符合新版 Codex 的会话格式。请先点“查看详情”，关闭 Codex 后使用“备份并修复旧会话”。");
+  }
+  if (health.status === "blocked") {
+    throw new Error("这个旧会话缺少可验证的真实会话元数据，Galaxy 已阻止直接继续，以免损坏聊天。请保留原文件和错误截图进行人工恢复。");
+  }
+}
+
+async function launchableThread(id) {
+  const thread = await libraryThread(id);
+  const health = await diagnoseThreadRollout({ codexHome: codexPaths.home, thread });
+  assertThreadLaunchable(health);
+  return thread;
+}
+
+async function launchThread(id, selectedProfile = null) {
+  const thread = await launchableThread(id);
   const profile = selectedProfile || await currentProfile();
   if (profile.kind === "api" && responsesGateway.status.profileId !== profile.id) {
     const runtime = await prepareProfileRuntime(profile);
@@ -408,6 +432,8 @@ async function exclusiveSwitch(task) {
   if (switching) throw new Error("另一个账号切换仍在进行，请等待完成。");
   if (refreshing) throw new Error("项目刷新仍在进行，请等待完成后再切换账号。");
   if (cleaning) throw new Error("数据清理仍在进行，请等待完成后再切换账号。");
+  if (repairing) throw new Error("旧会话修复仍在进行，请等待完成后再切换账号。");
+  if (launching) throw new Error("Codex 正在启动，请等待完成后再切换账号。");
   switching = true;
   try {
     return await task();
@@ -420,6 +446,8 @@ async function exclusiveRefresh(task) {
   if (switching) throw new Error("账号切换仍在进行，请等待完成后再刷新项目。");
   if (refreshing) throw new Error("另一个项目刷新仍在进行，请等待完成。");
   if (cleaning) throw new Error("数据清理仍在进行，请等待完成后再刷新项目。");
+  if (repairing) throw new Error("旧会话修复仍在进行，请等待完成后再刷新项目。");
+  if (launching) throw new Error("Codex 正在启动，请等待完成后再刷新项目。");
   refreshing = true;
   try {
     return await task();
@@ -432,11 +460,49 @@ async function exclusiveCleanup(task) {
   if (switching) throw new Error("账号切换仍在进行，请等待完成后再清理数据。");
   if (refreshing) throw new Error("项目刷新仍在进行，请等待完成后再清理数据。");
   if (cleaning) throw new Error("另一个数据清理仍在进行，请等待完成。");
+  if (repairing) throw new Error("旧会话修复仍在进行，请等待完成后再清理数据。");
+  if (launching) throw new Error("Codex 正在启动，请等待完成后再清理数据。");
   cleaning = true;
   try {
     return await task();
   } finally {
     cleaning = false;
+  }
+}
+
+async function exclusiveRepair(task) {
+  if (switching) throw new Error("账号切换仍在进行，请等待完成后再修复旧会话。");
+  if (refreshing) throw new Error("项目刷新仍在进行，请等待完成后再修复旧会话。");
+  if (cleaning) throw new Error("数据清理仍在进行，请等待完成后再修复旧会话。");
+  if (repairing) throw new Error("另一个旧会话修复仍在进行，请等待完成。");
+  if (launching) throw new Error("Codex 正在启动，请等待完成后再修复旧会话。");
+  repairing = true;
+  try {
+    return await task();
+  } finally {
+    repairing = false;
+  }
+}
+
+async function exclusiveLaunch(task) {
+  if (switching) throw new Error("账号切换仍在进行，请等待完成后再打开项目。");
+  if (refreshing) throw new Error("项目刷新仍在进行，请等待完成后再打开项目。");
+  if (cleaning) throw new Error("数据清理仍在进行，请等待完成后再打开项目。");
+  if (repairing) throw new Error("旧会话修复仍在进行，请等待完成后再打开项目。");
+  if (launching) throw new Error("另一个 Codex 启动操作仍在进行，请等待完成。");
+  launching = true;
+  try {
+    return await task();
+  } finally {
+    launching = false;
+  }
+}
+
+async function assertCodexWritersStopped() {
+  const running = await findCodexWriterProcesses();
+  if (running.length) {
+    const names = [...new Set(running.map((item) => item.name).filter(Boolean))].join("、");
+    throw new Error(`检测到 Codex 仍在运行（${names || "Codex 进程"}）。请先完成当前任务并彻底退出 Codex，再修复旧会话。`);
   }
 }
 
@@ -447,7 +513,7 @@ function progressReporter(event, operationId, channel = "codex-galaxy:switch-pro
 }
 
 async function confirmRunningCodexSwitch(event) {
-  const running = await findCodexDesktopProcesses();
+  const running = await findCodexWriterProcesses();
   if (!running.length) return true;
   const owner = BrowserWindow.fromWebContents(event.sender) || undefined;
   if (!owner || owner.isDestroyed() || owner.webContents.isDestroyed()) return false;
@@ -463,8 +529,8 @@ async function confirmRunningCodexSwitch(event) {
     owner.webContents.send("codex-galaxy:confirm-switch", {
       requestId,
       title: "Codex 可能仍有任务进行中",
-      message: "检测到 Codex Desktop 正在运行。",
-      detail: "Codex Galaxy 无法可靠判断模型是否仍在生成或执行命令。继续切换会关闭 Codex，正在进行的任务可能被中断。\n\n如果任务仍在运行，请取消并先在 Codex 中手动停止；确认没有任务后再切换。",
+      message: "检测到 Codex 或 Codex CLI 正在运行。",
+      detail: "Codex Galaxy 无法可靠判断模型是否仍在生成或执行命令。继续切换会关闭 Codex 及其写入进程，正在进行的任务可能被中断。\n\n如果任务仍在运行，请取消并先在 Codex 中手动停止；确认没有任务后再切换。",
     });
   });
 }
@@ -560,14 +626,32 @@ function registerHandlers() {
     });
   })));
   ipcMain.handle("codex-galaxy:get-thread", (_, id) => result(async () => {
-    const library = await readLibrary(dataPaths.library);
-    const thread = library.threads.find((item) => item.id === id);
-    if (!thread) throw new Error("找不到线程");
-    return readThreadDetail(thread, codexPaths.home);
+    const thread = await libraryThread(id);
+    const health = await diagnoseThreadRollout({ codexHome: codexPaths.home, thread });
+    const detail = health.status === "repairable" || health.status === "blocked"
+      ? { ...thread, messages: [] }
+      : await readThreadDetail(thread, codexPaths.home);
+    return { ...detail, health };
   }));
-  ipcMain.handle("codex-galaxy:launch-thread", (_, id) => result(() => launchThread(id)));
+  ipcMain.handle("codex-galaxy:repair-thread", (_, id) => result(() => exclusiveRepair(async () => {
+    await assertCodexWritersStopped();
+    const thread = await libraryThread(id);
+    const repaired = await repairThreadRollout({
+      codexHome: codexPaths.home,
+      thread,
+      onBeforeCommit: assertCodexWritersStopped,
+    });
+    const detail = await readThreadDetail(thread, codexPaths.home);
+    return {
+      thread: { ...detail, health: repaired.diagnosis },
+      backupFile: repaired.backupFile,
+      warning: repaired.warning || null,
+    };
+  })));
+  ipcMain.handle("codex-galaxy:launch-thread", (_, id) => result(() => exclusiveLaunch(() => launchThread(id))));
   ipcMain.handle("codex-galaxy:switch-and-launch", (event, request) => result(() => exclusiveSwitch(async () => {
     if (!request?.profileId || !request?.threadId) throw new Error("账号和线程不能为空。");
+    await launchableThread(request.threadId);
     const report = progressReporter(event, request.operationId);
     if (!await confirmRunningCodexSwitch(event)) return { cancelled: true };
     return switchAccountTransaction({
@@ -608,7 +692,7 @@ function registerHandlers() {
     const [projects, automations, running] = await Promise.all([
       previewInvalidProjects(codexPaths.home, dataPaths.library),
       previewCompletedAutomations(codexPaths.home),
-      findCodexDesktopProcesses(),
+      findCodexWriterProcesses(),
     ]);
     return { projects, automations, codexRunning: running.length > 0 };
   }));
@@ -617,7 +701,7 @@ function registerHandlers() {
     const cleanAutomations = request?.automations === true;
     if (!cleanProjects && !cleanAutomations) throw new Error("请选择至少一种要清理的数据。");
     const report = progressReporter(event, request?.operationId, "codex-galaxy:cleanup-progress");
-    const running = cleanProjects ? await findCodexDesktopProcesses() : [];
+    const running = cleanProjects ? await findCodexWriterProcesses() : [];
     const reopenCodex = running.length > 0;
     let reopenedCodex = false;
     if (reopenCodex) {

@@ -1,6 +1,6 @@
 {
   "name": "codex-galaxy",
-  "version": "1.5.1",
+  "version": "1.6.0",
   "private": true,
   "author": "Guan Jingyang <guanjingyang@gmail.com>",
   "description": "Codex Galaxy: local account switching and cross-model project continuity for Codex.",
@@ -50,6 +50,7 @@
       "plugin-manager.js",
       "automation-cleanup.js",
       "project-cleanup.js",
+      "thread-repair.js",
       "desktop-process.js",
       "sync.js",
       "vault.js",

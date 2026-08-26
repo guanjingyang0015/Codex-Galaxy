@@ -73,6 +73,10 @@ button:focus-visible, input:focus-visible, select:focus-visible, [tabindex]:focu
 .notice { position: absolute; top: 8px; right: 0; z-index: 20; width: min(520px, 80vw); padding: 11px 13px; border: 1px solid #3f6959; border-radius: 7px; background: #17241f; box-shadow: 0 12px 32px rgba(0, 0, 0, 0.38); color: #bdebd7; font-size: 12px; line-height: 1.5; }
 .notice.error { border-color: #714a4a; background: #291b1b; color: #ffc1c1; }
 .compatibility-note { margin: 10px 0 14px; padding: 10px 12px; border-left: 3px solid #8c7a45; background: #201e17; color: #d9cca6; font-size: 12px; line-height: 1.6; }
+.thread-health { margin: 12px 22px 0; padding: 10px 12px; border: 1px solid #3e5b50; border-radius: 7px; background: #17241f; color: #bdebd7; font-size: 11px; line-height: 1.55; }
+.thread-health.repairable { border-color: #8d6d38; background: #2b2417; color: #f3d391; }
+.thread-health.blocked { border-color: #714a4a; background: #291b1b; color: #ffc1c1; }
+.thread-health.unavailable { border-color: var(--line); background: var(--surface-2); color: var(--muted); }
 .refresh-progress { position: absolute; top: 8px; right: 0; z-index: 19; width: min(520px, 80vw); min-height: 64px; padding: 11px 13px; border: 1px solid var(--line); border-radius: 7px; background: var(--surface); box-shadow: 0 12px 32px rgba(0, 0, 0, 0.38); }
 .refresh-progress > div { display: flex; justify-content: space-between; gap: 12px; color: #cbd1d6; font-size: 11px; }
 .refresh-progress strong { color: var(--text); }
@@ -93,6 +97,8 @@ button:focus-visible, input:focus-visible, select:focus-visible, [tabindex]:focu
 .button.primary { background: var(--accent); color: #0c1712; }
 .button.primary:hover { background: #91e0bd; }
 .button.secondary { border: 1px solid var(--line); background: var(--surface-2); color: var(--text); }
+.button.repair { margin-right: auto; border: 1px solid #9f7f43; background: #2c2518; color: #f1ca7a; }
+.button.repair:hover { border-color: var(--amber); color: #ffe0a1; }
 .button:disabled { cursor: wait; opacity: 0.48; }
 .button.wide { width: 100%; min-height: 40px; }
 

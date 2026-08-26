@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { isWindowsCodexDesktopProcess, stopCodexDesktopAndWait } from "../desktop-process.js";
+import { isWindowsCodexCliProcess, isWindowsCodexDesktopProcess, stopCodexDesktopAndWait } from "../desktop-process.js";
 import { codexOverlayBounds, selectCodexOverlayTarget } from "../electron/codex-overlay.mjs";
 
 test("Windows process filter matches Codex Desktop without matching the CLI or normal ChatGPT", () => {
@@ -21,6 +21,33 @@ test("Windows process filter matches Codex Desktop without matching the CLI or n
     commandLine: '"C:\\Program Files\\WindowsApps\\OpenAI.Codex_1.2.3_x64__id\\app\\resources\\codex.exe" resume thread-id',
   }), false);
   assert.equal(isWindowsCodexDesktopProcess({ name: "ChatGPT.exe", executablePath: "C:\\Apps\\ChatGPT.exe" }), false);
+});
+
+test("Windows process filter recognizes Codex CLI writers but not Galaxy or unrelated executables", () => {
+  assert.equal(isWindowsCodexCliProcess({
+    name: "codex.exe",
+    executablePath: "C:\\Users\\test\\.codex\\bin\\codex.exe",
+    commandLine: '"C:\\Users\\test\\.codex\\bin\\codex.exe" resume thread-id',
+  }), true);
+  assert.equal(isWindowsCodexCliProcess({
+    name: "codex.exe",
+    executablePath: "C:\\Users\\test\\.codex\\bin\\codex.exe",
+    commandLine: '"C:\\Users\\test\\.codex\\bin\\codex.exe" app-server',
+  }), true);
+  assert.equal(isWindowsCodexCliProcess({
+    name: "Codex Galaxy.exe",
+    executablePath: "C:\\Program Files\\Codex Galaxy\\Codex Galaxy.exe",
+    commandLine: '"C:\\Program Files\\Codex Galaxy\\Codex Galaxy.exe"',
+  }), false);
+  assert.equal(isWindowsCodexCliProcess({
+    name: "codex.exe",
+    executablePath: "C:\\Program Files\\WindowsApps\\OpenAI.Codex_1.2.3_x64__id\\app\\resources\\codex.exe",
+    commandLine: '"C:\\Program Files\\WindowsApps\\OpenAI.Codex_1.2.3_x64__id\\app\\resources\\codex.exe" app-server',
+  }), false);
+  assert.equal(isWindowsCodexCliProcess({
+    name: "codex.exe",
+    executablePath: "C:\\Users\\test\\.codex\\bin\\codex.exe",
+  }), false);
 });
 
 test("desktop process shutdown waits until the selected processes exit", async () => {

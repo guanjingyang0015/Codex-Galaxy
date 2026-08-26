@@ -9,7 +9,7 @@
 <body>
   <div class="shell">
     <header class="topbar">
-          <div class="brand"><span class="brand-mark">CG</span><div><div class="brand-name">Codex Galaxy</div><div class="brand-sub">v<span id="appVersionInline">1.5.1</span></div></div></div>
+          <div class="brand"><span class="brand-mark">CG</span><div><div class="brand-name">Codex Galaxy</div><div class="brand-sub">v<span id="appVersionInline">1.6.0</span></div></div></div>
       <div class="top-actions">
         <button id="updateBtn" class="button secondary update-action" data-i18n="update.check">检查更新</button>
         <label class="language-control" title="语言 / Language">
@@ -78,7 +78,7 @@
       <section class="footer-strip"><div><span class="mini-label" data-i18n="footer.codexHome">CODEX HOME</span><code id="codexHome">检测中</code></div><div><span class="mini-label" data-i18n="footer.library">本地项目库</span><strong id="libraryMeta">未同步</strong></div><div><span class="mini-label" data-i18n="footer.author">作者邮箱</span><strong>guanjingyang@gmail.com</strong></div></section>
     </main>
   </div>
-  <dialog id="threadDialog"><div class="dialog-head"><div><p class="eyebrow">THREAD DETAIL</p><h2 id="dialogTitle">线程</h2></div><button id="closeDialog" class="icon-button" title="关闭" data-i18n-title="dialog.close" aria-label="关闭" data-i18n-aria-label="dialog.close">×</button></div><div id="dialogMeta" class="dialog-meta"></div><div id="dialogCompatibility" class="compatibility-note" hidden></div><div id="dialogMessages" class="messages"></div><div class="resume-zone"><span class="mini-label" data-i18n="threads.selectAccountResume">选择账号并继续</span><div id="resumeProfiles" class="resume-profiles"></div></div><div class="dialog-actions"><button id="launchBtn" class="button primary" data-i18n="threads.launchWithCurrent">用当前账号继续</button><button id="copyResumeBtn" class="button secondary" data-i18n="threads.copyResume">复制 resume 命令</button></div></dialog>
+  <dialog id="threadDialog"><div class="dialog-head"><div><p class="eyebrow">THREAD DETAIL</p><h2 id="dialogTitle">线程</h2></div><button id="closeDialog" class="icon-button" title="关闭" data-i18n-title="dialog.close" aria-label="关闭" data-i18n-aria-label="dialog.close">×</button></div><div id="dialogMeta" class="dialog-meta"></div><div id="dialogHealth" class="thread-health" role="status"></div><div id="dialogCompatibility" class="compatibility-note" hidden></div><div id="dialogMessages" class="messages"></div><div class="resume-zone"><span class="mini-label" data-i18n="threads.selectAccountResume">选择账号并继续</span><div id="resumeProfiles" class="resume-profiles"></div></div><div class="dialog-actions"><button id="repairThreadBtn" class="button repair" hidden data-i18n="threads.repair">备份并修复旧会话</button><button id="launchBtn" class="button primary" data-i18n="threads.launchWithCurrent">用当前账号继续</button><button id="copyResumeBtn" class="button secondary" data-i18n="threads.copyResume">复制 resume 命令</button></div></dialog>
   <dialog id="tutorialDialog" class="tutorial-dialog">
     <div class="dialog-head"><div><p class="eyebrow">SAFE SWITCHING GUIDE</p><h2 data-i18n="tutorial.title">安全切换教程</h2></div><button id="closeTutorial" class="icon-button" title="关闭教程" data-i18n-title="dialog.closeTutorial" aria-label="关闭教程" data-i18n-aria-label="dialog.closeTutorial">×</button></div>
     <div class="tutorial-intro" data-i18n="tutorial.intro">项目和完整聊天记录始终保存在本机同一个 Codex Home 中。Codex Galaxy 切换的是登录凭据、API provider 和继续项目所需的本地索引，不会把聊天上传到其他账号。</div>
