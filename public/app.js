@@ -1,7 +1,7 @@
 const $ = (selector) => document.querySelector(selector);
 const state = {
   profiles: [],
-  version: "1.4.0",
+  version: "1.5.0",
   threads: [],
   currentId: null,
   selectedProfileId: null,
@@ -23,7 +23,7 @@ const state = {
   automation: { settings: { autoCleanCompleted: false }, completedFiles: 0, completedBytes: 0 },
   update: {
     phase: "idle",
-    currentVersion: "1.4.0",
+    currentVersion: "1.5.0",
     latestVersion: null,
     available: false,
     action: "install",
@@ -124,8 +124,9 @@ const translations = {
     "apiGuide.badge": "纯 API",
     "apiGuide.title": "无官方账号也能用：手机号/邮箱注册中转站即可",
     "apiGuide.description": "点击中转站即可复制注册地址。注册后，将 <code>Base URL</code> 和 <code>API Key</code> 填入“添加账号”即可使用。",
-    "apiGuide.copyRight": "复制 RightAPI 注册链接",
-    "apiGuide.copyZyg": "复制 ZYG Token 注册链接",
+    "apiGuide.copyRight": "复制中转站 A 注册链接",
+    "apiGuide.copyZyg": "复制中转站 B 注册链接",
+    "apiGuide.copyHint": "点击复制注册链接",
     "switch.target": "准备切换到",
     "switch.open": "切换并打开 Codex",
     "threads.empty": "还没有本地线程。点击“刷新项目”重新扫描。",
@@ -192,8 +193,9 @@ const translations = {
     "plugin.title": "插件与插件市场",
     "plugin.empty": "暂未发现本地插件。可以安装一个本地插件目录，或先添加插件市场。",
     "plugin.intro": "插件目录留在本机 Codex Home，不随账号切换删除。API 账号使用独立纯 API 登录，账号之间切换不会借用或保留官方 OAuth。",
-    "plugin.authBoundary": "远程公共插件目录需要先切换到已捕获的官方 ChatGPT 账号。使用纯 API 或没有官方账号时，仍可安装不依赖远程目录的独立本地插件。",
+    "plugin.authBoundary": "远程公共插件目录是否可见由 Codex 当前登录态与官方支持决定；Galaxy 不伪造权限。没有官方账号时仍可使用纯 API、本地插件和已下载的本地插件市场。",
     "plugin.installLocal": "安装本地插件目录",
+    "plugin.expandMarketplace": "自动扩展本地插件市场",
     "plugin.marketplaceLabel": "添加插件市场（GitHub owner/repo、Git URL 或本地目录）",
     "plugin.marketplacePlaceholder": "例如：owner/repo",
     "plugin.addMarketplace": "添加插件市场",
@@ -201,6 +203,8 @@ const translations = {
     "plugin.installed": "插件 {name} 已安装。请重新打开 Codex 插件页面。",
     "plugin.marketplaceAdded": "插件市场已添加，请在 Codex 插件页刷新。",
     "plugin.marketplaceRequired": "请填写插件市场地址。",
+    "plugin.marketplaceExpanded": "已从本地插件市场安装 {count} 个插件。请重新打开 Codex 插件页。",
+    "plugin.marketplaceEmpty": "这个插件市场没有发现可安装的本地插件。",
     "plugin.autoCleanupLabel": "切换账号时自动清理已完成自动化的历史记录（仅清理完成/归档状态，保留配置；执行前自动备份）",
     "plugin.autoCleanupOn": "已开启：下次切换前会清理已完成自动化历史，并保留备份。",
     "plugin.autoCleanupOff": "已关闭自动清理。",
@@ -322,8 +326,9 @@ const translations = {
     "apiGuide.badge": "PURE API",
     "apiGuide.title": "No official account required: register with a relay provider",
     "apiGuide.description": "Click a relay provider to copy its registration URL. After registering, add its <code>Base URL</code> and <code>API Key</code> to a new account.",
-    "apiGuide.copyRight": "Copy RightAPI registration link",
-    "apiGuide.copyZyg": "Copy ZYG Token registration link",
+    "apiGuide.copyRight": "Copy relay A registration link",
+    "apiGuide.copyZyg": "Copy relay B registration link",
+    "apiGuide.copyHint": "Click to copy the registration link",
     "switch.target": "Switch target",
     "switch.open": "Switch and open Codex",
     "threads.empty": "No local threads yet. Click “Refresh projects” to rescan.",
@@ -390,8 +395,9 @@ const translations = {
     "plugin.title": "Plugins and plugin marketplaces",
     "plugin.empty": "No local plugins found. Install a local plugin directory or add a marketplace first.",
     "plugin.intro": "The plugin directory stays in the local Codex Home and is not removed when switching accounts. API accounts use an independent pure-API login and never borrow or retain official OAuth during switching.",
-    "plugin.authBoundary": "The remote public plugin catalog requires switching to a captured official ChatGPT account. In pure API mode, or without an official account, you can still install independent local plugins that do not use the remote catalog.",
+    "plugin.authBoundary": "Visibility of a remote public catalog depends on the active Codex login and official support; Galaxy does not forge permissions. Without an official account, you can still use pure API profiles, local plugins, and downloaded local marketplaces.",
     "plugin.installLocal": "Install local plugin directory",
+    "plugin.expandMarketplace": "Auto-expand local marketplace",
     "plugin.marketplaceLabel": "Add plugin marketplace (GitHub owner/repo, Git URL, or local directory)",
     "plugin.marketplacePlaceholder": "e.g. owner/repo",
     "plugin.addMarketplace": "Add marketplace",
@@ -399,6 +405,8 @@ const translations = {
     "plugin.installed": "Plugin {name} installed. Reopen the Codex plugin page.",
     "plugin.marketplaceAdded": "Marketplace added. Refresh the Codex plugin page.",
     "plugin.marketplaceRequired": "Enter a marketplace address.",
+    "plugin.marketplaceExpanded": "Installed {count} plugins from the local marketplace. Reopen the Codex plugin page.",
+    "plugin.marketplaceEmpty": "No installable local plugins were found in this marketplace.",
     "plugin.autoCleanupLabel": "Auto-clean completed automation history when switching accounts (completed/archived only; keeps configuration; backs up first)",
     "plugin.autoCleanupOn": "Enabled: completed automation history will be cleaned before the next switch, with a backup kept.",
     "plugin.autoCleanupOff": "Auto-clean disabled.",
@@ -1046,6 +1054,16 @@ $("#installLocalPlugin").addEventListener("click", async () => {
       await refresh();
       renderPlugins();
     }
+  } catch (error) { notice(error.message, true); }
+});
+$("#expandPluginMarketplace").addEventListener("click", async () => {
+  try {
+    const result = unwrap(await bridge.expandPluginMarketplace());
+    if (result.cancelled) return;
+    const count = Array.isArray(result.installed) ? result.installed.length : 0;
+    notice(count ? t("plugin.marketplaceExpanded", { count }) : t("plugin.marketplaceEmpty"), !count);
+    await refresh();
+    renderPlugins();
   } catch (error) { notice(error.message, true); }
 });
 $("#addMarketplace").addEventListener("click", async () => {

@@ -15,6 +15,78 @@ async function readManifest(directory) {
   return null;
 }
 
+async function readMarketplaceManifest(directory) {
+  for (const candidate of [
+    path.join(directory, ".agents", "plugins", "marketplace.json"),
+    path.join(directory, ".codex", "plugins", "marketplace.json"),
+    path.join(directory, "marketplace.json"),
+  ]) {
+    const value = await fs.readFile(candidate, "utf8").then((text) => JSON.parse(text)).catch(() => null);
+    if (value && typeof value === "object" && Array.isArray(value.plugins)) {
+      return { file: candidate, manifest: value };
+    }
+  }
+  return null;
+}
+
+function pathInside(root, candidate) {
+  const relative = path.relative(root, candidate);
+  return !relative.startsWith("..") && !path.isAbsolute(relative);
+}
+
+function marketplacePluginSource(root, entry) {
+  const raw = typeof entry === "string"
+    ? entry
+    : entry?.path || entry?.source?.path || entry?.directory || entry?.source;
+  if (typeof raw !== "string" || !raw.trim() || /^[a-z]+:\/\//i.test(raw.trim())) return null;
+  const source = path.resolve(root, raw);
+  return pathInside(root, source) ? source : null;
+}
+
+/**
+ * Read a local Codex marketplace without executing anything. This is the
+ * safe counterpart to the official CLI marketplace command: it lets users
+ * preview an imported marketplace before choosing to install its plugins.
+ */
+export async function discoverMarketplacePlugins(sourceDirectory) {
+  const root = path.resolve(String(sourceDirectory || ""));
+  const stat = await fs.stat(root).catch(() => null);
+  if (!stat?.isDirectory()) throw new Error("请选择插件市场目录。");
+  const loaded = await readMarketplaceManifest(root);
+  if (!loaded) throw new Error("未找到 marketplace.json，无法识别插件市场。");
+  const plugins = [];
+  for (const [index, entry] of loaded.manifest.plugins.entries()) {
+    const source = marketplacePluginSource(root, entry);
+    if (!source) continue;
+    const pluginManifest = await readManifest(source);
+    if (!pluginManifest) continue;
+    plugins.push({
+      id: safeName(pluginManifest.name || entry?.name || path.basename(source) || `plugin-${index + 1}`),
+      name: String(pluginManifest.name || entry?.name || path.basename(source)).slice(0, 120),
+      version: String(pluginManifest.version || "本地").slice(0, 40),
+      path: source,
+    });
+  }
+  return {
+    name: String(loaded.manifest.name || path.basename(root)).slice(0, 120),
+    path: root,
+    plugins,
+  };
+}
+
+/**
+ * Install all valid plugins from a user-selected local marketplace. The
+ * caller must obtain confirmation before invoking this bulk operation.
+ */
+export async function expandMarketplace(codexHome, sourceDirectory) {
+  const marketplace = await discoverMarketplacePlugins(sourceDirectory);
+  const installed = [];
+  for (const plugin of marketplace.plugins) {
+    installed.push(await installLocalPlugin(codexHome, plugin.path));
+  }
+  return { marketplace: { name: marketplace.name, path: marketplace.path }, installed };
+}
+
 export async function listLocalPlugins(codexHome) {
   const root = path.join(codexHome, "plugins");
   const entries = await fs.readdir(root, { withFileTypes: true }).catch(() => []);

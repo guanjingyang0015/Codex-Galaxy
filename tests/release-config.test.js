@@ -18,7 +18,7 @@ test("release identity stays compatible with 0.1.0 upgrades and preserves user d
   const preload = await fs.readFile(path.join(root, "electron", "preload.cjs"), "utf8");
   const overlayHtml = await fs.readFile(path.join(root, "public", "codex-overlay.html"), "utf8");
   const overlayHelper = await fs.readFile(path.join(root, "electron", "windows-codex-window.mjs"), "utf8");
-  assert.equal(packageJson.version, "1.4.0");
+  assert.equal(packageJson.version, "1.5.0");
   assert.equal(packageJson.author, "Guan Jingyang <guanjingyang@gmail.com>");
   assert.equal(packageJson.license, "MIT");
   assert.equal(packageJson.build.appId, "io.github.codex-galaxy.app");
@@ -35,8 +35,10 @@ test("release identity stays compatible with 0.1.0 upgrades and preserves user d
   assert.ok(packageJson.build.files.includes("public/codex-overlay.html"));
   assert.ok(packageJson.build.files.includes("node_modules/koffi/**/*"));
   assert.match(gateway, /127\.0\.0\.1/);
-  assert.match(providerSync, /record\?\.type !== "response_item" \|\| record\.payload\?\.type !== "message"/);
-  assert.match(providerSync, /typeof id === "string" && id\.startsWith\("msg"\)/);
+  assert.match(providerSync, /record\?\.type !== "response_item" \|\| !record\.payload/);
+  assert.match(providerSync, /typeof id === "string" && id\.startsWith\(idPrefix\)/);
+  assert.match(providerSync, /itemType === "function_call"/);
+  assert.match(providerSync, /idPrefix/);
   assert.match(providerSync, /version: 3/);
   assert.match(providerSync, /Array\.isArray\(item\.lineBackups\)/);
   assert.match(providerSync, /codex-galaxy-official-message-id-cache\.json/);
@@ -63,7 +65,8 @@ test("release identity stays compatible with 0.1.0 upgrades and preserves user d
   assert.match(overlayHelper, /SetWindowPos/);
   assert.match(html, new RegExp(`v(?:<span[^>]*>)?${packageJson.version.replaceAll(".", "\\.")}(?:</span>)?`));
   assert.match(html, /https:\/\/www\.rightapi\.ai\/register\?aff=d910c1b8/);
-  assert.equal(html.match(/https:\/\/www\.rightapi\.ai\/register\?aff=d910c1b8/g)?.length, 2);
+  assert.equal(html.match(/https:\/\/www\.rightapi\.ai\/register\?aff=d910c1b8/g)?.length, 1);
+  assert.doesNotMatch(html, />RightAPI|>ZYG Token|aria-label="[^"]*(?:RightAPI|ZYG Token)/);
   assert.doesNotMatch(html, /id="appVersionBadge"|class="app-version-badge"|id="appVersion"/);
   assert.match(html, /id="appVersionInline"/);
   assert.match(html, /id="updateBtn"/);
@@ -71,7 +74,14 @@ test("release identity stays compatible with 0.1.0 upgrades and preserves user d
   assert.match(renderer, /\$\("#appVersionInline"\)\.textContent = state\.version/);
   assert.doesNotMatch(renderer, /\$\("#appVersion"\)/);
   assert.match(html, /https:\/\/api\.zygtoken\.com\/register\?aff=Z3xM/);
-  assert.equal(html.match(/https:\/\/api\.zygtoken\.com\/register\?aff=Z3xM/g)?.length, 2);
+  assert.equal(html.match(/https:\/\/api\.zygtoken\.com\/register\?aff=Z3xM/g)?.length, 1);
+  assert.match(html, /data-name="中转站 A"/);
+  assert.match(html, /data-name="中转站 B"/);
+  assert.match(renderer, /relay A registration link/);
+  assert.match(renderer, /relay B registration link/);
+  assert.match(renderer, /expandPluginMarketplace/);
+  assert.match(electronMain, /codex-galaxy:expand-plugin-marketplace/);
+  assert.match(preload, /expandPluginMarketplace/);
   assert.match(renderer, /bridge\.copyText\(button\.dataset\.copy\)/);
   assert.match(renderer, /查看详情/);
   assert.match(renderer, /在 Codex 中继续/);

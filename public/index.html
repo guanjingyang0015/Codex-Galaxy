@@ -9,7 +9,7 @@
 <body>
   <div class="shell">
     <header class="topbar">
-      <div class="brand"><span class="brand-mark">CG</span><div><div class="brand-name">Codex Galaxy</div><div class="brand-sub">v<span id="appVersionInline">1.4.0</span></div></div></div>
+          <div class="brand"><span class="brand-mark">CG</span><div><div class="brand-name">Codex Galaxy</div><div class="brand-sub">v<span id="appVersionInline">1.5.0</span></div></div></div>
       <div class="top-actions">
         <button id="updateBtn" class="button secondary update-action" data-i18n="update.check">检查更新</button>
         <label class="language-control" title="语言 / Language">
@@ -60,8 +60,8 @@
             <div class="api-guide-head"><span class="api-guide-badge" data-i18n="apiGuide.badge">纯 API</span><strong data-i18n="apiGuide.title">无官方账号也能用：手机号/邮箱注册中转站即可</strong></div>
             <p data-i18n-html="apiGuide.description">点击中转站即可复制注册地址。注册后，将 <code>Base URL</code> 和 <code>API Key</code> 填入“添加账号”即可使用。</p>
             <div class="api-relay-links">
-              <button type="button" class="relay-copy" data-copy="https://www.rightapi.ai/register?aff=d910c1b8" data-name="RightAPI" aria-label="复制 RightAPI 注册链接" data-i18n-aria-label="apiGuide.copyRight">RightAPI<span class="relay-url">https://www.rightapi.ai/register?aff=d910c1b8</span><span class="relay-copied" data-i18n="common.copied">已复制</span></button>
-              <button type="button" class="relay-copy" data-copy="https://api.zygtoken.com/register?aff=Z3xM" data-name="ZYG Token" aria-label="复制 ZYG Token 注册链接" data-i18n-aria-label="apiGuide.copyZyg">ZYG Token<span class="relay-url">https://api.zygtoken.com/register?aff=Z3xM</span><span class="relay-copied" data-i18n="common.copied">已复制</span></button>
+              <button type="button" class="relay-copy" data-copy="https://www.rightapi.ai/register?aff=d910c1b8" data-name="中转站 A" aria-label="复制中转站 A 注册链接" data-i18n-aria-label="apiGuide.copyRight">中转站 A<span class="relay-url" data-i18n="apiGuide.copyHint">点击复制注册链接</span><span class="relay-copied" data-i18n="common.copied">已复制</span></button>
+              <button type="button" class="relay-copy" data-copy="https://api.zygtoken.com/register?aff=Z3xM" data-name="中转站 B" aria-label="复制中转站 B 注册链接" data-i18n-aria-label="apiGuide.copyZyg">中转站 B<span class="relay-url" data-i18n="apiGuide.copyHint">点击复制注册链接</span><span class="relay-copied" data-i18n="common.copied">已复制</span></button>
             </div>
           </div>
           <div class="switch-zone">
@@ -103,9 +103,9 @@
   <dialog id="pluginDialog" class="tutorial-dialog">
     <div class="dialog-head"><div><p class="eyebrow">PLUGINS</p><h2 data-i18n="plugin.title">插件与插件市场</h2></div><button id="closePlugins" class="icon-button" title="关闭插件管理" data-i18n-title="dialog.closePlugins" aria-label="关闭插件管理" data-i18n-aria-label="dialog.closePlugins">×</button></div>
     <div class="tutorial-intro" data-i18n="plugin.intro">插件目录留在本机 Codex Home，不随账号切换删除。API 账号使用独立纯 API 登录，账号之间切换不会借用或保留官方 OAuth。</div>
-    <p class="compatibility-note" data-i18n="plugin.authBoundary">远程公共插件目录需要先切换到已捕获的官方 ChatGPT 账号。使用纯 API 或没有官方账号时，仍可安装不依赖远程目录的独立本地插件。</p>
+    <p class="compatibility-note" data-i18n="plugin.authBoundary">远程公共插件目录是否可见由 Codex 当前登录态与官方支持决定；Galaxy 不伪造权限。没有官方账号时仍可使用纯 API、本地插件和已下载的本地插件市场。</p>
     <div id="pluginList" class="messages"></div>
-    <div class="dialog-actions"><button id="installLocalPlugin" class="button primary" data-i18n="plugin.installLocal">安装本地插件目录</button></div>
+    <div class="dialog-actions"><button id="installLocalPlugin" class="button primary" data-i18n="plugin.installLocal">安装本地插件目录</button><button id="expandPluginMarketplace" class="button secondary" data-i18n="plugin.expandMarketplace">自动扩展本地插件市场</button></div>
     <label><span data-i18n="plugin.marketplaceLabel">添加插件市场（GitHub owner/repo、Git URL 或本地目录）</span><input id="marketplaceSource" placeholder="例如：owner/repo" data-i18n-placeholder="plugin.marketplacePlaceholder" /></label>
     <div class="dialog-actions"><button id="addMarketplace" class="button secondary" data-i18n="plugin.addMarketplace">添加插件市场</button><button id="finishPlugins" class="button primary" data-i18n="plugin.finish">完成</button></div>
     <label class="api-field"><input id="autoCleanupCompleted" type="checkbox" /> <span data-i18n="plugin.autoCleanupLabel">切换账号时自动清理已完成自动化的历史记录（仅清理完成/归档状态，保留配置；执行前自动备份）</span></label>

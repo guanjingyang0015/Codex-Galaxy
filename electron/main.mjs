@@ -14,7 +14,7 @@ import { findCodexDesktopProcesses, findCodexDesktopWindows, stopCodexDesktopAnd
 import { codexOverlayBounds, CODEX_VERSION_OVERLAY_SIZE, selectCodexOverlayTarget } from "./codex-overlay.mjs";
 import { prepareGatewayRuntime, ResponsesGateway } from "../responses-gateway.js";
 import { recentThreadModels, targetProviderForProfile } from "../provider-sync.js";
-import { addMarketplace, installLocalPlugin, listLocalPlugins } from "../plugin-manager.js";
+import { addMarketplace, expandMarketplace, installLocalPlugin, listLocalPlugins } from "../plugin-manager.js";
 import { cleanupCompletedAutomations, getAutomationSettings, previewCompletedAutomations, setAutomationSettings } from "../automation-cleanup.js";
 import { cleanupInvalidProjects, previewInvalidProjects } from "../project-cleanup.js";
 import { AppUpdater } from "../app-updater.js";
@@ -590,6 +590,15 @@ function registerHandlers() {
     if (picked.canceled || !picked.filePaths[0]) return { cancelled: true };
     const installed = await installLocalPlugin(codexPaths.home, picked.filePaths[0]);
     return { installed };
+  }));
+  ipcMain.handle("codex-galaxy:expand-plugin-marketplace", async (event) => result(async () => {
+    const owner = BrowserWindow.fromWebContents(event.sender) || undefined;
+    const picked = await dialog.showOpenDialog(owner, {
+      title: "选择本地插件市场目录",
+      properties: ["openDirectory"],
+    });
+    if (picked.canceled || !picked.filePaths[0]) return { cancelled: true };
+    return expandMarketplace(codexPaths.home, picked.filePaths[0]);
   }));
   ipcMain.handle("codex-galaxy:add-plugin-marketplace", (_, source) => result(async () => addMarketplace({ codexHome: codexPaths.home, cli: await findCodexCli(), source })));
   ipcMain.handle("codex-galaxy:automation-preview", () => result(() => previewCompletedAutomations(codexPaths.home)));

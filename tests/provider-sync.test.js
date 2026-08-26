@@ -87,7 +87,7 @@ test("official provider sync can explicitly restore the official continuation mo
   assert.equal(result.modelRowsUpdated, 1);
 });
 
-test("official sync removes only incompatible response message IDs and can restore the exact rollout", async () => {
+test("official sync removes incompatible message and function-call IDs and can restore the exact rollout", async () => {
   const home = await fs.mkdtemp(path.join(os.tmpdir(), "galaxy-provider-official-message-id-"));
   const sessions = path.join(home, "sessions");
   await fs.mkdir(sessions, { recursive: true });
@@ -116,8 +116,19 @@ test("official sync removes only incompatible response message IDs and can resto
     type: "response_item",
     payload: {
       type: "function_call",
-      id: "chatcmpl-tool-item",
+      id: "call_tool_item",
       call_id: "call_keep_me",
+      name: "example",
+      arguments: "{}",
+      metadata: { source: "relay" },
+    },
+  };
+  const validToolCall = {
+    type: "response_item",
+    payload: {
+      type: "function_call",
+      id: "fc_official_tool_item",
+      call_id: "call_official",
       name: "example",
       arguments: "{}",
     },
@@ -132,6 +143,7 @@ test("official sync removes only incompatible response message IDs and can resto
     JSON.stringify(invalidMessage),
     JSON.stringify(validMessage),
     JSON.stringify(toolCall),
+    JSON.stringify(validToolCall),
   ].join("\n") + "\n";
   await fs.writeFile(file, original);
 
@@ -144,8 +156,13 @@ test("official sync removes only incompatible response message IDs and can resto
   assert.equal(lines[2].payload.role, invalidMessage.payload.role);
   assert.deepEqual(lines[2].payload.internal_chat_message_metadata_passthrough, invalidMessage.payload.internal_chat_message_metadata_passthrough);
   assert.deepEqual(lines[3], validMessage);
-  assert.deepEqual(lines[4], toolCall);
-  assert.equal(result.sanitizedMessageIds, 1);
+  assert.equal(Object.hasOwn(lines[4].payload, "id"), false);
+  assert.equal(lines[4].payload.call_id, toolCall.payload.call_id);
+  assert.equal(lines[4].payload.name, toolCall.payload.name);
+  assert.equal(lines[4].payload.arguments, toolCall.payload.arguments);
+  assert.deepEqual(lines[4].payload.metadata, toolCall.payload.metadata);
+  assert.deepEqual(lines[5], validToolCall);
+  assert.equal(result.sanitizedMessageIds, 2);
 
   await restoreProviderMetadata({ codexHome: home, backupDir: result.backupDir });
   assert.equal(await fs.readFile(file, "utf8"), original);
@@ -160,12 +177,14 @@ test("API-to-API provider sync does not remove relay response message IDs", asyn
   await fs.writeFile(file, [
     JSON.stringify({ type: "session_meta", payload: { id: "root-thread", model_provider: "relay-a" } }),
     JSON.stringify({ type: "response_item", payload: { type: "message", id: invalidId, role: "assistant", content: [] } }),
+    JSON.stringify({ type: "response_item", payload: { type: "function_call", id: "call_relay_item", call_id: "call_relay", name: "example", arguments: "{}" } }),
   ].join("\n") + "\n");
 
   const result = await syncProviderMetadata({ codexHome: home, targetProvider: "relay-b" });
   const lines = (await fs.readFile(file, "utf8")).trim().split("\n").map(JSON.parse);
   assert.equal(lines[0].payload.model_provider, "relay-b");
   assert.equal(lines[1].payload.id, invalidId);
+  assert.equal(lines[2].payload.id, "call_relay_item");
   assert.equal(result.sanitizedMessageIds, 0);
 });
 

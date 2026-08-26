@@ -168,12 +168,24 @@ function removeExactJsonProperty(line, property, value, expectedRecord) {
 }
 
 function officialMessageLineWithoutInvalidId(line) {
-  if (!line.includes('"response_item"') || !line.includes('"message"') || !line.includes('"id"')) return null;
+  if (!line.includes('"response_item"') || !line.includes('"id"')) return null;
   let record;
   try { record = JSON.parse(line); } catch { return null; }
-  if (record?.type !== "response_item" || record.payload?.type !== "message" || !Object.hasOwn(record.payload, "id")) return null;
+  if (record?.type !== "response_item" || !record.payload || typeof record.payload !== "object" || !Object.hasOwn(record.payload, "id")) return null;
+  const itemType = record.payload.type;
+  const idPrefix = itemType === "message"
+    ? "msg"
+    : itemType === "function_call"
+      ? "fc"
+      : null;
+  // Relay function-call items commonly use `call_...` for both `id` and
+  // `call_id`.  The official Responses API accepts the call_id value but
+  // requires the item id to use the `fc...` namespace.  Remove only the
+  // incompatible item id when returning to the official provider; API-to-API
+  // switches never call this function.
+  if (!idPrefix) return null;
   const id = record.payload.id;
-  if (typeof id === "string" && id.startsWith("msg")) return null;
+  if (typeof id === "string" && id.startsWith(idPrefix)) return null;
   delete record.payload.id;
   return removeExactJsonProperty(line, "id", id, record) || JSON.stringify(record);
 }
@@ -188,7 +200,7 @@ async function officialMessageIdReplacements(file, onBytes = null) {
   const inspectSegment = (segment) => {
     const [line] = splitLine(segment);
     const nextLine = officialMessageLineWithoutInvalidId(line);
-    if (nextLine !== null) replacements.push({ lineNumber, expectedLine: line, nextLine, kind: "official-message-id" });
+    if (nextLine !== null) replacements.push({ lineNumber, expectedLine: line, nextLine, kind: "official-response-item-id" });
     lineNumber += 1;
   };
   const consume = (final = false) => {

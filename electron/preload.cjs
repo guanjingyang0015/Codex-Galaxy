@@ -13,6 +13,7 @@ contextBridge.exposeInMainWorld("codexGalaxy", {
   switchAndLaunch: (profileId, threadId, operationId) => ipcRenderer.invoke("codex-galaxy:switch-and-launch", { profileId, threadId, operationId }),
   copyText: (text) => ipcRenderer.invoke("codex-galaxy:copy-text", text),
   installLocalPlugin: () => ipcRenderer.invoke("codex-galaxy:install-local-plugin"),
+  expandPluginMarketplace: () => ipcRenderer.invoke("codex-galaxy:expand-plugin-marketplace"),
   addPluginMarketplace: (source) => ipcRenderer.invoke("codex-galaxy:add-plugin-marketplace", source),
   automationPreview: () => ipcRenderer.invoke("codex-galaxy:automation-preview"),
   automationCleanup: () => ipcRenderer.invoke("codex-galaxy:automation-cleanup"),
