@@ -69,6 +69,19 @@ function wait(milliseconds) {
   return new Promise((resolve) => setTimeout(resolve, milliseconds));
 }
 
+async function waitForProfileMatch(check, { timeoutMs = 8000, intervalMs = 100 } = {}) {
+  const deadline = Date.now() + Math.max(0, Number(timeoutMs) || 0);
+  let latest = { matches: false };
+  do {
+    latest = await check();
+    if (latest.matches) return latest;
+    const remaining = deadline - Date.now();
+    if (remaining <= 0) break;
+    await wait(Math.min(Math.max(10, intervalMs), remaining));
+  } while (Date.now() <= deadline);
+  return latest;
+}
+
 function createProgressReporter(onProgress) {
   const startedAt = Date.now();
   return (progress) => {
@@ -93,6 +106,8 @@ export async function switchAccountTransaction({
   prepareRuntime = async (profile) => ({ profile }),
   launchMessage = "正在打开 Codex",
   launchVerificationDelayMs = 0,
+  launchVerificationTimeoutMs = 8000,
+  launchVerificationPollIntervalMs = 100,
   onProgress = () => {},
 }) {
   if (!profileId) throw new Error("请选择要切换的账号。");
@@ -226,7 +241,10 @@ export async function switchAccountTransaction({
     const launched = await launch(profile);
     if (launchVerificationDelayMs > 0) await wait(launchVerificationDelayMs);
     report({ percent: 98, stage: "verify-launch", message: "正在确认 Codex 启动后的登录状态" });
-    const launchedMatch = await liveProfileMatch(codexPaths, effectiveProfile, dataPaths.vault);
+    const launchedMatch = await waitForProfileMatch(
+      () => liveProfileMatch(codexPaths, effectiveProfile, dataPaths.vault),
+      { timeoutMs: launchVerificationTimeoutMs, intervalMs: launchVerificationPollIntervalMs },
+    );
     if (!launchedMatch.matches) {
       report({ percent: 98, stage: "stop-invalid", message: "检测到 Codex 回写了其他登录状态，正在安全停止并恢复" });
       await stopCodexDesktop();

@@ -244,6 +244,32 @@ test("an injected Chromium-style fetch transport preserves streaming responses",
   assert.deepEqual(JSON.parse(Buffer.from(calls[0].options.body).toString("utf8")), { model: "provider/model", input: "continue" });
 });
 
+test("idle SSE streams send keepalive comments without changing upstream events", async (t) => {
+  const fetchUpstream = async () => new Response(new ReadableStream({
+    start(controller) {
+      controller.enqueue(new TextEncoder().encode("data: {\"delta\":\"first\"}\n\n"));
+      setTimeout(() => {
+        controller.enqueue(new TextEncoder().encode("data: [DONE]\n\n"));
+        controller.close();
+      }, 35);
+    },
+  }), { status: 200, headers: { "content-type": "text/event-stream" } });
+  const gateway = new ResponsesGateway({ port: 0, fetchUpstream, streamHeartbeatIntervalMs: 10 });
+  t.after(async () => { await gateway.stop(); });
+  gateway.configure(profile("https://relay.example/v1", "provider/model"));
+  await gateway.start();
+
+  const response = await post(`${gateway.baseUrl}/responses`, { model: "provider/model", input: "keepalive" });
+  const text = await response.text();
+
+  assert.equal(response.status, 200);
+  assert.equal(response.headers.get("cache-control"), "no-cache, no-transform");
+  assert.equal(response.headers.get("x-accel-buffering"), "no");
+  assert.match(text, /: galaxy-keepalive\n\n/);
+  assert.match(text, /data: \{"delta":"first"\}/);
+  assert.match(text, /data: \[DONE\]/);
+});
+
 test("an upstream streaming disconnect becomes a readable SSE error instead of a decode failure", async (t) => {
   const fetchUpstream = async () => new Response(new ReadableStream({
     start(controller) {

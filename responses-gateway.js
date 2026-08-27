@@ -8,6 +8,7 @@ const DEFAULT_PORT = 43821;
 const MAX_REQUEST_BYTES = 128 * 1024 * 1024;
 const MAX_MODEL_CATALOG_BYTES = 2 * 1024 * 1024;
 const MODEL_CATALOG_TIMEOUT_MS = 8000;
+const DEFAULT_STREAM_HEARTBEAT_INTERVAL_MS = 15000;
 const requestHopByHopHeaders = new Set(["connection", "content-length", "host", "proxy-authorization", "proxy-connection", "te", "trailer", "transfer-encoding", "upgrade"]);
 const responseHopByHopHeaders = new Set(["connection", "keep-alive", "proxy-authenticate", "proxy-authorization", "proxy-connection", "te", "trailer", "transfer-encoding", "upgrade"]);
 
@@ -188,12 +189,37 @@ function waitForDrain(response) {
   });
 }
 
-async function pipeFetchBody(upstreamResponse, response) {
+function startStreamHeartbeat(response, intervalMs) {
+  if (!Number.isFinite(intervalMs) || intervalMs <= 0) return null;
+  let timer = null;
+  timer = setInterval(() => {
+    if (response.destroyed || response.writableEnded) return;
+    try {
+      response.write(": galaxy-keepalive\n\n");
+    } catch {
+      clearInterval(timer);
+    }
+  }, intervalMs);
+  timer.unref?.();
+  return timer;
+}
+
+function ensureEventStreamHeaders(headers) {
+  if (!isEventStream(headers)) return headers;
+  return {
+    ...headers,
+    "cache-control": headers["cache-control"] || "no-cache, no-transform",
+    "x-accel-buffering": headers["x-accel-buffering"] || "no",
+  };
+}
+
+async function pipeFetchBody(upstreamResponse, response, { heartbeatIntervalMs = DEFAULT_STREAM_HEARTBEAT_INTERVAL_MS } = {}) {
   if (!upstreamResponse.body) {
     response.end();
     return { completed: true };
   }
   const reader = upstreamResponse.body.getReader();
+  const heartbeat = isEventStream(upstreamResponse.headers) ? startStreamHeartbeat(response, heartbeatIntervalMs) : null;
   let error = null;
   try {
     while (!response.destroyed) {
@@ -204,6 +230,7 @@ async function pipeFetchBody(upstreamResponse, response) {
   } catch (caught) {
     error = caught;
   } finally {
+    if (heartbeat) clearInterval(heartbeat);
     reader.releaseLock();
   }
   if (!response.destroyed) {
@@ -213,12 +240,14 @@ async function pipeFetchBody(upstreamResponse, response) {
   return { completed: !error, error };
 }
 
-function pipeNodeBody(upstreamResponse, response) {
+function pipeNodeBody(upstreamResponse, response, { heartbeatIntervalMs = DEFAULT_STREAM_HEARTBEAT_INTERVAL_MS } = {}) {
   return new Promise((resolve) => {
     let settled = false;
+    const heartbeat = isEventStream(upstreamResponse.headers) ? startStreamHeartbeat(response, heartbeatIntervalMs) : null;
     const finish = () => {
       if (settled) return;
       settled = true;
+      if (heartbeat) clearInterval(heartbeat);
       resolve();
     };
     upstreamResponse.on("data", (chunk) => {
@@ -303,7 +332,7 @@ function validateProfile(profile) {
 }
 
 export class ResponsesGateway {
-  constructor({ host = "127.0.0.1", port = Number(process.env.CODEX_GALAXY_GATEWAY_PORT || DEFAULT_PORT), maxRequestBytes = MAX_REQUEST_BYTES, fetchUpstream = null, onModelResolved = null } = {}) {
+  constructor({ host = "127.0.0.1", port = Number(process.env.CODEX_GALAXY_GATEWAY_PORT || DEFAULT_PORT), maxRequestBytes = MAX_REQUEST_BYTES, fetchUpstream = null, onModelResolved = null, streamHeartbeatIntervalMs = DEFAULT_STREAM_HEARTBEAT_INTERVAL_MS } = {}) {
     if (host !== "127.0.0.1") throw new Error("本地网关只允许监听 127.0.0.1。");
     if (!Number.isInteger(port) || port < 0 || port > 65535) throw new Error("本地网关端口无效。");
     if (fetchUpstream !== null && typeof fetchUpstream !== "function") throw new Error("上游网络传输无效。");
@@ -313,8 +342,13 @@ export class ResponsesGateway {
     this.maxRequestBytes = maxRequestBytes;
     this.fetchUpstream = fetchUpstream;
     this.onModelResolved = onModelResolved;
+    this.streamHeartbeatIntervalMs = Number.isFinite(streamHeartbeatIntervalMs) && streamHeartbeatIntervalMs > 0
+      ? streamHeartbeatIntervalMs
+      : 0;
     this.server = null;
     this.active = null;
+    this.inFlight = 0;
+    this.idleWaiters = new Set();
   }
 
   configure(profile) {
@@ -479,6 +513,36 @@ export class ResponsesGateway {
   }
 
   async handle(request, response) {
+    this.inFlight += 1;
+    try {
+      return await this.handleRequest(request, response);
+    } finally {
+      this.inFlight -= 1;
+      if (this.inFlight === 0) {
+        for (const resolve of this.idleWaiters) resolve(true);
+        this.idleWaiters.clear();
+      }
+    }
+  }
+
+  async waitForIdle(timeoutMs = 30000) {
+    if (this.inFlight === 0) return true;
+    const duration = Math.max(0, Number(timeoutMs) || 0);
+    if (duration === 0) return false;
+    return new Promise((resolve) => {
+      let timer = null;
+      const finish = (value) => {
+        if (timer) clearTimeout(timer);
+        this.idleWaiters.delete(onIdle);
+        resolve(value);
+      };
+      const onIdle = () => finish(true);
+      this.idleWaiters.add(onIdle);
+      if (duration > 0) timer = setTimeout(() => finish(false), duration);
+    });
+  }
+
+  async handleRequest(request, response) {
     const active = this.active ? { ...this.active } : null;
     if (!active) return sendJson(response, 503, "本地网关尚未激活账号。");
     if (request.method !== "POST") return sendJson(response, 405, "本地网关只接受 Responses POST 请求。");
@@ -551,8 +615,11 @@ export class ResponsesGateway {
             this.active.model = incomingModel;
             Promise.resolve(this.onModelResolved?.({ profileId: active.id, configuredModel: active.configuredModel, resolvedModel: incomingModel })).catch(() => {});
           }
-          response.writeHead(upstreamResponse.status || 502, forwardResponseHeaders(upstreamResponse.headers, true));
-          await pipeFetchBody(upstreamResponse, response);
+          response.writeHead(
+            upstreamResponse.status || 502,
+            ensureEventStreamHeaders(forwardResponseHeaders(upstreamResponse.headers, true)),
+          );
+          await pipeFetchBody(upstreamResponse, response, { heartbeatIntervalMs: this.streamHeartbeatIntervalMs });
         } finally {
           response.off("close", abort);
         }
@@ -567,8 +634,11 @@ export class ResponsesGateway {
               this.active.model = incomingModel;
               Promise.resolve(this.onModelResolved?.({ profileId: active.id, configuredModel: active.configuredModel, resolvedModel: incomingModel })).catch(() => {});
             }
-            response.writeHead(upstreamResponse.statusCode || 502, forwardResponseHeaders(upstreamResponse.headers));
-            pipeNodeBody(upstreamResponse, response).then(resolve, reject);
+            response.writeHead(
+              upstreamResponse.statusCode || 502,
+              ensureEventStreamHeaders(forwardResponseHeaders(upstreamResponse.headers)),
+            );
+            pipeNodeBody(upstreamResponse, response, { heartbeatIntervalMs: this.streamHeartbeatIntervalMs }).then(resolve, reject);
           });
           upstream.once("error", reject);
           response.once("close", () => {

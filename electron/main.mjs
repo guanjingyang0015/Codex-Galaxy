@@ -14,6 +14,7 @@ import { switchAccountTransaction } from "../account-switch.js";
 import { findCodexDesktopWindows, findCodexWriterProcesses, stopCodexDesktopAndWait } from "../desktop-process.js";
 import { codexOverlayBounds, CODEX_VERSION_OVERLAY_SIZE, selectCodexOverlayTarget } from "./codex-overlay.mjs";
 import { prepareGatewayRuntime, ResponsesGateway } from "../responses-gateway.js";
+import { handoffGatewayToHost, stopOwnedGatewayHost } from "./gateway-host.mjs";
 import { recentThreadModels, targetProviderForProfile } from "../provider-sync.js";
 import { addMarketplace, expandMarketplace, installLocalPlugin, listLocalPlugins } from "../plugin-manager.js";
 import { cleanupCompletedAutomations, getAutomationSettings, previewCompletedAutomations, setAutomationSettings } from "../automation-cleanup.js";
@@ -35,6 +36,7 @@ let mainWindow = null;
 let tray = null;
 let quitting = false;
 let gatewayStartupError = null;
+let gatewayHandoffCompleted = false;
 let switchConfirmationSequence = 0;
 const pendingSwitchConfirmations = new Map();
 let codexVersionOverlay = null;
@@ -247,11 +249,14 @@ function startCodexVersionOverlay() {
 }
 
 async function quitFromTray() {
+  if (gatewayHandoffCompleted) return;
   const options = {
     type: "warning",
     title: "退出 Codex Galaxy",
-    message: "退出后，本地 Responses 网关会停止。",
-    detail: "如果 Codex 正在使用中转 API，当前请求和后续对话将无法继续。请先完成任务或切换到官方账号。",
+    message: "退出 Galaxy 后，Codex 仍会保持运行。",
+    detail: responsesGateway.status.running
+      ? "Galaxy 会把本地 Responses 网关移交给独立后台服务。这样关闭 Galaxy 不会关闭 Codex，也不会让官方或中转 API 登录失效；请在当前回复完成后再退出。"
+      : "这只会结束 Codex Galaxy 管理窗口，不会关闭 Codex 或修改登录状态。",
     buttons: ["保持运行", "仍然退出"],
     defaultId: 0,
     cancelId: 0,
@@ -260,8 +265,27 @@ async function quitFromTray() {
   const owner = mainWindow && !mainWindow.isDestroyed() ? mainWindow : undefined;
   const choice = owner ? await dialog.showMessageBox(owner, options) : await dialog.showMessageBox(options);
   if (choice.response !== 1) return;
+  if (responsesGateway.status.running) {
+    const handedOff = await handoffGatewayToHost({ gateway: responsesGateway, root: dataPaths.root }).catch((error) => ({ handedOff: false, error }));
+    if (!handedOff.handedOff) {
+      const message = handedOff.reason === "busy"
+        ? "Codex 当前仍有回复或请求正在进行。为避免中断，请等待当前任务完成后再退出 Galaxy。"
+        : handedOff.error?.message || "本地 API 网关未能安全移交，Galaxy 仍保持运行。";
+      const errorOptions = {
+        type: "warning",
+        title: "暂时无法安全退出",
+        message,
+        detail: "Codex 和本地 API 网关没有被关闭。完成当前任务后，再从托盘菜单选择“退出”。",
+        buttons: ["知道了"],
+        noLink: true,
+      };
+      if (owner) await dialog.showMessageBox(owner, errorOptions);
+      else await dialog.showMessageBox(errorOptions);
+      return;
+    }
+    gatewayHandoffCompleted = true;
+  }
   quitting = true;
-  await responsesGateway.stop();
   app.quit();
 }
 
@@ -603,7 +627,9 @@ function registerHandlers() {
       stopCodexDesktop: stopCodexDesktopAndWait,
       launch: openCodexDesktop,
       prepareRuntime: prepareProfileRuntime,
-      launchVerificationDelayMs: 2500,
+      launchVerificationDelayMs: 500,
+      launchVerificationTimeoutMs: 8000,
+      launchVerificationPollIntervalMs: 100,
       onProgress: report,
     });
   })));
@@ -645,7 +671,9 @@ function registerHandlers() {
       launch: (profile) => launchThread(request.threadId, profile),
       prepareRuntime: prepareProfileRuntime,
       launchMessage: "正在打开该项目线程",
-      launchVerificationDelayMs: 2500,
+      launchVerificationDelayMs: 500,
+      launchVerificationTimeoutMs: 8000,
+      launchVerificationPollIntervalMs: 100,
       onProgress: report,
     });
   })));
@@ -803,6 +831,7 @@ if (!hasSingleInstanceLock) {
         decrypt: (value) => safeStorage.decryptString(Buffer.from(value, "base64")),
       });
     }
+    await stopOwnedGatewayHost(dataPaths.root).catch(() => {});
     await restoreCurrentApiGateway().catch((error) => {
       gatewayStartupError = error instanceof Error ? error.message : String(error);
     });
@@ -830,7 +859,7 @@ app.on("before-quit", () => {
 });
 
 app.on("will-quit", () => {
-  responsesGateway.stop().catch(() => {});
+  if (!gatewayHandoffCompleted) responsesGateway.stop().catch(() => {});
 });
 
 app.on("window-all-closed", () => {

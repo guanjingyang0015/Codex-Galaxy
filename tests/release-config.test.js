@@ -19,7 +19,8 @@ test("release identity stays compatible with 0.1.0 upgrades and preserves user d
   const threadRepair = await fs.readFile(path.join(root, "thread-repair.js"), "utf8");
   const overlayHtml = await fs.readFile(path.join(root, "public", "codex-overlay.html"), "utf8");
   const overlayHelper = await fs.readFile(path.join(root, "electron", "windows-codex-window.mjs"), "utf8");
-  assert.equal(packageJson.version, "1.6.2");
+  const gatewayHost = await fs.readFile(path.join(root, "electron", "gateway-host.mjs"), "utf8");
+  assert.equal(packageJson.version, "1.7.0");
   assert.equal(packageJson.author, "Guan Jingyang <guanjingyang@gmail.com>");
   assert.equal(packageJson.license, "MIT");
   assert.equal(packageJson.build.appId, "io.github.codex-galaxy.app");
@@ -56,6 +57,11 @@ test("release identity stays compatible with 0.1.0 upgrades and preserves user d
   assert.match(electronMain, /startUpdateChecks\(\)/);
   assert.match(electronMain, /codex-galaxy:check-update/);
   assert.match(electronMain, /codex-galaxy:install-update/);
+  assert.match(electronMain, /handoffGatewayToHost/);
+  assert.match(electronMain, /stopOwnedGatewayHost/);
+  assert.match(gatewayHost, /ELECTRON_RUN_AS_NODE/);
+  assert.match(gatewayHost, /gateway-host\.json/);
+  assert.match(gatewayHost, /unrelated process/);
   assert.match(preload, /checkUpdate/);
   assert.match(preload, /installUpdate/);
   assert.match(preload, /onUpdateStatus/);
