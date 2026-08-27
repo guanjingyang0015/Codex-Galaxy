@@ -9,6 +9,7 @@ import { runtimePaths, loadProfiles, publicProfiles, saveProfile, profileForSwit
 import { syncConversations, readLibrary, readThreadDetail } from "../sync.js";
 import { setPlatformSecretProvider } from "../vault.js";
 import { buildMacTerminalArgs, buildResumeArgs, formatResumeCommand, waitForSpawn } from "../launcher.js";
+import { findCodexCli } from "../cli-discovery.js";
 import { switchAccountTransaction } from "../account-switch.js";
 import { findCodexDesktopWindows, findCodexWriterProcesses, stopCodexDesktopAndWait } from "../desktop-process.js";
 import { codexOverlayBounds, CODEX_VERSION_OVERLAY_SIZE, selectCodexOverlayTarget } from "./codex-overlay.mjs";
@@ -320,33 +321,6 @@ async function restoreCurrentApiGateway() {
   await applyProfile(codexPaths, runtime.profile, dataPaths.vault);
   await runtime.commit?.();
   updateGatewayTray();
-}
-
-async function findCodexCli() {
-  const candidates = [process.env.CODEX_CLI_PATH].filter(Boolean);
-  if (process.platform === "win32") {
-    const binRoot = process.env.LOCALAPPDATA && path.join(process.env.LOCALAPPDATA, "OpenAI", "Codex", "bin");
-    if (binRoot) {
-      candidates.push(path.join(binRoot, "codex.exe"));
-      const entries = await fs.readdir(binRoot, { withFileTypes: true }).catch(() => []);
-      for (const entry of entries) {
-        if (entry.isDirectory()) candidates.push(path.join(binRoot, entry.name, "codex.exe"));
-      }
-    }
-  } else if (process.platform === "darwin") {
-    candidates.push(
-      "/Applications/Codex.app/Contents/Resources/codex",
-      "/Applications/ChatGPT.app/Contents/Resources/codex",
-      path.join(os.homedir(), "Applications", "Codex.app", "Contents", "Resources", "codex"),
-      "/opt/homebrew/bin/codex",
-      "/usr/local/bin/codex",
-      path.join(os.homedir(), ".local", "bin", "codex"),
-    );
-  }
-  for (const candidate of candidates) {
-    if (candidate && await fs.stat(candidate).then((item) => item.isFile()).catch(() => false)) return candidate;
-  }
-  return null;
 }
 
 async function currentProfile() {

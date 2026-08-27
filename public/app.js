@@ -1,7 +1,7 @@
 const $ = (selector) => document.querySelector(selector);
 const state = {
   profiles: [],
-  version: "1.6.1",
+  version: "1.6.2",
   threads: [],
   currentId: null,
   selectedProfileId: null,
@@ -24,7 +24,7 @@ const state = {
   automation: { settings: { autoCleanCompleted: false }, completedFiles: 0, completedBytes: 0 },
   update: {
     phase: "idle",
-    currentVersion: "1.6.1",
+    currentVersion: "1.6.2",
     latestVersion: null,
     available: false,
     action: "install",

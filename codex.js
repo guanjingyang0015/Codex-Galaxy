@@ -189,12 +189,16 @@ function buildApiConfig(profile, liveConfig = "", catalogPath = "") {
   enforceFileCredentials(config);
   config.model = model;
   config.model_provider = provider;
-  config.model_providers ||= {};
-  config.model_providers[provider] = {
+  // Galaxy owns the active provider route.  Keeping stale provider tables from
+  // an older relay makes Codex show multiple choices and can make users select
+  // a URL that is not running anymore, so write only the current provider.
+  config.model_providers = {
+    [provider]: {
     name: profile.name,
     wire_api: "responses",
     base_url: profile.baseUrl,
     requires_openai_auth: true,
+    },
   };
   if (catalogPath) config.model_catalog_json = catalogPath;
   return TOML.stringify(config);
@@ -218,6 +222,14 @@ function selectProfileModel(configText, profile, provider) {
   enforceFileCredentials(config);
   config.model = profile.model;
   config.model_provider = provider;
+  const existing = config.model_providers?.[provider];
+  config.model_providers = {
+    [provider]: existing || {
+      name: "OpenAI",
+      wire_api: "responses",
+      requires_openai_auth: true,
+    },
+  };
   return TOML.stringify(config);
 }
 

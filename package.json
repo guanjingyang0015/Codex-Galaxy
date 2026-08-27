@@ -1,6 +1,6 @@
 {
   "name": "codex-galaxy",
-  "version": "1.6.1",
+  "version": "1.6.2",
   "private": true,
   "author": "Guan Jingyang <guanjingyang@gmail.com>",
   "description": "Codex Galaxy: local account switching and cross-model project continuity for Codex.",
@@ -40,6 +40,7 @@
       "build/icon.png",
       "public/**/*",
       "app-updater.js",
+      "cli-discovery.js",
       "codex.js",
       "launcher.js",
       "profiles.js",

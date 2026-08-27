@@ -19,7 +19,7 @@ test("release identity stays compatible with 0.1.0 upgrades and preserves user d
   const threadRepair = await fs.readFile(path.join(root, "thread-repair.js"), "utf8");
   const overlayHtml = await fs.readFile(path.join(root, "public", "codex-overlay.html"), "utf8");
   const overlayHelper = await fs.readFile(path.join(root, "electron", "windows-codex-window.mjs"), "utf8");
-  assert.equal(packageJson.version, "1.6.1");
+  assert.equal(packageJson.version, "1.6.2");
   assert.equal(packageJson.author, "Guan Jingyang <guanjingyang@gmail.com>");
   assert.equal(packageJson.license, "MIT");
   assert.equal(packageJson.build.appId, "io.github.codex-galaxy.app");
@@ -33,6 +33,7 @@ test("release identity stays compatible with 0.1.0 upgrades and preserves user d
   assert.ok(packageJson.build.files.includes("project-cleanup.js"));
   assert.ok(packageJson.build.files.includes("thread-repair.js"));
   assert.ok(packageJson.build.files.includes("app-updater.js"));
+  assert.ok(packageJson.build.files.includes("cli-discovery.js"));
   assert.ok(packageJson.build.files.includes("electron/windows-codex-window.mjs"));
   assert.ok(packageJson.build.files.includes("public/codex-overlay.html"));
   assert.ok(packageJson.build.files.includes("node_modules/koffi/**/*"));

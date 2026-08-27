@@ -145,6 +145,35 @@ function upstreamFailureMessage(error) {
   return "上游 Responses API 暂时无法连接（网络、系统代理或上游服务异常）。";
 }
 
+function upstreamStreamFailureMessage(error) {
+  const detail = [error?.code, error?.cause?.code, error?.name, error?.message, error?.cause?.message]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+  if (/abort|aborted|cancel/.test(detail)) return "上游 Responses 流式请求已取消，请重试。";
+  if (/decode|decoding|decompress|content.?encoding|body|stream|socket|econnreset|eof|premature/.test(detail)) {
+    return "上游 Responses 流式响应中断，请重试；如果持续出现，请检查中转站状态或网络。";
+  }
+  return "上游 Responses 流式连接中断，请重试；如果持续出现，请检查中转站状态或网络。";
+}
+
+function isEventStream(headers) {
+  const value = typeof headers?.get === "function"
+    ? headers.get("content-type")
+    : headers?.["content-type"];
+  return String(value || "").toLowerCase().includes("text/event-stream");
+}
+
+function finishStreamWithError(response, error) {
+  if (response.destroyed || response.writableEnded) return;
+  const payload = JSON.stringify({
+    type: "error",
+    error: { message: upstreamStreamFailureMessage(error) },
+  });
+  response.write(`event: error\ndata: ${payload}\n\n`);
+  response.end();
+}
+
 function waitForDrain(response) {
   if (response.destroyed) return Promise.resolve(false);
   return new Promise((resolve) => {
@@ -162,19 +191,54 @@ function waitForDrain(response) {
 async function pipeFetchBody(upstreamResponse, response) {
   if (!upstreamResponse.body) {
     response.end();
-    return;
+    return { completed: true };
   }
   const reader = upstreamResponse.body.getReader();
+  let error = null;
   try {
     while (!response.destroyed) {
       const { done, value } = await reader.read();
       if (done) break;
       if (!response.write(Buffer.from(value)) && !await waitForDrain(response)) break;
     }
+  } catch (caught) {
+    error = caught;
   } finally {
     reader.releaseLock();
   }
-  if (!response.destroyed) response.end();
+  if (!response.destroyed) {
+    if (error && isEventStream(upstreamResponse.headers)) finishStreamWithError(response, error);
+    else response.end();
+  }
+  return { completed: !error, error };
+}
+
+function pipeNodeBody(upstreamResponse, response) {
+  return new Promise((resolve) => {
+    let settled = false;
+    const finish = () => {
+      if (settled) return;
+      settled = true;
+      resolve();
+    };
+    upstreamResponse.on("data", (chunk) => {
+      if (!response.destroyed && !response.write(chunk)) upstreamResponse.pause();
+    });
+    response.on("drain", () => upstreamResponse.resume());
+    upstreamResponse.once("end", () => {
+      if (!response.destroyed && !response.writableEnded) response.end();
+      finish();
+    });
+    upstreamResponse.once("error", (error) => {
+      if (!response.destroyed && isEventStream(upstreamResponse.headers)) finishStreamWithError(response, error);
+      else if (!response.destroyed && !response.writableEnded) response.end();
+      finish();
+    });
+    response.once("close", () => {
+      if (!settled) upstreamResponse.destroy();
+      finish();
+    });
+  });
 }
 
 function sendJson(response, statusCode, message) {
@@ -504,9 +568,7 @@ export class ResponsesGateway {
               Promise.resolve(this.onModelResolved?.({ profileId: active.id, configuredModel: active.configuredModel, resolvedModel: incomingModel })).catch(() => {});
             }
             response.writeHead(upstreamResponse.statusCode || 502, forwardResponseHeaders(upstreamResponse.headers));
-            upstreamResponse.pipe(response);
-            upstreamResponse.once("end", resolve);
-            upstreamResponse.once("error", reject);
+            pipeNodeBody(upstreamResponse, response).then(resolve, reject);
           });
           upstream.once("error", reject);
           response.once("close", () => {
@@ -518,7 +580,8 @@ export class ResponsesGateway {
     } catch (error) {
       if (response.destroyed && !response.headersSent) return;
       if (response.headersSent) {
-        response.destroy(error);
+        if (isEventStream(response.getHeaders?.())) finishStreamWithError(response, error);
+        else response.end();
         return;
       }
       const wrapped = new Error(upstreamFailureMessage(error));

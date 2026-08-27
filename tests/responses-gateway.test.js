@@ -244,6 +244,28 @@ test("an injected Chromium-style fetch transport preserves streaming responses",
   assert.deepEqual(JSON.parse(Buffer.from(calls[0].options.body).toString("utf8")), { model: "provider/model", input: "continue" });
 });
 
+test("an upstream streaming disconnect becomes a readable SSE error instead of a decode failure", async (t) => {
+  const fetchUpstream = async () => new Response(new ReadableStream({
+    start(controller) {
+      controller.enqueue(new TextEncoder().encode('data: {"delta":"partial"}\n\n'));
+      setTimeout(() => controller.error(new Error("error decoding response body")), 10);
+    },
+  }), { status: 200, headers: { "content-type": "text/event-stream" } });
+  const gateway = new ResponsesGateway({ port: 0, fetchUpstream });
+  t.after(async () => { await gateway.stop(); });
+  gateway.configure(profile("https://relay.example/v1", "provider/model"));
+  await gateway.start();
+
+  const response = await post(`${gateway.baseUrl}/responses`, { model: "provider/model", input: "continue" });
+  const text = await response.text();
+
+  assert.equal(response.status, 200);
+  assert.match(text, /data: \{"delta":"partial"\}/);
+  assert.match(text, /event: error/);
+  assert.match(text, /流式响应中断/);
+  assert.doesNotMatch(text, /error decoding response body/);
+});
+
 test("fetch transport connection errors are classified without leaking request data", async (t) => {
   const fetchUpstream = async () => {
     const error = new Error("getaddrinfo ENOTFOUND secret-relay.example");

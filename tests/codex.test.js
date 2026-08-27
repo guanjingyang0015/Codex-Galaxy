@@ -16,7 +16,7 @@ test("API switching preserves common config and writes an arbitrary model", asyn
     backupDir: path.join(home, "backups", "codex-galaxy"),
   };
   const vaultFile = path.join(home, "vault.json");
-  await fs.writeFile(paths.config, 'model = "old-model"\nmodel_provider = "openai"\ncli_auth_credentials_store = "keyring"\nforced_login_method = "chatgpt"\nforced_chatgpt_workspace_id = "workspace-old"\n\n[mcp_servers.keep]\ncommand = "keep-me"\n');
+  await fs.writeFile(paths.config, 'model = "old-model"\nmodel_provider = "openai"\ncli_auth_credentials_store = "keyring"\nforced_login_method = "chatgpt"\nforced_chatgpt_workspace_id = "workspace-old"\n\n[model_providers.custom]\nname = "Stale relay"\nwire_api = "responses"\nbase_url = "https://stale.invalid/v1"\n\n[mcp_servers.keep]\ncommand = "keep-me"\n');
   await fs.writeFile(paths.auth, '{"tokens":{"access_token":"not-a-real-token"}}\n');
 
   await switchProfile(paths, {
@@ -41,6 +41,7 @@ test("API switching preserves common config and writes an arbitrary model", asyn
   assert.equal(config.model, "deepseek-reasoner");
   assert.equal(config.model_provider, "relay-deepseek");
   assert.equal(config.model_providers["relay-deepseek"].wire_api, "responses");
+  assert.deepEqual(Object.keys(config.model_providers), ["relay-deepseek"]);
   assert.equal(config.model_catalog_json, paths.modelCatalog);
   assert.equal(config.cli_auth_credentials_store, "file");
   assert.equal(config.forced_login_method, undefined);
@@ -151,7 +152,7 @@ test("official switching restores file credentials and removes stale forced-logi
   const paths = { home, config: path.join(home, "config.toml"), auth: path.join(home, "auth.json"), modelCatalog: path.join(home, "catalog.json"), backupDir: path.join(home, "backups") };
   const vaultFile = path.join(home, "vault.json");
   const profile = { id: "official-a", name: "Official A", kind: "official", model: "gpt-5.6" };
-  await fs.writeFile(paths.config, 'model_provider = "openai"\ncli_auth_credentials_store = "keyring"\nforced_login_method = "chatgpt"\nforced_chatgpt_workspace_id = "workspace-a"\n');
+  await fs.writeFile(paths.config, 'model_provider = "openai"\ncli_auth_credentials_store = "keyring"\nforced_login_method = "chatgpt"\nforced_chatgpt_workspace_id = "workspace-a"\n\n[model_providers.custom]\nname = "Stale relay"\nwire_api = "responses"\nbase_url = "https://stale.invalid/v1"\n');
   await fs.writeFile(paths.auth, '{"auth_mode":"chatgpt","tokens":{"account_id":"account-a","access_token":"official-token"}}\n');
   await captureCurrent(paths, profile, vaultFile);
   await fs.writeFile(paths.config, 'model_provider = "galaxy"\nforced_login_method = "apikey"\n');
@@ -161,6 +162,7 @@ test("official switching restores file credentials and removes stale forced-logi
 
   const config = TOML.parse(await fs.readFile(paths.config, "utf8"));
   assert.equal(config.model_provider, "openai");
+  assert.deepEqual(Object.keys(config.model_providers), ["openai"]);
   assert.equal(config.cli_auth_credentials_store, "file");
   assert.equal(config.forced_login_method, undefined);
   assert.equal(config.forced_chatgpt_workspace_id, undefined);
