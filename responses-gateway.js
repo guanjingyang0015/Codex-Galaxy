@@ -213,20 +213,107 @@ function ensureEventStreamHeaders(headers) {
   };
 }
 
+const terminalStreamEventTypes = new Set([
+  "response.completed",
+  "response.incomplete",
+  "response.failed",
+  "response.cancelled",
+  "error",
+]);
+
+function terminalStreamEventType(value) {
+  const type = String(value || "").trim().toLowerCase();
+  if (type === "[done]") return "[DONE]";
+  return terminalStreamEventTypes.has(type) ? type : null;
+}
+
+function streamEventType(eventName, data) {
+  const explicit = terminalStreamEventType(eventName);
+  if (explicit) return explicit;
+  const payload = String(data || "").trim();
+  if (payload === "[DONE]") return "[DONE]";
+  try {
+    const parsed = JSON.parse(payload);
+    return terminalStreamEventType(parsed?.type);
+  } catch {
+    return null;
+  }
+}
+
+function createSseTerminalTracker() {
+  let pending = "";
+  let eventName = "";
+  let dataLines = [];
+  let terminal = null;
+  const processEvent = () => {
+    const type = streamEventType(eventName, dataLines.join("\n"));
+    if (type && !terminal) terminal = type;
+    eventName = "";
+    dataLines = [];
+  };
+  const consume = (text, flush = false) => {
+    pending += text;
+    let lineEnd;
+    while ((lineEnd = pending.search(/\r?\n/)) >= 0) {
+      const line = pending.slice(0, lineEnd);
+      pending = pending.slice(lineEnd + (pending[lineEnd] === "\r" ? 2 : 1));
+      if (line === "") processEvent();
+      else if (line.startsWith("event:")) eventName = line.slice(6).trim();
+      else if (line.startsWith("data:")) dataLines.push(line.slice(5).trimStart());
+    }
+    if (flush && pending) {
+      const line = pending;
+      pending = "";
+      if (line.startsWith("event:")) eventName = line.slice(6).trim();
+      else if (line.startsWith("data:")) dataLines.push(line.slice(5).trimStart());
+      processEvent();
+    }
+    return terminal;
+  };
+  return {
+    consume,
+    finish() {
+      consume("", true);
+      return terminal;
+    },
+    get terminal() {
+      return terminal;
+    },
+  };
+}
+
+function prematureStreamEnd(response) {
+  if (response.destroyed || response.writableEnded) return;
+  const payload = JSON.stringify({
+    type: "error",
+    error: {
+      code: "upstream_stream_incomplete",
+      message: "上游 Responses 流在完成事件前结束，回复可能不完整，请重试；如果持续出现，请检查中转站状态或网络。",
+    },
+  });
+  response.write(`event: error\ndata: ${payload}\n\n`);
+  response.end();
+}
+
 async function pipeFetchBody(upstreamResponse, response, { heartbeatIntervalMs = DEFAULT_STREAM_HEARTBEAT_INTERVAL_MS } = {}) {
   if (!upstreamResponse.body) {
-    response.end();
-    return { completed: true };
+    if (isEventStream(upstreamResponse.headers)) prematureStreamEnd(response);
+    else response.end();
+    return { completed: !isEventStream(upstreamResponse.headers), terminalEvent: null };
   }
   const reader = upstreamResponse.body.getReader();
   const heartbeat = isEventStream(upstreamResponse.headers) ? startStreamHeartbeat(response, heartbeatIntervalMs) : null;
+  const decoder = isEventStream(upstreamResponse.headers) ? new TextDecoder() : null;
+  const tracker = decoder ? createSseTerminalTracker() : null;
   let error = null;
   try {
     while (!response.destroyed) {
       const { done, value } = await reader.read();
       if (done) break;
+      if (tracker) tracker.consume(decoder.decode(value, { stream: true }));
       if (!response.write(Buffer.from(value)) && !await waitForDrain(response)) break;
     }
+    if (tracker) tracker.consume(decoder.decode(), true);
   } catch (caught) {
     error = caught;
   } finally {
@@ -234,32 +321,40 @@ async function pipeFetchBody(upstreamResponse, response, { heartbeatIntervalMs =
     reader.releaseLock();
   }
   if (!response.destroyed) {
-    if (error && isEventStream(upstreamResponse.headers)) finishStreamWithError(response, error);
+    if (error && isEventStream(upstreamResponse.headers) && !tracker?.terminal) finishStreamWithError(response, error);
+    else if (tracker && !tracker.terminal) prematureStreamEnd(response);
     else response.end();
   }
-  return { completed: !error, error };
+  return { completed: !error && (!tracker || Boolean(tracker.terminal)), terminalEvent: tracker?.terminal || null, error };
 }
 
 function pipeNodeBody(upstreamResponse, response, { heartbeatIntervalMs = DEFAULT_STREAM_HEARTBEAT_INTERVAL_MS } = {}) {
   return new Promise((resolve) => {
     let settled = false;
     const heartbeat = isEventStream(upstreamResponse.headers) ? startStreamHeartbeat(response, heartbeatIntervalMs) : null;
+    const decoder = isEventStream(upstreamResponse.headers) ? new TextDecoder() : null;
+    const tracker = decoder ? createSseTerminalTracker() : null;
     const finish = () => {
       if (settled) return;
       settled = true;
       if (heartbeat) clearInterval(heartbeat);
-      resolve();
+      resolve({ completed: Boolean(!tracker || tracker.terminal), terminalEvent: tracker?.terminal || null });
     };
     upstreamResponse.on("data", (chunk) => {
+      if (tracker) tracker.consume(decoder.decode(chunk, { stream: true }));
       if (!response.destroyed && !response.write(chunk)) upstreamResponse.pause();
     });
     response.on("drain", () => upstreamResponse.resume());
     upstreamResponse.once("end", () => {
-      if (!response.destroyed && !response.writableEnded) response.end();
+      if (tracker) tracker.consume(decoder.decode(), true);
+      if (!response.destroyed && !response.writableEnded) {
+        if (tracker && !tracker.terminal) prematureStreamEnd(response);
+        else response.end();
+      }
       finish();
     });
     upstreamResponse.once("error", (error) => {
-      if (!response.destroyed && isEventStream(upstreamResponse.headers)) finishStreamWithError(response, error);
+      if (!response.destroyed && isEventStream(upstreamResponse.headers) && !tracker?.terminal) finishStreamWithError(response, error);
       else if (!response.destroyed && !response.writableEnded) response.end();
       finish();
     });

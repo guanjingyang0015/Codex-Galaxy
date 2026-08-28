@@ -20,7 +20,7 @@ test("release identity stays compatible with 0.1.0 upgrades and preserves user d
   const overlayHtml = await fs.readFile(path.join(root, "public", "codex-overlay.html"), "utf8");
   const overlayHelper = await fs.readFile(path.join(root, "electron", "windows-codex-window.mjs"), "utf8");
   const gatewayHost = await fs.readFile(path.join(root, "electron", "gateway-host.mjs"), "utf8");
-  assert.equal(packageJson.version, "1.7.0");
+  assert.equal(packageJson.version, "1.7.1");
   assert.equal(packageJson.author, "Guan Jingyang <guanjingyang@gmail.com>");
   assert.equal(packageJson.license, "MIT");
   assert.equal(packageJson.build.appId, "io.github.codex-galaxy.app");

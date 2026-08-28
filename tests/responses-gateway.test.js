@@ -244,6 +244,156 @@ test("an injected Chromium-style fetch transport preserves streaming responses",
   assert.deepEqual(JSON.parse(Buffer.from(calls[0].options.body).toString("utf8")), { model: "provider/model", input: "continue" });
 });
 
+test("semantic response.completed ends a Responses SSE stream normally", async (t) => {
+  const fetchUpstream = async () => new Response(new ReadableStream({
+    start(controller) {
+      controller.enqueue(new TextEncoder().encode('event: response.output_text.delta\ndata: {"type":"response.output_text.delta","delta":"done"}\n\n'));
+      controller.enqueue(new TextEncoder().encode('event: response.completed\ndata: {"type":"response.completed","response":{"status":"completed"}}\n\n'));
+      controller.close();
+    },
+  }), { status: 200, headers: { "content-type": "text/event-stream" } });
+  const gateway = new ResponsesGateway({ port: 0, fetchUpstream });
+  t.after(async () => { await gateway.stop(); });
+  gateway.configure(profile("https://relay.example/v1", "provider/model"));
+  await gateway.start();
+
+  const response = await post(`${gateway.baseUrl}/responses`, { model: "provider/model", input: "finish" });
+  const text = await response.text();
+
+  assert.equal(response.status, 200);
+  assert.match(text, /event: response\.completed/);
+  assert.doesNotMatch(text, /upstream_stream_incomplete/);
+});
+
+test("semantic response.incomplete remains visible without a false transport error", async (t) => {
+  const fetchUpstream = async () => new Response(new ReadableStream({
+    start(controller) {
+      controller.enqueue(new TextEncoder().encode('data: {"type":"response.incomplete","response":{"status":"incomplete","incomplete_details":{"reason":"max_output_tokens"}}}\n\n'));
+      controller.close();
+    },
+  }), { status: 200, headers: { "content-type": "text/event-stream" } });
+  const gateway = new ResponsesGateway({ port: 0, fetchUpstream });
+  t.after(async () => { await gateway.stop(); });
+  gateway.configure(profile("https://relay.example/v1", "provider/model"));
+  await gateway.start();
+
+  const response = await post(`${gateway.baseUrl}/responses`, { model: "provider/model", input: "long task" });
+  const text = await response.text();
+
+  assert.match(text, /response\.incomplete/);
+  assert.match(text, /max_output_tokens/);
+  assert.doesNotMatch(text, /upstream_stream_incomplete/);
+});
+
+test("explicit failed, cancelled, and error events are not mislabeled as transport EOF", async (t) => {
+  for (const terminal of ["response.failed", "response.cancelled", "error"]) {
+    const fetchUpstream = async () => new Response(new ReadableStream({
+      start(controller) {
+        controller.enqueue(new TextEncoder().encode(`event: ${terminal}\ndata: {"type":"${terminal}"}\n\n`));
+        controller.close();
+      },
+    }), { status: 200, headers: { "content-type": "text/event-stream" } });
+    const gateway = new ResponsesGateway({ port: 0, fetchUpstream });
+    t.after(async () => { await gateway.stop(); });
+    gateway.configure(profile("https://relay.example/v1", "provider/model"));
+    await gateway.start();
+
+    const response = await post(`${gateway.baseUrl}/responses`, { model: "provider/model", input: terminal });
+    const text = await response.text();
+
+    assert.match(text, new RegExp(terminal.replace(".", "\\.")));
+    assert.doesNotMatch(text, /upstream_stream_incomplete/);
+  }
+});
+
+test("fragmented UTF-8 and CRLF SSE boundaries preserve a completed stream", async (t) => {
+  const source = 'data: {"type":"response.output_text.delta","delta":"继续"}\r\n\r\nevent: response.completed\r\ndata: {"type":"response.completed"}\r\n\r\n';
+  const encoded = Buffer.from(source, "utf8");
+  const splitInsideUtf8 = encoded.indexOf(Buffer.from("继续", "utf8")) + 1;
+  const splitInsideCrlf = encoded.indexOf(Buffer.from("\r\n\r\n")) + 1;
+  const pieces = [
+    encoded.subarray(0, splitInsideUtf8),
+    encoded.subarray(splitInsideUtf8, splitInsideCrlf),
+    encoded.subarray(splitInsideCrlf),
+  ];
+  const fetchUpstream = async () => new Response(new ReadableStream({
+    start(controller) {
+      for (const piece of pieces) controller.enqueue(piece);
+      controller.close();
+    },
+  }), { status: 200, headers: { "content-type": "text/event-stream" } });
+  const gateway = new ResponsesGateway({ port: 0, fetchUpstream });
+  t.after(async () => { await gateway.stop(); });
+  gateway.configure(profile("https://relay.example/v1", "provider/model"));
+  await gateway.start();
+
+  const response = await post(`${gateway.baseUrl}/responses`, { model: "provider/model", input: "fragmented" });
+  const text = await response.text();
+
+  assert.equal(text, source);
+  assert.doesNotMatch(text, /upstream_stream_incomplete/);
+});
+
+test("a transport error after response.completed does not create a false incomplete warning", async (t) => {
+  const fetchUpstream = async () => new Response(new ReadableStream({
+    start(controller) {
+      controller.enqueue(new TextEncoder().encode('event: response.completed\ndata: {"type":"response.completed"}\n\n'));
+      setTimeout(() => controller.error(new Error("socket closed after terminal event")), 10);
+    },
+  }), { status: 200, headers: { "content-type": "text/event-stream" } });
+  const gateway = new ResponsesGateway({ port: 0, fetchUpstream });
+  t.after(async () => { await gateway.stop(); });
+  gateway.configure(profile("https://relay.example/v1", "provider/model"));
+  await gateway.start();
+
+  const response = await post(`${gateway.baseUrl}/responses`, { model: "provider/model", input: "already complete" });
+  const text = await response.text();
+
+  assert.match(text, /response\.completed/);
+  assert.doesNotMatch(text, /event: error/);
+  assert.doesNotMatch(text, /upstream_stream_incomplete|流式响应中断/);
+});
+
+test("an SSE EOF before any terminal event becomes a readable retry error", async (t) => {
+  const fetchUpstream = async () => new Response(new ReadableStream({
+    start(controller) {
+      controller.enqueue(new TextEncoder().encode('data: {"type":"response.output_text.delta","delta":"partial"}\n\n'));
+      controller.close();
+    },
+  }), { status: 200, headers: { "content-type": "text/event-stream" } });
+  const gateway = new ResponsesGateway({ port: 0, fetchUpstream });
+  t.after(async () => { await gateway.stop(); });
+  gateway.configure(profile("https://relay.example/v1", "provider/model"));
+  await gateway.start();
+
+  const response = await post(`${gateway.baseUrl}/responses`, { model: "provider/model", input: "do not stop silently" });
+  const text = await response.text();
+
+  assert.equal(response.status, 200);
+  assert.match(text, /data: \{"type":"response\.output_text\.delta","delta":"partial"\}/);
+  assert.match(text, /event: error/);
+  assert.match(text, /upstream_stream_incomplete/);
+  assert.match(text, /完成事件前结束/);
+});
+
+test("the Node transport also rejects an SSE EOF before a terminal event", async (t) => {
+  const upstream = http.createServer(async (_request, response) => {
+    response.writeHead(200, { "content-type": "text/event-stream" });
+    response.end('data: {"type":"response.output_text.delta","delta":"partial"}\n\n');
+  });
+  const upstreamUrl = await listen(upstream);
+  const gateway = new ResponsesGateway({ port: 0 });
+  t.after(async () => { await gateway.stop(); await close(upstream); });
+  gateway.configure(profile(`${upstreamUrl}/v1`, "provider/model"));
+  await gateway.start();
+
+  const response = await post(`${gateway.baseUrl}/responses`, { model: "provider/model", input: "node transport" });
+  const text = await response.text();
+
+  assert.match(text, /event: error/);
+  assert.match(text, /upstream_stream_incomplete/);
+});
+
 test("idle SSE streams send keepalive comments without changing upstream events", async (t) => {
   const fetchUpstream = async () => new Response(new ReadableStream({
     start(controller) {
