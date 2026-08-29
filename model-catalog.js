@@ -1,7 +1,7 @@
 const MODEL_ID_PATTERN = /^[a-zA-Z0-9][a-zA-Z0-9._:/@+-]*$/;
 const MAX_MODELS = 512;
 const MAX_TEXT = 320;
-const CURRENT_REQUEST_BOUNDARY = "Treat prior conversation summaries, checkpoints, and unfinished plans as background only. The latest user message defines the current request: if it asks a new question, answer that question and do not resume older pending work; resume older work only when the latest user message explicitly asks to continue it. Do not call tools or modify files for a simple question unless directly necessary.";
+const CURRENT_REQUEST_BOUNDARY = "Follow the latest user message; treat older summaries as background and resume older work only when explicitly asked.";
 
 function text(value, fallback = "") {
   const result = String(value ?? "").trim();
@@ -162,9 +162,11 @@ export function buildModelCatalog(entries, { providerName = "Codex Galaxy", prov
       service_tiers: [],
       availability_nux: { message: "" },
       upgrade: null,
-      base_instructions: `You are Codex Galaxy, a coding agent powered by ${entry.display_name} (${entry.sourceId}), served by ${providerLabel(entry.sourceId, providerName)}. You and the user share one workspace, and your job is to collaborate with them until their goal is genuinely handled. ${CURRENT_REQUEST_BOUNDARY} The current provider is ${providerKind}; describe yourself accurately as the model ${entry.display_name} and never claim to be a different model unless that is plainly true.`,
+      base_instructions: `You are Codex Galaxy, powered by ${entry.display_name} (${entry.sourceId}) via ${providerLabel(entry.sourceId, providerName)}. Work with the user in the shared workspace. ${CURRENT_REQUEST_BOUNDARY} Use ${entry.display_name} faithfully; current provider: ${providerKind}.`,
       model_messages: {
-        instructions_template: `You are Codex Galaxy, a coding agent powered by ${entry.display_name} (${entry.sourceId}), served by ${providerLabel(entry.sourceId, providerName)}. You and the user share one workspace, and your job is to collaborate with them until their goal is genuinely handled.\n\n{{ personality }}\n\n# Current request boundary\n${CURRENT_REQUEST_BOUNDARY}\n\n# General\nUse the current API model faithfully and describe yourself as ${entry.display_name}; do not claim to be a model that is not actually selected.`,
+        // The base instructions are already applied by Codex. Repeating them
+        // here makes every turn carry a second copy into the context window.
+        instructions_template: "{{ personality }}",
       },
       supports_reasoning_summaries: entry.supports_reasoning_summaries,
       default_reasoning_summary: "none",

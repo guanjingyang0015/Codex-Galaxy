@@ -44,8 +44,10 @@ test("legacy API profiles migrate once from mixed login to pure API mode", async
   assert.equal(publicState.profiles.find((profile) => profile.id === "relay-legacy").preserveOfficialLogin, false);
   assert.equal(publicState.profiles.find((profile) => profile.id === "official-a").preserveOfficialLogin, true);
   const persisted = JSON.parse(await fs.readFile(paths.profiles, "utf8"));
-  assert.equal(persisted.version, 3);
+  assert.equal(persisted.version, 4);
   assert.equal(persisted.profiles.find((profile) => profile.id === "relay-legacy").preserveOfficialLogin, false);
+  assert.equal(persisted.profiles.find((profile) => profile.id === "relay-legacy").runtimeMode, "direct");
+  assert.equal(persisted.profiles.find((profile) => profile.id === "relay-legacy").runtimeProvider, "relay-legacy");
 });
 
 test("schema v2 mixed API profiles migrate to pure API mode", async () => {
@@ -59,8 +61,9 @@ test("schema v2 mixed API profiles migrate to pure API mode", async () => {
 
   assert.equal((await publicProfiles(paths)).profiles[0].preserveOfficialLogin, false);
   const persisted = JSON.parse(await fs.readFile(paths.profiles, "utf8"));
-  assert.equal(persisted.version, 3);
+  assert.equal(persisted.version, 4);
   assert.equal(persisted.profiles[0].preserveOfficialLogin, false);
+  assert.equal(persisted.profiles[0].runtimeMode, "direct");
 });
 
 test("profiles get an internal id and can be renamed without replacing credentials", async () => {

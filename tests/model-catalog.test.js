@@ -22,9 +22,10 @@ test("model catalog supports mainstream and arbitrary vendor model ids", () => {
   assert.match(catalog.models[0].base_instructions, /Gemini 2\.5 Flash/);
   assert.doesNotMatch(catalog.models[0].base_instructions, /GPT-5/);
   assert.equal(catalog.models[0].model_messages.instructions_template.includes("{{ personality }}"), true);
-  assert.match(catalog.models[0].base_instructions, /latest user message defines the current request/);
-  assert.match(catalog.models[0].model_messages.instructions_template, /do not resume older pending work/);
-  assert.match(catalog.models[0].model_messages.instructions_template, /Do not call tools or modify files for a simple question/);
+  assert.match(catalog.models[0].base_instructions, /Follow the latest user message/);
+  assert.equal(catalog.models[0].model_messages.instructions_template, "{{ personality }}");
+  assert.ok(catalog.models[0].base_instructions.length < 320);
+  assert.ok(catalog.models[0].model_messages.instructions_template.length < catalog.models[0].base_instructions.length);
   assert.equal(catalog.models[4].slug, "vendor/custom-model:premium");
 });
 

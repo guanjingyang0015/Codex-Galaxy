@@ -250,11 +250,12 @@ function startCodexVersionOverlay() {
 
 async function quitFromTray() {
   if (gatewayHandoffCompleted) return;
+  const gatewayMode = responsesGateway.status.running && responsesGateway.status.runtimeMode === "gateway";
   const options = {
     type: "warning",
     title: "退出 Codex Galaxy",
     message: "退出 Galaxy 后，Codex 仍会保持运行。",
-    detail: responsesGateway.status.running
+    detail: gatewayMode
       ? "Galaxy 会把本地 Responses 网关移交给独立后台服务。这样关闭 Galaxy 不会关闭 Codex，也不会让官方或中转 API 登录失效；请在当前回复完成后再退出。"
       : "这只会结束 Codex Galaxy 管理窗口，不会关闭 Codex 或修改登录状态。",
     buttons: ["保持运行", "仍然退出"],
@@ -265,7 +266,7 @@ async function quitFromTray() {
   const owner = mainWindow && !mainWindow.isDestroyed() ? mainWindow : undefined;
   const choice = owner ? await dialog.showMessageBox(owner, options) : await dialog.showMessageBox(options);
   if (choice.response !== 1) return;
-  if (responsesGateway.status.running) {
+  if (gatewayMode) {
     const handedOff = await handoffGatewayToHost({ gateway: responsesGateway, root: dataPaths.root }).catch((error) => ({ handedOff: false, error }));
     if (!handedOff.handedOff) {
       const message = handedOff.reason === "busy"
@@ -290,7 +291,9 @@ async function quitFromTray() {
 }
 
 function updateGatewayTray() {
-  if (!responsesGateway.status.running) {
+  const gatewayStatus = responsesGateway.status;
+  const gatewayMode = gatewayStatus.running && gatewayStatus.runtimeMode !== "direct";
+  if (!gatewayMode) {
     tray?.destroy();
     tray = null;
     return;
@@ -308,7 +311,9 @@ function updateGatewayTray() {
 
 async function prepareProfileRuntime(profile) {
   let preferredModels = [];
-  if (profile.kind === "api") {
+  const needsModelDiscovery = profile.kind === "api"
+    && (profile.runtimeMode === "gateway" || !String(profile.model || profile.resolvedModel || "").trim());
+  if (needsModelDiscovery) {
     const [providerModels, recentModels] = await Promise.all([
       recentThreadModels(codexPaths.home, targetProviderForProfile(profile)),
       recentThreadModels(codexPaths.home),
@@ -339,6 +344,11 @@ async function restoreCurrentApiGateway() {
   if (!data.currentId) return;
   const profile = await profileForSwitch(data.currentId, dataPaths);
   if (profile.kind !== "api") return;
+  if (profile.runtimeMode !== "gateway") {
+    await responsesGateway.stop().catch(() => {});
+    updateGatewayTray();
+    return;
+  }
   const live = await liveProfileMatch(codexPaths, profile, dataPaths.vault);
   if (!live.matches && !live.recoverableConfig) return;
   const runtime = await prepareProfileRuntime(profile);
@@ -381,7 +391,8 @@ async function launchThread(id, selectedProfile = null) {
   const profile = selectedProfile || await currentProfile();
   if (profile.kind === "api") {
     const live = await liveProfileMatch(codexPaths, profile, dataPaths.vault);
-    if (responsesGateway.status.profileId !== profile.id || !live.matches) {
+    const requiresGateway = profile.runtimeMode === "gateway";
+    if ((requiresGateway && responsesGateway.status.profileId !== profile.id) || !live.matches) {
       const runtime = await prepareProfileRuntime(profile);
       await applyProfile(codexPaths, runtime.profile, dataPaths.vault);
       const verified = await liveProfileMatch(codexPaths, runtime.profile, dataPaths.vault);
@@ -409,7 +420,11 @@ async function launchThread(id, selectedProfile = null) {
     });
     await waitForSpawn(child);
     child.unref();
-    const activeModel = profile.kind === "api" ? responsesGateway.status.model || profile.resolvedModel || "自动发现" : profile.model;
+    const activeModel = profile.kind === "api"
+      ? (profile.runtimeMode === "gateway"
+        ? responsesGateway.status.model || profile.resolvedModel || "自动发现"
+        : profile.resolvedModel || profile.model || "自动发现")
+      : profile.model;
     return { method: "cli", command: formatResumeCommand(id, resumeModel), profileId: profile.id, model: activeModel };
   }
   throw new Error("未找到 Codex CLI。请先安装 Codex，或在 CODEX_CLI_PATH 中指定可执行文件。");
@@ -805,7 +820,7 @@ function createWindow() {
   window.loadFile(path.join(appRoot, "public", "index.html"));
   window.once("ready-to-show", () => window.show());
   window.on("close", (event) => {
-    if (!quitting && responsesGateway.status.running) {
+    if (!quitting && responsesGateway.status.running && responsesGateway.status.runtimeMode === "gateway") {
       event.preventDefault();
       window.hide();
     }
@@ -863,6 +878,6 @@ app.on("will-quit", () => {
 });
 
 app.on("window-all-closed", () => {
-  if (responsesGateway.status.running) return;
+  if (responsesGateway.status.running && responsesGateway.status.runtimeMode === "gateway") return;
   if (process.platform !== "darwin") app.quit();
 });

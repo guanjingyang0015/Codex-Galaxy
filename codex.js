@@ -46,6 +46,7 @@ export async function liveProfileMatch(paths, profile, vaultFile) {
   try { auth = JSON.parse(authText); } catch { return { matches: false, reason: "invalid-auth" }; }
 
   if (profile.kind === "api") {
+    const mode = apiRuntimeMode(profile);
     const provider = String(profile.runtimeProvider || profile.providerKey || profile.id).trim();
     const selected = config.model_provider === provider;
     const authMatches = String(auth.auth_mode || "").toLowerCase() === "apikey"
@@ -53,9 +54,14 @@ export async function liveProfileMatch(paths, profile, vaultFile) {
     const credentialsMatch = credentialConfigMatches(config);
     const definition = config.model_providers?.[provider];
     const providerExists = Boolean(definition && typeof definition === "object" && !Array.isArray(definition));
+    const expectedBaseUrl = String(profile.baseUrl || "").trim().replace(/\/+$/, "");
+    const actualBaseUrl = String(definition?.base_url || "").trim().replace(/\/+$/, "");
+    const baseUrlMatches = mode === "gateway"
+      ? /^https?:\/\/127\.0\.0\.1(?::\d+)?\/v1$/i.test(actualBaseUrl)
+      : Boolean(expectedBaseUrl) && actualBaseUrl === expectedBaseUrl;
     const providerValid = providerExists
       && String(definition.wire_api || "").toLowerCase() === "responses"
-      && Boolean(String(definition.base_url || "").trim());
+      && baseUrlMatches;
     const matches = selected && authMatches && credentialsMatch && providerValid;
     const recoverableConfig = selected && authMatches && credentialsMatch && !providerValid;
     const reason = matches
@@ -183,7 +189,10 @@ function buildOfficialConfig(profile) {
 
 function buildApiConfig(profile, liveConfig = "", catalogPath = "") {
   const model = activeProfileModel(profile);
-  const provider = profile.runtimeProvider || profile.providerKey || "relay";
+  const mode = apiRuntimeMode(profile);
+  const provider = mode === "gateway"
+    ? (profile.runtimeProvider || profile.providerKey || profile.id || "galaxy")
+    : (profile.runtimeProvider || profile.providerKey || profile.id || "relay");
   const config = parseToml(liveConfig);
   for (const key of ["base_url", "openai_base_url", "chatgpt_base_url", "model_catalog_json", "OPENAI_API_KEY"]) delete config[key];
   enforceFileCredentials(config);
@@ -202,6 +211,14 @@ function buildApiConfig(profile, liveConfig = "", catalogPath = "") {
   };
   if (catalogPath) config.model_catalog_json = catalogPath;
   return TOML.stringify(config);
+}
+
+// Profiles loaded from the v4 store always carry an explicit mode. Raw
+// profiles without the field are treated as legacy gateway profiles so old
+// low-level callers can repair their loopback configuration safely.
+function apiRuntimeMode(profile) {
+  if (profile?.kind !== "api") return "direct";
+  return profile.runtimeMode === "direct" ? "direct" : "gateway";
 }
 
 function activeProfileModel(profile) {

@@ -1,7 +1,7 @@
 const $ = (selector) => document.querySelector(selector);
 const state = {
   profiles: [],
-  version: "1.7.1",
+  version: "1.8.0",
   threads: [],
   currentId: null,
   selectedProfileId: null,
@@ -24,7 +24,7 @@ const state = {
   automation: { settings: { autoCleanCompleted: false }, completedFiles: 0, completedBytes: 0 },
   update: {
     phase: "idle",
-    currentVersion: "1.7.1",
+    currentVersion: "1.8.0",
     latestVersion: null,
     available: false,
     action: "install",
@@ -123,6 +123,9 @@ const translations = {
     "profileForm.optional": "（可选）",
     "profileForm.modelPlaceholder": "留空自动发现，或填 gpt-5.6、provider/model",
     "profileForm.protocol": "API 账号始终使用独立纯 API 登录，不需要官方账号。模型 ID 可留空，由中转站模型列表自动选择；接口必须兼容 OpenAI Responses API。",
+    "profileForm.runtimeMode": "运行方式",
+    "profileForm.direct": "API 直连（推荐）",
+    "profileForm.gateway": "兼容网关（Galaxy 需运行）",
     "apiGuide.badge": "纯 API",
     "apiGuide.title": "无官方账号也能用：手机号/邮箱注册中转站即可",
     "apiGuide.description": "点击中转站即可复制链接。打开后按服务商提示完成开通，再将 <code>Base URL</code> 和 <code>API Key</code> 填入“添加账号”即可使用。",
@@ -338,6 +341,9 @@ const translations = {
     "profileForm.optional": "(optional)",
     "profileForm.modelPlaceholder": "Leave blank to detect, or enter gpt-5.6, provider/model",
     "profileForm.protocol": "API accounts always use an independent pure-API login and require no official account. Model ID may be left blank for relay catalog discovery. The endpoint must support the OpenAI Responses API.",
+    "profileForm.runtimeMode": "Runtime mode",
+    "profileForm.direct": "Direct API (recommended)",
+    "profileForm.gateway": "Compatibility gateway (Galaxy must run)",
     "apiGuide.badge": "PURE API",
     "apiGuide.title": "No official account required: register with a relay provider",
     "apiGuide.description": "Click a relay provider to copy its link. Open it and follow the provider's instructions to activate access, then add its <code>Base URL</code> and <code>API Key</code> to a new account.",
@@ -459,16 +465,16 @@ const translations = {
     "tutorial.step2.title": "Add one or more relay APIs",
     "tutorial.step3.title": "One-click safe switch",
     "tutorial.step4.title": "Resume the original project",
-    "tutorial.step5.title": "Keep the tray running in API mode",
+    "tutorial.step5.title": "Use the gateway only when needed",
     "tutorial.step6.title": "Refresh projects and clean data",
     "tutorial.step7.title": "Recovery from errors",
     "tutorial.step8.title": "Upgrading Codex Galaxy",
     "tutorial.step9.title": "Plugins, images, and automation cleanup",
     "tutorial.step1.body": "<ol><li>Sign in normally in Codex Desktop and wait for its project list to load.</li><li>In Galaxy, click + and add an “Official Codex account”. You can rename it later.</li><li>Click Capture on that account. The login can only be restored after capture succeeds.</li></ol>",
     "tutorial.step2.body": "<ol><li>Click + and choose “Relay API”.</li><li>Enter a name, Base URL, and API Key. The model ID is optional; Galaxy can read the relay model catalog and remember a working model.</li><li>Every API account uses an independent pure-API login and does not require an official account. You can switch directly between multiple API accounts.</li><li>The relay must support the OpenAI Responses API. If model discovery is unavailable and no model was previously learned, enter the model ID manually.</li><li>API keys are encrypted locally and never shown in project records.</li></ol>",
-    "tutorial.step3.body": "<ol><li>Select the target account and confirm the displayed login mode and model.</li><li>Click “Switch and open Codex”. If Codex is still running, Galaxy warns that an active task may be interrupted; cancel first if a task is generating.</li><li>Galaxy waits for Codex to stop writing, saves the local index, applies the target credentials/provider, and starts the loopback Responses gateway for API accounts.</li><li>Compatibility checks cover only new or changed history. When “Continue in Codex” opens a specific thread, Galaxy prioritizes that rollout instead of rescanning the entire Codex Home.</li><li>Session provider metadata is updated with bounded memory and progress feedback, then Codex reopens after synchronization reaches 100%.</li></ol>",
+    "tutorial.step3.body": "<ol><li>Select the target account and confirm the displayed login mode and model.</li><li>Click “Switch and open Codex”. If Codex is still running, Galaxy warns that an active task may be interrupted; cancel first if a task is generating.</li><li>Galaxy waits for Codex to stop writing, saves the local index, and applies the target credentials/provider. Direct API mode uses the entered Base URL; the loopback gateway starts only when “Compatibility gateway” is selected.</li><li>Compatibility checks cover only new or changed history. When “Continue in Codex” opens a specific thread, Galaxy prioritizes that rollout instead of rescanning the entire Codex Home.</li><li>Session provider metadata is updated with bounded memory and progress feedback, then Codex reopens after synchronization reaches 100%.</li></ol>",
     "tutorial.step4.body": "<ol><li>“View details” only previews the local thread in Galaxy and never changes accounts.</li><li>“Continue in Codex” switches or resynchronizes the selected account when needed, then restores that project in Codex.</li><li>Historical messages are preserved across GPT, DeepSeek, and other compatible providers; new replies use the active provider.</li><li>An encrypted-state warning only means a different provider may not reuse hidden reasoning state. It does not delete chat or project files.</li></ol>",
-    "tutorial.step5.body": "<p>API traffic passes through Galaxy’s loopback Responses gateway. Closing the main window minimizes Galaxy to the system tray; keep it running until the task finishes or you switch back to an official account. Exiting Galaxy in API mode stops the gateway.</p>",
+    "tutorial.step5.body": "<p>In Direct API mode, Codex connects to the entered Base URL directly, so Galaxy can exit after switching without affecting Codex, authentication, or chat history. Only Compatibility gateway mode needs the Galaxy gateway; closing the main window minimizes it to the tray, and exiting safely hands the gateway to an independent background host.</p>",
     "tutorial.step6.body": "<ol><li>Refresh rebuilds the visible list from current Codex state and does not delete source data.</li><li>Clean Data can remove explicitly archived/deleted projects and completed automation history only after creating a recoverable backup.</li><li>Galaxy never deletes user project folders or source code.</li></ol>",
     "tutorial.step7.body": "<ol><li>If switching fails, read the progress message. Galaxy attempts to restore the previous credentials, provider, gateway, and current-account marker.</li><li>Only one Galaxy instance may switch accounts; stale locks from dead processes are reclaimed automatically.</li><li>DNS, TLS, proxy, upstream overload, and authentication errors originate outside the local project index. Error messages never include API keys or request bodies.</li><li>If recovery is incomplete, keep the screenshot and report it without exposing secrets; do not manually edit the <code>.codex</code> files.</li></ol>",
     "tutorial.step8.body": "<ol><li>Galaxy checks the latest stable GitHub release at startup; the top update button can also check manually.</li><li>On Windows, one click downloads the exact installer, verifies its official Release URL and SHA-256, and starts setup. Finish active API-backed Codex work first because setup closes Galaxy and its local gateway.</li><li>The current macOS packages have no Apple Developer signature, so the update button only opens the project’s latest GitHub release page. Choose the Intel x64 or Apple Silicon arm64 DMG and follow macOS security prompts without bypassing Gatekeeper.</li><li>Install over the existing version; manual uninstall is unnecessary, and local profiles and records are retained.</li><li>For extra safety, back up <code>.codex-galaxy</code> locally and never upload it to Git.</li></ol>",
@@ -687,7 +693,9 @@ function profileModelLabel(profile) {
 
 function profileLoginModeLabel(profile) {
   if (profile.kind === "official") return t("profile.loginMode.official");
-  return t("profile.loginMode.pure");
+  return profile.runtimeMode === "gateway"
+    ? `${t("profile.loginMode.pure")} · ${t("profileForm.gateway")}`
+    : `${t("profile.loginMode.pure")} · ${t("profileForm.direct")}`;
 }
 
 function renderProfiles() {
@@ -1096,6 +1104,7 @@ function openProfileForm(profile = null) {
   form.elements.id.value = profile?.id || "";
   form.elements.name.value = profile?.name || "";
   form.elements.kind.value = profile?.kind || "official";
+  form.elements.runtimeMode.value = profile?.runtimeMode || "direct";
   form.elements.baseUrl.value = profile?.baseUrl || "";
   form.elements.apiKey.value = "";
   form.elements.model.value = profile?.model || "";

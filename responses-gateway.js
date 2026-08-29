@@ -416,6 +416,7 @@ function validateProfile(profile) {
     : modelCatalog;
   return {
     id: profile.id,
+    runtimeMode: profile.runtimeMode === "direct" ? "direct" : "gateway",
     baseUrl: baseUrl.toString(),
     apiKey,
     model,
@@ -548,7 +549,11 @@ export class ResponsesGateway {
   }
 
   snapshot() {
-    return { active: this.active ? { ...this.active } : null, running: Boolean(this.server?.listening) };
+    return {
+      active: this.active ? { ...this.active } : null,
+      running: Boolean(this.server?.listening),
+      runtimeMode: this.active?.runtimeMode || null,
+    };
   }
 
   async restore(snapshot) {
@@ -568,6 +573,7 @@ export class ResponsesGateway {
       running: Boolean(this.server?.listening),
       profileId: this.active?.id || null,
       model: this.active?.model || null,
+      runtimeMode: this.active?.runtimeMode || null,
       baseUrl: this.server?.listening ? this.baseUrl : null,
     };
   }
@@ -761,7 +767,32 @@ export async function prepareGatewayRuntime(gateway, profile, options = {}) {
   const before = gateway.snapshot();
   try {
     if (profile.kind === "api") {
-      const resolvedProfile = await gateway.resolveProfile(profile, options);
+      const runtimeMode = profile.runtimeMode === "direct" ? "direct" : "gateway";
+      const explicitModel = String(profile.model || profile.resolvedModel || "").trim();
+      // A direct API profile with an explicit model does not need the local
+      // gateway or an upstream /models probe.  This keeps account switching
+      // fast and avoids spending a request/context budget on discovery when
+      // the user already selected the model to use.
+      const resolvedProfile = runtimeMode === "direct" && explicitModel
+        ? {
+          ...profile,
+          ...validateProfile({ ...profile, model: explicitModel, runtimeMode }),
+          model: explicitModel,
+          runtimeMode,
+        }
+        : await gateway.resolveProfile({ ...profile, runtimeMode }, options);
+      if (runtimeMode === "direct") {
+        return {
+          profile: { ...resolvedProfile, baseUrl: profile.baseUrl, runtimeMode },
+          forceApply: true,
+          commit: async () => {
+            if (before.running) await gateway.stop();
+          },
+          rollback: async () => {
+            await gateway.restore(before);
+          },
+        };
+      }
       gateway.configure(resolvedProfile);
       await gateway.start();
       return {

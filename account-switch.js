@@ -165,7 +165,15 @@ export async function switchAccountTransaction({
 
     const targetMatch = await liveProfileMatch(codexPaths, profile, dataPaths.vault);
 
-    report({ percent: 31, stage: "gateway", message: profile.kind === "api" ? "正在启动本地 Responses 网关" : "正在准备官方直连模式" });
+    report({
+      percent: 31,
+      stage: "gateway",
+      message: profile.kind !== "api"
+        ? "正在准备官方直连模式"
+        : profile.runtimeMode === "gateway"
+          ? "正在启动兼容 Responses 网关"
+          : "正在准备 API 直连模式",
+    });
     runtime = await prepareRuntime(profile);
     const effectiveProfile = runtime?.profile || profile;
     if (profile.kind === "api" && effectiveProfile.model !== profile.model) {

@@ -20,7 +20,10 @@ test("release identity stays compatible with 0.1.0 upgrades and preserves user d
   const overlayHtml = await fs.readFile(path.join(root, "public", "codex-overlay.html"), "utf8");
   const overlayHelper = await fs.readFile(path.join(root, "electron", "windows-codex-window.mjs"), "utf8");
   const gatewayHost = await fs.readFile(path.join(root, "electron", "gateway-host.mjs"), "utf8");
-  assert.equal(packageJson.version, "1.7.1");
+  const codexJs = await fs.readFile(path.join(root, "codex.js"), "utf8");
+  const profilesJs = await fs.readFile(path.join(root, "profiles.js"), "utf8");
+  const modelCatalog = await fs.readFile(path.join(root, "model-catalog.js"), "utf8");
+  assert.equal(packageJson.version, "1.8.0");
   assert.equal(packageJson.author, "Guan Jingyang <guanjingyang@gmail.com>");
   assert.equal(packageJson.license, "MIT");
   assert.equal(packageJson.build.appId, "io.github.codex-galaxy.app");
@@ -62,6 +65,10 @@ test("release identity stays compatible with 0.1.0 upgrades and preserves user d
   assert.match(gatewayHost, /ELECTRON_RUN_AS_NODE/);
   assert.match(gatewayHost, /gateway-host\.json/);
   assert.match(gatewayHost, /unrelated process/);
+  assert.match(electronMain, /if \(profile\.runtimeMode !== "gateway"\)/);
+  assert.match(codexJs, /apiRuntimeMode/);
+  assert.match(profilesJs, /PROFILE_SCHEMA_VERSION = 4/);
+  assert.match(modelCatalog, /instructions_template: "\{\{ personality \}\}"/);
   assert.match(preload, /checkUpdate/);
   assert.match(preload, /installUpdate/);
   assert.match(preload, /onUpdateStatus/);

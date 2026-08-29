@@ -27,6 +27,7 @@ test("API switching preserves common config and writes an arbitrary model", asyn
     baseUrl: "https://relay.invalid/v1",
     apiKey: "test-key-not-real",
     model: "deepseek-reasoner",
+    runtimeMode: "direct",
     singleModel: true,
     modelCatalog: [{
       sourceId: "deepseek-reasoner",
@@ -52,18 +53,21 @@ test("API switching preserves common config and writes an arbitrary model", asyn
     auth_mode: "apikey",
     OPENAI_API_KEY: "test-key-not-real",
   });
-  assert.equal((await liveProfileMatch(paths, {
+  const match = await liveProfileMatch(paths, {
     id: "relay-b",
     kind: "api",
     providerKey: "relay-deepseek",
+    baseUrl: "https://relay.invalid/v1",
     apiKey: "test-key-not-real",
-  }, vaultFile)).matches, true);
+    runtimeMode: "direct",
+  }, vaultFile);
+  assert.equal(match.matches, true);
   const catalog = JSON.parse(await fs.readFile(paths.modelCatalog, "utf8"));
   assert.equal(catalog.models.length, 1);
   assert.equal(catalog.models[0].display_name, "DeepSeek R1");
   assert.equal(catalog.models[0].context_window, 131072);
-  assert.match(catalog.models[0].base_instructions, /latest user message defines the current request/);
-  assert.match(catalog.models[0].model_messages.instructions_template, /do not resume older pending work/);
+  assert.match(catalog.models[0].base_instructions, /Follow the latest user message/);
+  assert.equal(catalog.models[0].model_messages.instructions_template, "{{ personality }}");
 });
 
 test("GPT relay switching keeps every GPT catalog entry and excludes other vendors", async () => {
@@ -87,6 +91,7 @@ test("GPT relay switching keeps every GPT catalog entry and excludes other vendo
     baseUrl: "https://relay.invalid/v1",
     apiKey: "test-key-not-real",
     model: "gpt-5.6-sol",
+    runtimeMode: "direct",
     configuredModel: "gpt-5.6",
     singleModel: false,
     modelCatalog: [

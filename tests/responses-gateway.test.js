@@ -480,6 +480,21 @@ test("runtime switching rolls back the prior gateway profile", async (t) => {
   assert.equal(gateway.status.running, true);
 });
 
+test("direct API runtime keeps Codex on the provider URL without starting Galaxy gateway", async () => {
+  const gateway = new ResponsesGateway({ port: 0 });
+  const runtime = await prepareGatewayRuntime(gateway, {
+    ...profile("https://relay.example/v1", "provider/model"),
+    runtimeMode: "direct",
+  });
+
+  assert.equal(runtime.profile.runtimeMode, "direct");
+  assert.equal(runtime.profile.baseUrl, "https://relay.example/v1");
+  assert.equal(runtime.forceApply, true);
+  assert.equal(gateway.status.running, false);
+  await runtime.commit();
+  assert.equal(gateway.status.running, false);
+});
+
 test("profile resolution uses the relay model catalog and an observed provider model", async () => {
   const calls = [];
   const gateway = new ResponsesGateway({ port: 0, fetchUpstream: async (url) => {

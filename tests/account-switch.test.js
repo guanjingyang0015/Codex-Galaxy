@@ -265,7 +265,7 @@ test("API switching writes the prepared local gateway URL and commits its runtim
     dataPaths: item.dataPaths,
     stopCodexDesktop: async () => ({ stopped: 0, processIds: [] }),
     prepareRuntime: async (profile) => ({
-      profile: { ...profile, baseUrl: "http://127.0.0.1:43821/v1" },
+      profile: { ...profile, runtimeMode: "gateway", baseUrl: "http://127.0.0.1:43821/v1" },
       forceApply: true,
       commit: async () => { committed = true; },
       rollback: async () => {},
@@ -283,6 +283,8 @@ test("reselecting the active API profile repairs a missing provider table before
   const item = await fixture();
   const effectiveProfile = {
     ...(await profileForSwitch(item.api.id, item.dataPaths)),
+    runtimeMode: "gateway",
+    runtimeProvider: "galaxy",
     baseUrl: "http://127.0.0.1:43821/v1",
   };
   await switchProfile(item.codexPaths, effectiveProfile, item.dataPaths.vault);
@@ -299,7 +301,7 @@ test("reselecting the active API profile repairs a missing provider table before
     dataPaths: item.dataPaths,
     stopCodexDesktop: async () => ({ stopped: 0, processIds: [] }),
     prepareRuntime: async () => ({
-      profile: effectiveProfile,
+      profile: { ...effectiveProfile, runtimeMode: "gateway" },
       forceApply: false,
       commit: async () => {},
       rollback: async () => {},
@@ -328,7 +330,7 @@ test("a failed launch rolls back the prepared gateway runtime", async () => {
     dataPaths: item.dataPaths,
     stopCodexDesktop: async () => ({ stopped: 0, processIds: [] }),
     prepareRuntime: async (profile) => ({
-      profile: { ...profile, baseUrl: "http://127.0.0.1:43821/v1" },
+      profile: { ...profile, runtimeMode: "gateway", baseUrl: "http://127.0.0.1:43821/v1" },
       forceApply: true,
       commit: async () => { committed = true; },
       rollback: async () => { rolledBack = true; },
@@ -381,7 +383,7 @@ test("API profiles switch without any official account or OAuth snapshot", async
     dataPaths,
     stopCodexDesktop: async () => ({ stopped: 0, processIds: [] }),
     prepareRuntime: async (profile) => ({
-      profile: { ...profile, baseUrl: "http://127.0.0.1:43821/v1" },
+      profile: { ...profile, runtimeMode: "direct", baseUrl: profile.baseUrl },
       forceApply: true,
       commit: async () => { committed.push(profile.id); },
       rollback: async () => {},
@@ -400,7 +402,7 @@ test("API profiles switch without any official account or OAuth snapshot", async
   assert.equal(config.model_provider, apiB.providerKey);
   assert.equal(config.model, "model-b");
   assert.equal(config.model_providers[apiB.providerKey].name, "API B");
-  assert.equal(config.model_providers[apiB.providerKey].base_url, "http://127.0.0.1:43821/v1");
+  assert.equal(config.model_providers[apiB.providerKey].base_url, "https://api-b.invalid/v1");
   assert.deepEqual(auth, { auth_mode: "apikey", OPENAI_API_KEY: "not-a-real-key-b" });
   assert.equal(vault.profiles[apiA.id]?.auth, undefined);
   assert.equal(vault.profiles[apiB.id]?.auth, undefined);
