@@ -103,7 +103,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, [tabindex]:focu
 .button.wide { width: 100%; min-height: 40px; }
 
 .profile-list { min-height: 72px; flex: 1 1 auto; overflow: auto; padding: 6px; }
-.profile-item { display: grid; grid-template-columns: 12px minmax(0, 1fr) auto; align-items: center; gap: 8px; min-height: 66px; margin-bottom: 3px; padding: 8px; border: 1px solid transparent; border-radius: 7px; background: transparent; }
+.profile-item { display: grid; grid-template-columns: 12px minmax(0, 1fr) minmax(120px, auto); align-items: center; gap: 8px; min-height: 66px; margin-bottom: 3px; padding: 8px; border: 1px solid transparent; border-radius: 7px; background: transparent; }
 .profile-item:last-child { margin-bottom: 0; }
 .profile-item:hover { border-color: #3a4147; background: #1d2125; }
 .profile-item.selected { border-color: #568270; background: #1a2923; }
@@ -114,9 +114,14 @@ button:focus-visible, input:focus-visible, select:focus-visible, [tabindex]:focu
 .profile-dot.official { background: var(--blue); }
 .profile-copy { min-width: 0; }
 .profile-name { overflow: hidden; font-size: 13px; font-weight: 750; text-overflow: ellipsis; white-space: nowrap; }
-.profile-kind, .profile-model { overflow: hidden; margin-top: 3px; color: var(--muted); font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
+.profile-kind, .profile-model, .profile-endpoint, .profile-test { overflow: hidden; margin-top: 3px; color: var(--muted); font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
 .profile-model { color: #c3c9cf; }
-.profile-actions { display: flex; align-items: center; justify-content: flex-end; gap: 5px; }
+.profile-endpoint { color: #aeb8c0; }
+.profile-test { color: #8fa69a; }
+.profile-test.ok { color: var(--accent); }
+.profile-test.auth, .profile-test.server { color: var(--amber); }
+.profile-test.network, .profile-test.invalid, .profile-test.not-found { color: var(--danger); }
+.profile-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 5px; }
 .profile-actions button, .thread-actions button { padding: 5px 7px; border: 1px solid var(--line); border-radius: 6px; background: transparent; color: var(--muted); font-size: 10px; }
 .profile-actions button:hover, .thread-actions button:hover { border-color: var(--accent); color: var(--accent); }
 .profile-status { color: var(--accent); font-size: 10px; }
@@ -125,6 +130,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, [tabindex]:focu
 .form-title { margin-bottom: 13px; font-size: 13px; font-weight: 750; }
 .profile-form .form-title, .profile-form .protocol-note, .profile-form .form-actions { grid-column: 1 / -1; }
 .profile-form label { display: block; margin-top: 0; color: var(--muted); font-size: 11px; }
+.field-note { display: block; margin-top: 4px; color: #7f898f; font-size: 9px; line-height: 1.35; }
 .profile-form input, .profile-form select, .thread-toolbar input, .thread-toolbar select { width: 100%; margin-top: 5px; padding: 9px 10px; border: 1px solid var(--line); border-radius: 6px; outline: none; background: var(--surface-3); color: var(--text); }
 .profile-form input:focus, .profile-form select:focus, .thread-toolbar input:focus, .thread-toolbar select:focus { border-color: var(--blue); }
 .protocol-note { margin-top: 9px; color: var(--muted); font-size: 10px; line-height: 1.5; }

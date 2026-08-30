@@ -5,7 +5,7 @@ import os from "node:os";
 import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { defaultPaths, inspectCodex, captureCurrent, liveProfileMatch, switchProfile as applyProfile } from "../codex.js";
-import { runtimePaths, loadProfiles, publicProfiles, saveProfile, profileForSwitch, setCurrent, setResolvedModel } from "../profiles.js";
+import { runtimePaths, loadProfiles, publicProfiles, saveProfile, profileForSwitch, setCurrent, setResolvedModel, deleteProfile, clearApiKey } from "../profiles.js";
 import { syncConversations, readLibrary, readThreadDetail } from "../sync.js";
 import { setPlatformSecretProvider } from "../vault.js";
 import { buildMacTerminalArgs, buildResumeArgs, formatResumeCommand, waitForSpawn } from "../launcher.js";
@@ -21,6 +21,7 @@ import { cleanupCompletedAutomations, getAutomationSettings, previewCompletedAut
 import { cleanupInvalidProjects, previewInvalidProjects } from "../project-cleanup.js";
 import { AppUpdater } from "../app-updater.js";
 import { diagnoseThreadRollout, repairThreadRollout } from "../thread-repair.js";
+import { testApiProfile } from "../relay-connection.js";
 
 const appRoot = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const codexPaths = defaultPaths();
@@ -625,6 +626,17 @@ function registerHandlers() {
     const profiles = await publicProfiles(dataPaths);
     return { profile: profiles.profiles.find((item) => item.id === saved.id) };
   }));
+  ipcMain.handle("codex-galaxy:delete-profile", (_, id) => result(async () => {
+    const deleted = await deleteProfile(id, dataPaths);
+    return { ...deleted, profiles: await publicProfiles(dataPaths) };
+  }));
+  ipcMain.handle("codex-galaxy:clear-profile-key", (_, id) => result(async () => {
+    const cleared = await clearApiKey(id, dataPaths);
+    return { ...cleared, profiles: await publicProfiles(dataPaths) };
+  }));
+  ipcMain.handle("codex-galaxy:test-profile", (_, id) => result(() => testApiProfile(id, dataPaths, {
+    fetcher: (url, options) => net.fetch(url, options),
+  })));
   ipcMain.handle("codex-galaxy:capture-profile", (_, id) => result(async () => {
     const captured = await captureCurrent(codexPaths, await profileForSwitch(id, dataPaths), dataPaths.vault);
     await setCurrent(id, dataPaths);

@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { saveProfile, profileForSwitch, publicProfiles, setResolvedModel } from "../profiles.js";
+import { clearApiKey, deleteProfile, recordProfileTest, saveProfile, profileForSwitch, publicProfiles, setCurrent, setResolvedModel } from "../profiles.js";
 
 test("profiles persist API keys in the encrypted vault only", async () => {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), "codex-galaxy-profiles-"));
@@ -44,7 +44,7 @@ test("legacy API profiles migrate once from mixed login to pure API mode", async
   assert.equal(publicState.profiles.find((profile) => profile.id === "relay-legacy").preserveOfficialLogin, false);
   assert.equal(publicState.profiles.find((profile) => profile.id === "official-a").preserveOfficialLogin, true);
   const persisted = JSON.parse(await fs.readFile(paths.profiles, "utf8"));
-  assert.equal(persisted.version, 4);
+  assert.equal(persisted.version, 5);
   assert.equal(persisted.profiles.find((profile) => profile.id === "relay-legacy").preserveOfficialLogin, false);
   assert.equal(persisted.profiles.find((profile) => profile.id === "relay-legacy").runtimeMode, "direct");
   assert.equal(persisted.profiles.find((profile) => profile.id === "relay-legacy").runtimeProvider, "relay-legacy");
@@ -61,7 +61,7 @@ test("schema v2 mixed API profiles migrate to pure API mode", async () => {
 
   assert.equal((await publicProfiles(paths)).profiles[0].preserveOfficialLogin, false);
   const persisted = JSON.parse(await fs.readFile(paths.profiles, "utf8"));
-  assert.equal(persisted.version, 4);
+  assert.equal(persisted.version, 5);
   assert.equal(persisted.profiles[0].preserveOfficialLogin, false);
   assert.equal(persisted.profiles[0].runtimeMode, "direct");
 });
@@ -103,4 +103,57 @@ test("an API profile can leave its model blank and remember the discovered model
 
   await saveProfile({ id: "relay-auto", name: "Renamed Relay", kind: "api", baseUrl: "https://relay.test/v1", apiKey: "", model: "" }, paths);
   assert.equal((await profileForSwitch("relay-auto", paths)).resolvedModel, "vendor/text-model@2026");
+});
+
+test("API profile Base URLs cannot hide plaintext credentials", async () => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), "codex-galaxy-profile-url-"));
+  const paths = { root, profiles: path.join(root, "profiles.json"), vault: path.join(root, "vault.json"), library: path.join(root, "library.json") };
+  await assert.rejects(() => saveProfile({
+    id: "relay-userinfo",
+    name: "Relay",
+    kind: "api",
+    baseUrl: "https://user:plaintext-secret@relay.test/v1",
+    apiKey: "synthetic-key",
+    model: "model",
+  }, paths), /不能包含用户名或密码/);
+});
+
+test("API profile key clearing and deletion protect the current profile", async () => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), "codex-galaxy-profile-lifecycle-"));
+  const paths = { root, profiles: path.join(root, "profiles.json"), vault: path.join(root, "vault.json"), library: path.join(root, "library.json") };
+  await saveProfile({ id: "relay-a", name: "Relay A", kind: "api", baseUrl: "https://relay-a.test/v1", apiKey: "synthetic-a", model: "model-a" }, paths);
+  await saveProfile({ id: "relay-b", name: "Relay B", kind: "api", baseUrl: "https://relay-b.test/v1", apiKey: "synthetic-b", model: "model-b" }, paths);
+  await setCurrent("relay-a", paths);
+
+  await assert.rejects(() => clearApiKey("relay-a", paths), /不能清除当前正在使用/);
+  assert.deepEqual(await clearApiKey("relay-b", paths), { id: "relay-b", cleared: true });
+  assert.equal((await publicProfiles(paths)).profiles.find((profile) => profile.id === "relay-b").hasApiKey, false);
+  await assert.rejects(() => deleteProfile("relay-a", paths), /不能删除当前正在使用/);
+  assert.deepEqual(await deleteProfile("relay-b", paths), { id: "relay-b" });
+  assert.equal((await publicProfiles(paths)).profiles.some((profile) => profile.id === "relay-b"), false);
+});
+
+test("profile connection results persist only safe status metadata", async () => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), "codex-galaxy-profile-test-result-"));
+  const paths = { root, profiles: path.join(root, "profiles.json"), vault: path.join(root, "vault.json"), library: path.join(root, "library.json") };
+  await saveProfile({ id: "relay-result", name: "Relay", kind: "api", baseUrl: "https://relay.test/v1", apiKey: "synthetic-key", model: "model" }, paths);
+  const testedAt = "2026-08-30T03:20:00.000Z";
+  assert.equal(await recordProfileTest("relay-result", {
+    status: "auth",
+    httpStatus: 401,
+    testedAt,
+    reason: "synthetic upstream detail",
+    body: "must not persist",
+  }, paths), true);
+  const profile = (await publicProfiles(paths)).profiles[0];
+  assert.deepEqual(profile.lastTest, { status: "auth", httpStatus: 401, testedAt });
+  assert.doesNotMatch(JSON.stringify(profile), /synthetic upstream detail|must not persist/);
+
+  await saveProfile({ id: "relay-result", name: "Relay", kind: "api", baseUrl: "https://relay.test/v1", apiKey: "replacement-key", model: "model" }, paths);
+  assert.equal((await publicProfiles(paths)).profiles[0].lastTest, null);
+  await recordProfileTest("relay-result", { status: "ok", httpStatus: 200, testedAt }, paths);
+  await clearApiKey("relay-result", paths);
+  const cleared = (await publicProfiles(paths)).profiles[0];
+  assert.equal(cleared.hasApiKey, false);
+  assert.equal(cleared.lastTest, null);
 });

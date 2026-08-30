@@ -23,7 +23,9 @@ test("release identity stays compatible with 0.1.0 upgrades and preserves user d
   const codexJs = await fs.readFile(path.join(root, "codex.js"), "utf8");
   const profilesJs = await fs.readFile(path.join(root, "profiles.js"), "utf8");
   const modelCatalog = await fs.readFile(path.join(root, "model-catalog.js"), "utf8");
-  assert.equal(packageJson.version, "1.8.0");
+  const relayTest = await fs.readFile(path.join(root, "relay-connection.js"), "utf8");
+  const releaseNotes = await fs.readFile(path.join(root, "release-notes", "v1.9.0.md"), "utf8");
+  assert.equal(packageJson.version, "1.9.0");
   assert.equal(packageJson.author, "Guan Jingyang <guanjingyang@gmail.com>");
   assert.equal(packageJson.license, "MIT");
   assert.equal(packageJson.build.appId, "io.github.codex-galaxy.app");
@@ -37,6 +39,7 @@ test("release identity stays compatible with 0.1.0 upgrades and preserves user d
   assert.ok(packageJson.build.files.includes("project-cleanup.js"));
   assert.ok(packageJson.build.files.includes("thread-repair.js"));
   assert.ok(packageJson.build.files.includes("app-updater.js"));
+  assert.ok(packageJson.build.files.includes("relay-connection.js"));
   assert.ok(packageJson.build.files.includes("cli-discovery.js"));
   assert.ok(packageJson.build.files.includes("electron/windows-codex-window.mjs"));
   assert.ok(packageJson.build.files.includes("public/codex-overlay.html"));
@@ -60,6 +63,9 @@ test("release identity stays compatible with 0.1.0 upgrades and preserves user d
   assert.match(electronMain, /startUpdateChecks\(\)/);
   assert.match(electronMain, /codex-galaxy:check-update/);
   assert.match(electronMain, /codex-galaxy:install-update/);
+  assert.match(electronMain, /codex-galaxy:delete-profile/);
+  assert.match(electronMain, /codex-galaxy:clear-profile-key/);
+  assert.match(electronMain, /codex-galaxy:test-profile/);
   assert.match(electronMain, /handoffGatewayToHost/);
   assert.match(electronMain, /stopOwnedGatewayHost/);
   assert.match(gatewayHost, /ELECTRON_RUN_AS_NODE/);
@@ -67,12 +73,18 @@ test("release identity stays compatible with 0.1.0 upgrades and preserves user d
   assert.match(gatewayHost, /unrelated process/);
   assert.match(electronMain, /if \(profile\.runtimeMode !== "gateway"\)/);
   assert.match(codexJs, /apiRuntimeMode/);
-  assert.match(profilesJs, /PROFILE_SCHEMA_VERSION = 4/);
+  assert.match(profilesJs, /PROFILE_SCHEMA_VERSION = 5/);
+  assert.match(relayTest, /\/models/);
+  assert.doesNotMatch(renderer, /profile\.current\s*\?/);
+  assert.match(releaseNotes, /多中转站管理/);
   assert.match(modelCatalog, /instructions_template: "\{\{ personality \}\}"/);
   assert.match(preload, /checkUpdate/);
   assert.match(preload, /installUpdate/);
   assert.match(preload, /onUpdateStatus/);
   assert.match(preload, /repairThread/);
+  assert.match(preload, /deleteProfile/);
+  assert.match(preload, /clearProfileKey/);
+  assert.match(preload, /testProfile/);
   assert.match(electronMain, /diagnoseThreadRollout/);
   assert.match(electronMain, /repairThreadRollout/);
   assert.match(threadRepair, /byte-exact/i);

@@ -3,7 +3,7 @@ import os from "node:os";
 import crypto from "node:crypto";
 import { readJson, writeJson, encrypt, decrypt } from "./vault.js";
 
-const PROFILE_SCHEMA_VERSION = 4;
+const PROFILE_SCHEMA_VERSION = 5;
 
 function providerKeyFor(profile) {
   const fallback = profile?.id || "relay";
@@ -55,6 +55,12 @@ export async function saveProfile(input, paths = runtimePaths()) {
   const name = String(input.name || "").trim();
   const model = String(input.model || "").trim();
   const baseUrl = String(input.baseUrl ?? previous?.baseUrl ?? "").trim();
+  if (input.kind === "api") {
+    let parsed;
+    try { parsed = new URL(baseUrl); } catch { throw new Error("Base URL 格式不正确，请填写 http:// 或 https:// 地址。"); }
+    if (!['http:', 'https:'].includes(parsed.protocol)) throw new Error("Base URL 只能使用 http:// 或 https:// 地址。");
+    if (parsed.username || parsed.password) throw new Error("Base URL 不能包含用户名或密码，请使用 API Key 字段。");
+  }
   const runtimeMode = input.kind === "api"
     ? (input.runtimeMode === "gateway" || input.runtimeMode === "direct"
       ? input.runtimeMode
@@ -63,7 +69,8 @@ export async function saveProfile(input, paths = runtimePaths()) {
   if (!name) throw new Error("请填写账号名称。");
   if (input.kind === "official" && !model) throw new Error("请填写官方账号要使用的模型 ID。");
   if (model && !/^[a-zA-Z0-9][a-zA-Z0-9._:/@+-]*$/.test(model)) throw new Error("模型 ID 包含不受支持的字符。");
-  if (input.kind === 'api' && (!baseUrl || (!input.apiKey && !vault.profiles[id]?.apiKey))) throw new Error("中转账号需要 Base URL 和 API Key。");
+  const providedApiKey = typeof input.apiKey === "string" ? input.apiKey.trim() : "";
+  if (input.kind === 'api' && (!baseUrl || (!providedApiKey && !vault.profiles[id]?.apiKey))) throw new Error("中转账号需要 Base URL 和 API Key。");
   const profile = {
     id,
     name: name.slice(0, 80),
@@ -83,14 +90,74 @@ export async function saveProfile(input, paths = runtimePaths()) {
     model: model.slice(0, 160),
     preserveOfficialLogin: false,
     resolvedModel: previous?.model === model && previous?.baseUrl === baseUrl ? previous.resolvedModel || null : null,
+    lastTest: input.kind === "api" && previous?.kind === "api" && previous.baseUrl === baseUrl && !providedApiKey
+      ? previous.lastTest || null
+      : null,
     wireApi: "responses",
     updatedAt: new Date().toISOString(),
   };
   data.profiles = data.profiles.filter((item) => item.id !== profile.id).concat({ ...previous, ...profile });
-  if (input.apiKey) vault.profiles[profile.id] = { ...(vault.profiles[profile.id] || {}), apiKey: encrypt(input.apiKey) };
+  if (providedApiKey) vault.profiles[profile.id] = { ...(vault.profiles[profile.id] || {}), apiKey: encrypt(providedApiKey) };
+  else if (input.kind !== "api" && vault.profiles[profile.id]?.apiKey) {
+    const next = { ...vault.profiles[profile.id] };
+    delete next.apiKey;
+    if (Object.keys(next).length) vault.profiles[profile.id] = next;
+    else delete vault.profiles[profile.id];
+  }
   await writeJson(paths.profiles, data);
   await writeJson(paths.vault, vault);
   return profile;
+}
+
+export async function deleteProfile(id, paths = runtimePaths()) {
+  const { data, vault } = await loadProfiles(paths);
+  const profileId = String(id || "");
+  const profile = data.profiles.find((item) => item.id === profileId);
+  if (!profile) throw new Error("找不到要删除的配置。");
+  if (data.currentId === profileId) throw new Error("不能删除当前正在使用的配置，请先切换到其他账号或中转站。");
+  data.profiles = data.profiles.filter((item) => item.id !== profileId);
+  delete vault.profiles[profileId];
+  await writeJson(paths.profiles, data);
+  await writeJson(paths.vault, vault);
+  return { id: profileId };
+}
+
+export async function clearApiKey(id, paths = runtimePaths()) {
+  const { data, vault } = await loadProfiles(paths);
+  const profileId = String(id || "");
+  const profile = data.profiles.find((item) => item.id === profileId);
+  if (!profile) throw new Error("找不到要清除密钥的配置。");
+  if (profile.kind !== "api") throw new Error("只有中转 API 配置才有 API Key。");
+  if (data.currentId === profileId) throw new Error("不能清除当前正在使用的中转站 Key，请先切换到其他配置。");
+  const cleared = Boolean(vault.profiles[profileId]?.apiKey);
+  if (cleared) {
+    const next = { ...vault.profiles[profileId] };
+    delete next.apiKey;
+    if (Object.keys(next).length) vault.profiles[profileId] = next;
+    else delete vault.profiles[profileId];
+  }
+  profile.lastTest = null;
+  profile.updatedAt = new Date().toISOString();
+  await writeJson(paths.profiles, data);
+  if (cleared) await writeJson(paths.vault, vault);
+  return { id: profileId, cleared };
+}
+
+export async function recordProfileTest(id, result, paths = runtimePaths()) {
+  const { data } = await loadProfiles(paths);
+  const profile = data.profiles.find((item) => item.id === String(id || ""));
+  if (!profile || profile.kind !== "api") return false;
+  const status = ["ok", "auth", "not-found", "unsupported", "server", "network", "invalid"].includes(result?.status)
+    ? result.status
+    : "network";
+  profile.lastTest = {
+    status,
+    httpStatus: Number.isInteger(result?.httpStatus) ? result.httpStatus : null,
+    testedAt: String(result?.testedAt || new Date().toISOString()),
+  };
+  profile.updatedAt = new Date().toISOString();
+  await writeJson(paths.profiles, data);
+  return true;
 }
 
 export async function setResolvedModel(id, configuredModel, resolvedModel, paths = runtimePaths()) {

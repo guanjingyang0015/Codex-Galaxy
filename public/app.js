@@ -1,7 +1,7 @@
 const $ = (selector) => document.querySelector(selector);
 const state = {
   profiles: [],
-  version: "1.8.0",
+  version: "1.9.0",
   threads: [],
   currentId: null,
   selectedProfileId: null,
@@ -12,6 +12,7 @@ const state = {
   cleanupOperationId: null,
   switchConfirmation: null,
   switching: false,
+  testingProfileId: null,
   refreshing: false,
   cleaning: false,
   repairing: false,
@@ -24,7 +25,7 @@ const state = {
   automation: { settings: { autoCleanCompleted: false }, completedFiles: 0, completedBytes: 0 },
   update: {
     phase: "idle",
-    currentVersion: "1.8.0",
+    currentVersion: "1.9.0",
     latestVersion: null,
     available: false,
     action: "install",
@@ -53,6 +54,9 @@ const translations = {
     "common.add": "添加",
     "common.edit": "编辑",
     "common.capture": "捕获",
+    "common.test": "测试连接",
+    "common.delete": "删除",
+    "common.clearKey": "清除 Key",
     "common.current": "当前",
     "common.none": "无",
     "common.unknown": "未知",
@@ -96,7 +100,7 @@ const translations = {
     "status.gateway": "本地网关",
     "status.codex": "Codex 状态",
     "status.codexSummary": "{running} · {provider}",
-    "profiles.title": "账号",
+    "profiles.title": "账号与中转站",
     "profiles.add": "添加账号",
     "profile.modelAuto": "自动发现",
     "profile.modelAutoPrefix": "自动",
@@ -105,6 +109,27 @@ const translations = {
     "profile.kind.official": "Codex 官方账号",
     "profile.kind.api": "中转 API",
     "profile.keySaved": "Key 已保存",
+    "profile.keyMissing": "未保存 Key",
+    "profile.testTitle": "测试中转站连接",
+    "profile.deleteTitle": "删除此配置",
+    "profile.testOk": "{name} 连接成功。",
+    "profile.testFailed": "{name} 连接测试：{message}",
+    "profile.testRunning": "正在测试…",
+    "profile.testNotFound": "接口路径不正确",
+    "profile.testAuth": "Key 无效或已失效",
+    "profile.testServer": "中转站服务器异常",
+    "profile.testNetwork": "网络连接失败",
+    "profile.testUnsupported": "接口不兼容",
+    "profile.baseUrl": "地址",
+    "profile.recentTest": "最近测试",
+    "profile.testNever": "未测试",
+    "profile.switchMissingKey": "这个中转站还没有保存 API Key，请先编辑配置并填写 Key。",
+    "profile.currentCannotDelete": "当前配置不能删除，请先切换到其他配置。",
+    "profile.currentCannotClear": "当前配置不能清除 Key，请先切换到其他配置。",
+    "profile.deleted": "配置已删除。",
+    "profile.keyCleared": "已清除 {name} 的 API Key。",
+    "profile.deleteConfirm": "确定删除“{name}”吗？这只会删除 Galaxy 保存的配置和密钥，不会删除 Codex 聊天记录。",
+    "profile.clearKeyConfirm": "确定清除“{name}”的 API Key 吗？清除后必须重新填写 Key 才能切换。",
     "profile.empty": "还没有账号。点击右上角 + 添加。",
     "profile.editTitle": "编辑账号",
     "profile.addTitle": "添加账号",
@@ -119,6 +144,7 @@ const translations = {
     "profileForm.official": "Codex 官方账号",
     "profileForm.api": "中转 API",
     "profileForm.keyPlaceholder": "留空则保留已保存的 Key",
+    "profileForm.keyNote": "留空会保留原 Key；需要更换时直接填写新 Key。",
     "profileForm.model": "模型 ID",
     "profileForm.optional": "（可选）",
     "profileForm.modelPlaceholder": "留空自动发现，或填 gpt-5.6、provider/model",
@@ -271,6 +297,9 @@ const translations = {
     "common.add": "Add",
     "common.edit": "Edit",
     "common.capture": "Capture",
+    "common.test": "Test connection",
+    "common.delete": "Delete",
+    "common.clearKey": "Clear key",
     "common.current": "Current",
     "common.none": "None",
     "common.unknown": "Unknown",
@@ -323,6 +352,27 @@ const translations = {
     "profile.kind.official": "Codex official account",
     "profile.kind.api": "Relay API",
     "profile.keySaved": "Key saved",
+    "profile.keyMissing": "Key not saved",
+    "profile.testTitle": "Test relay connection",
+    "profile.deleteTitle": "Delete this configuration",
+    "profile.testOk": "{name} connected successfully.",
+    "profile.testFailed": "Connection test for {name}: {message}",
+    "profile.testRunning": "Testing…",
+    "profile.testNotFound": "Endpoint path is incorrect",
+    "profile.testAuth": "The key is invalid or expired",
+    "profile.testServer": "Relay server error",
+    "profile.testNetwork": "Network connection failed",
+    "profile.testUnsupported": "Incompatible endpoint",
+    "profile.baseUrl": "Endpoint",
+    "profile.recentTest": "Last test",
+    "profile.testNever": "Not tested",
+    "profile.switchMissingKey": "This relay has no saved API key. Edit it and enter a key before switching.",
+    "profile.currentCannotDelete": "The current configuration cannot be deleted. Switch first.",
+    "profile.currentCannotClear": "The current configuration cannot clear its key. Switch first.",
+    "profile.deleted": "Configuration deleted.",
+    "profile.keyCleared": "API key cleared for {name}.",
+    "profile.deleteConfirm": "Delete “{name}”? This removes only the Galaxy configuration and key; Codex chats are not deleted.",
+    "profile.clearKeyConfirm": "Clear the API key for “{name}”? You must enter a new key before switching to it.",
     "profile.empty": "No accounts yet. Click + in the top right to add one.",
     "profile.editTitle": "Edit account",
     "profile.addTitle": "Add account",
@@ -337,6 +387,7 @@ const translations = {
     "profileForm.official": "Official Codex account",
     "profileForm.api": "Relay API",
     "profileForm.keyPlaceholder": "Leave blank to keep the saved key",
+    "profileForm.keyNote": "Leave blank to keep the existing key; enter a new key to replace it.",
     "profileForm.model": "Model ID",
     "profileForm.optional": "(optional)",
     "profileForm.modelPlaceholder": "Leave blank to detect, or enter gpt-5.6, provider/model",
@@ -545,7 +596,7 @@ function setLanguage(language) {
 }
 
 function operationBusy() {
-  return state.switching || state.refreshing || state.cleaning || state.repairing || updateOperationBusy();
+  return state.switching || state.refreshing || state.cleaning || state.repairing || Boolean(state.testingProfileId) || updateOperationBusy();
 }
 
 function updateOperationBusy(update = state.update) {
@@ -698,6 +749,23 @@ function profileLoginModeLabel(profile) {
     : `${t("profile.loginMode.pure")} · ${t("profileForm.direct")}`;
 }
 
+function profileTestLabel(profile) {
+  if (profile.kind !== "api") return "";
+  const test = profile.lastTest;
+  if (!test?.status) return t("profile.testNever");
+  const labels = {
+    ok: currentLanguage === "en" ? "Connected" : "连接成功",
+    auth: t("profile.testAuth"),
+    "not-found": t("profile.testNotFound"),
+    server: t("profile.testServer"),
+    network: t("profile.testNetwork"),
+    unsupported: t("profile.testUnsupported"),
+    invalid: t("profile.testUnsupported"),
+  };
+  const status = labels[test.status] || t("profile.testNetwork");
+  return `${t("profile.recentTest")} · ${status}${test.httpStatus ? ` (${test.httpStatus})` : ""} · ${formatDate(test.testedAt)}`;
+}
+
 function renderProfiles() {
   const root = $("#profiles");
   const disabled = operationBusy() ? " disabled" : "";
@@ -713,14 +781,16 @@ function renderProfiles() {
           <span class="profile-dot ${profile.kind}"></span>
           <div class="profile-copy">
             <div class="profile-name">${escapeHtml(profile.name)}</div>
-            <div class="profile-kind">${profile.kind === "official" ? t("profile.kind.official") : `${t("profile.kind.api")} · ${profileLoginModeLabel(profile)}`}${profile.hasApiKey ? ` · ${t("profile.keySaved")}` : ""}</div>
+            <div class="profile-kind">${profile.kind === "official" ? t("profile.kind.official") : `${t("profile.kind.api")} · ${profileLoginModeLabel(profile)} · ${t(profile.hasApiKey ? "profile.keySaved" : "profile.keyMissing")}`}</div>
+            ${profile.kind === "api" ? `<div class="profile-endpoint" title="${escapeHtml(profile.baseUrl || "")}">${escapeHtml(t("profile.baseUrl"))}: ${escapeHtml(profile.baseUrl || t("common.unknown"))}</div><div class="profile-test ${escapeHtml(profile.lastTest?.status || "never")}">${escapeHtml(profileTestLabel(profile))}</div>` : ""}
             <div class="profile-model">${escapeHtml(profileModelLabel(profile))}</div>
           </div>
         </div>
         <div class="profile-actions">
           ${current ? `<span class="profile-status">${t("common.current")}</span>` : ""}
           <button data-action="edit" data-id="${escapeHtml(profile.id)}" title="${t("profile.editTitle")}" aria-label="${t("profile.editTitle")} ${escapeHtml(profile.name)}"${disabled}>${t("common.edit")}</button>
-          ${profile.kind === "official" ? `<button data-action="capture" data-id="${escapeHtml(profile.id)}" title="${t("profile.captureTitle")}"${disabled}>${t("common.capture")}</button>` : ""}
+          ${profile.kind === "official" ? `<button data-action="capture" data-id="${escapeHtml(profile.id)}" title="${t("profile.captureTitle")}"${disabled}>${t("common.capture")}</button>` : `<button data-action="test" data-id="${escapeHtml(profile.id)}" title="${t("profile.testTitle")}"${disabled}>${state.testingProfileId === profile.id ? t("profile.testRunning") : t("common.test")}</button><button data-action="clear-key" data-id="${escapeHtml(profile.id)}" title="${current ? t("profile.currentCannotClear") : profile.hasApiKey ? t("common.clearKey") : t("profile.actions.noKey")}"${disabled || current || !profile.hasApiKey ? " disabled" : ""}>${t("common.clearKey")}</button>`}
+          <button data-action="delete" data-id="${escapeHtml(profile.id)}" title="${current ? t("profile.currentCannotDelete") : t("profile.deleteTitle")}"${disabled || current ? " disabled" : ""}>${t("common.delete")}</button>
         </div>
       </div>`;
     }).join("");
@@ -985,6 +1055,7 @@ async function switchAccount(profileId, threadId = null) {
   if (operationBusy()) return;
   const profile = state.profiles.find((item) => item.id === profileId);
   if (!profile) return notice(t("switching.pleaseSelectAccount"), true);
+  if (profile.kind === "api" && !profile.hasApiKey) return notice(t("profile.switchMissingKey"), true);
   state.switchOperationId = crypto.randomUUID();
   setSwitching(true);
   updateProgress({ percent: 1, message: t("switching.to", { name: profile.name }) });
@@ -1113,6 +1184,54 @@ function openProfileForm(profile = null) {
   $("#addProfileBtn").hidden = true;
   updateProfileFields();
   form.elements.name.focus();
+}
+
+async function testProfile(id) {
+  if (operationBusy()) return;
+  const profile = state.profiles.find((item) => item.id === id);
+  if (!profile || profile.kind !== "api") return;
+  if (!profile.hasApiKey) return notice(t("profile.switchMissingKey"), true);
+  state.testingProfileId = id;
+  updateOperationControls();
+  try {
+    const result = unwrap(await bridge.testProfile(id));
+    notice(result.status === "ok"
+      ? t("profile.testOk", { name: profile.name })
+      : t("profile.testFailed", { name: profile.name, message: result.message || t("profile.testNetwork") }), result.status !== "ok");
+    await refresh();
+  } catch (error) {
+    notice(t("profile.testFailed", { name: profile.name, message: error.message }), true);
+  } finally {
+    state.testingProfileId = null;
+    updateOperationControls();
+  }
+}
+
+async function clearProfileKey(id) {
+  if (operationBusy()) return;
+  const profile = state.profiles.find((item) => item.id === id);
+  if (!profile || profile.kind !== "api") return;
+  if (profile.id === state.currentId) return notice(t("profile.currentCannotClear"), true);
+  if (!window.confirm(t("profile.clearKeyConfirm", { name: profile.name }))) return;
+  try {
+    unwrap(await bridge.clearProfileKey(id));
+    notice(t("profile.keyCleared", { name: profile.name }));
+    await refresh();
+  } catch (error) { notice(error.message, true); }
+}
+
+async function deleteProfile(id) {
+  if (operationBusy()) return;
+  const profile = state.profiles.find((item) => item.id === id);
+  if (!profile) return;
+  if (profile.id === state.currentId) return notice(t("profile.currentCannotDelete"), true);
+  if (!window.confirm(t("profile.deleteConfirm", { name: profile.name }))) return;
+  try {
+    unwrap(await bridge.deleteProfile(id));
+    if (state.selectedProfileId === id) state.selectedProfileId = state.currentId;
+    notice(t("profile.deleted"));
+    await refresh();
+  } catch (error) { notice(error.message, true); }
 }
 
 function closeProfileForm() {
@@ -1260,6 +1379,9 @@ $("#profiles").addEventListener("click", async (event) => {
   event.stopPropagation();
   const profile = state.profiles.find((item) => item.id === id);
   if (action.dataset.action === "edit" && profile) return openProfileForm(profile);
+  if (action.dataset.action === "test") return testProfile(id);
+  if (action.dataset.action === "clear-key") return clearProfileKey(id);
+  if (action.dataset.action === "delete") return deleteProfile(id);
   if (action.dataset.action === "capture") {
     try {
       unwrap(await bridge.captureProfile(id));
