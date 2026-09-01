@@ -6,6 +6,13 @@ import TOML from "@iarna/toml";
 import { readJson, writeJson, encrypt, decrypt, maskSecret } from "./vault.js";
 import { buildModelCatalog, buildSingleModelCatalog, isGptFamily } from "./model-catalog.js";
 
+const MODEL_CONTEXT_OVERRIDE_KEYS = [
+  "model_context_window",
+  "model_auto_compact_token_limit",
+  "model_auto_compact_token_limit_scope",
+];
+const CODEX_SAFE_REASONING_EFFORTS = new Set(["minimal", "low", "medium", "high", "xhigh"]);
+
 export function defaultPaths() {
   const home = process.env.CODEX_HOME || path.join(os.homedir(), ".codex");
   return {
@@ -35,9 +42,10 @@ export async function inspectCodex(paths = defaultPaths()) {
 }
 
 export async function liveProfileMatch(paths, profile, vaultFile) {
-  const [configText, authText, vault] = await Promise.all([
+  const [configText, authText, modelCatalogText, vault] = await Promise.all([
     fs.readFile(paths.config, "utf8").catch(() => ""),
     fs.readFile(paths.auth, "utf8").catch(() => ""),
+    fs.readFile(modelCatalogPath(paths), "utf8").catch(() => ""),
     readJson(vaultFile, { version: 1, profiles: {} }),
   ]);
   let config;
@@ -62,12 +70,18 @@ export async function liveProfileMatch(paths, profile, vaultFile) {
     const providerValid = providerExists
       && String(definition.wire_api || "").toLowerCase() === "responses"
       && baseUrlMatches;
-    const matches = selected && authMatches && credentialsMatch && providerValid;
-    const recoverableConfig = selected && authMatches && credentialsMatch && !providerValid;
+    const contextMetadataStale = hasModelContextOverrides(config)
+      || hasStaleApiModelCatalog(paths, config, profile, modelCatalogText);
+    const expectedModel = activeProfileModel(profile).toLowerCase();
+    const modelMatches = !expectedModel || String(config.model || "").trim().toLowerCase() === expectedModel;
+    const matches = selected && authMatches && credentialsMatch && providerValid && !contextMetadataStale && modelMatches;
+    const recoverableConfig = selected && authMatches && credentialsMatch && (!providerValid || contextMetadataStale || !modelMatches);
     const reason = matches
       ? "api-match"
       : recoverableConfig
-        ? providerExists ? "api-provider-invalid" : "api-provider-missing"
+        ? !providerValid
+          ? providerExists ? "api-provider-invalid" : "api-provider-missing"
+          : "api-context-metadata-stale"
         : "api-mismatch";
     return { matches, reason, recoverableConfig };
   }
@@ -76,12 +90,23 @@ export async function liveProfileMatch(paths, profile, vaultFile) {
   const savedAuth = vault.profiles[profile.id];
   const savedFingerprint = savedOfficialAuthFingerprint(savedAuth);
   const hasSavedAuth = Boolean(savedAuth?.auth);
-  const matches = config.model_provider === "openai"
+  const baseMatches = config.model_provider === "openai"
     && hasSavedAuth
     && Boolean(fingerprint)
     && savedFingerprint === fingerprint
     && credentialConfigMatches(config);
-  return { matches, reason: matches ? "official-match" : "official-mismatch" };
+  const contextConfigStale = hasModelContextOverrides(config)
+    || Object.hasOwn(config, "model_catalog_json")
+    || String(config.model || "").trim() !== String(profile.model || "").trim();
+  const matches = baseMatches && !contextConfigStale;
+  return {
+    matches,
+    reason: matches
+      ? "official-match"
+      : baseMatches && contextConfigStale
+        ? "official-context-config-stale"
+        : "official-mismatch",
+  };
 }
 
 export async function snapshotLiveFiles(paths) {
@@ -195,6 +220,7 @@ function buildApiConfig(profile, liveConfig = "", catalogPath = "") {
     : (profile.runtimeProvider || profile.providerKey || profile.id || "relay");
   const config = parseToml(liveConfig);
   for (const key of ["base_url", "openai_base_url", "chatgpt_base_url", "model_catalog_json", "OPENAI_API_KEY"]) delete config[key];
+  clearModelContextOverrides(config);
   enforceFileCredentials(config);
   config.model = model;
   config.model_provider = provider;
@@ -236,6 +262,7 @@ function catalogEntryModelId(entry) {
 function selectProfileModel(configText, profile, provider) {
   const config = parseToml(configText);
   delete config.model_catalog_json;
+  clearModelContextOverrides(config);
   enforceFileCredentials(config);
   config.model = profile.model;
   config.model_provider = provider;
@@ -266,6 +293,47 @@ function modelCatalogPath(paths) {
 
 function parseToml(text) {
   return text.trim() ? TOML.parse(text) : {};
+}
+
+function clearModelContextOverrides(config) {
+  for (const key of MODEL_CONTEXT_OVERRIDE_KEYS) delete config[key];
+}
+
+function hasModelContextOverrides(config) {
+  return MODEL_CONTEXT_OVERRIDE_KEYS.some((key) => Object.hasOwn(config, key));
+}
+
+function hasStaleApiModelCatalog(paths, config, profile, catalogText) {
+  const expectedModel = activeProfileModel(profile);
+  if (profile.kind !== "api" || !expectedModel) return false;
+  if (!samePath(config.model_catalog_json, modelCatalogPath(paths))) return true;
+  let catalog;
+  try { catalog = JSON.parse(catalogText); } catch { return true; }
+  if (!Array.isArray(catalog?.models) || !catalog.models.length) return true;
+  const selectedModel = String(config.model || expectedModel).trim().toLowerCase();
+  const entry = catalog.models.find((model) => String(model?.slug || "").trim().toLowerCase() === selectedModel);
+  if (!entry) return true;
+  if (catalog.models.some((model) => !catalogModelIsCodexSafe(model))) return true;
+  return String(entry.base_instructions || "").startsWith("You are Codex Galaxy, powered by ")
+    && Number(entry.context_window) === 128000
+    && Number(entry.max_context_window) === 128000
+    && Number(entry.effective_context_window_percent) === 95;
+}
+
+function catalogModelIsCodexSafe(model) {
+  if (!model || typeof model !== "object" || !String(model.slug || "").trim()) return false;
+  if (!Array.isArray(model.supported_reasoning_levels) || !model.supported_reasoning_levels.length) return false;
+  if (!CODEX_SAFE_REASONING_EFFORTS.has(String(model.default_reasoning_level || ""))) return false;
+  return model.supported_reasoning_levels.every((level) => CODEX_SAFE_REASONING_EFFORTS.has(String(level?.effort || "")) && String(level?.description || "").trim());
+}
+
+function samePath(left, right) {
+  if (!left || !right) return false;
+  const normalize = (value) => {
+    const resolved = path.resolve(String(value));
+    return process.platform === "win32" ? resolved.toLowerCase() : resolved;
+  };
+  return normalize(left) === normalize(right);
 }
 
 function enforceFileCredentials(config) {

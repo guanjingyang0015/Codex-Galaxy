@@ -70,3 +70,42 @@ test("known multimodal models infer image input when a relay omits modality meta
   const explicitlyTextOnly = buildSingleModelCatalog({ id: "gpt-custom-text", input_modalities: ["text"], supports_image_input: false });
   assert.deepEqual(explicitlyTextOnly.models[0].input_modalities, ["text"]);
 });
+
+test("model catalog does not invent a context budget when the relay omits it", () => {
+  const catalog = buildSingleModelCatalog({ id: "vendor/custom-model" });
+  const model = catalog.models[0];
+
+  assert.equal(Object.hasOwn(model, "context_window"), false);
+  assert.equal(Object.hasOwn(model, "max_context_window"), false);
+  assert.equal(Object.hasOwn(model, "effective_context_window_percent"), false);
+});
+
+test("model catalog preserves explicitly declared context limits without a hardcoded fallback", () => {
+  const catalog = buildModelCatalog([
+    { id: "vendor/context-model", context_window: 262144 },
+    { id: "vendor/max-only-model", max_context_window: 524288 },
+  ]);
+
+  assert.equal(catalog.models[0].context_window, 262144);
+  assert.equal(Object.hasOwn(catalog.models[0], "max_context_window"), false);
+  assert.equal(Object.hasOwn(catalog.models[0], "effective_context_window_percent"), false);
+  assert.equal(Object.hasOwn(catalog.models[1], "context_window"), false);
+  assert.equal(catalog.models[1].max_context_window, 524288);
+  assert.equal(Object.hasOwn(catalog.models[1], "effective_context_window_percent"), false);
+});
+
+test("model catalog never emits reasoning efforts unsupported by Codex", () => {
+  const catalog = buildSingleModelCatalog({
+    id: "vendor/legacy-model",
+    supported_reasoning_levels: [
+      { effort: "max", description: "Unsupported newer effort" },
+      { effort: "ultra", description: "Unsupported newer effort" },
+      { effort: "high", description: "Supported effort" },
+    ],
+    default_reasoning_level: "max",
+  });
+  const model = catalog.models[0];
+
+  assert.deepEqual(model.supported_reasoning_levels, [{ effort: "high", description: "Supported effort" }]);
+  assert.equal(model.default_reasoning_level, "high");
+});

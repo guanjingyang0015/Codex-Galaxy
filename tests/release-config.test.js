@@ -24,8 +24,8 @@ test("release identity stays compatible with 0.1.0 upgrades and preserves user d
   const profilesJs = await fs.readFile(path.join(root, "profiles.js"), "utf8");
   const modelCatalog = await fs.readFile(path.join(root, "model-catalog.js"), "utf8");
   const relayTest = await fs.readFile(path.join(root, "relay-connection.js"), "utf8");
-  const releaseNotes = await fs.readFile(path.join(root, "release-notes", "v1.9.0.md"), "utf8");
-  assert.equal(packageJson.version, "1.9.0");
+  const releaseNotes = await fs.readFile(path.join(root, "release-notes", "v1.9.1.md"), "utf8");
+  assert.equal(packageJson.version, "1.9.1");
   assert.equal(packageJson.author, "Guan Jingyang <guanjingyang@gmail.com>");
   assert.equal(packageJson.license, "MIT");
   assert.equal(packageJson.build.appId, "io.github.codex-galaxy.app");

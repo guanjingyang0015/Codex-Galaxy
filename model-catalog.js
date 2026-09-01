@@ -35,6 +35,11 @@ function numeric(value, fallback, minimum, maximum) {
 
 const MAX_CONTEXT_WINDOW = 8_000_000;
 
+function optionalNumeric(value, minimum, maximum) {
+  if (value === undefined || value === null || String(value).trim() === "") return undefined;
+  return numeric(value, undefined, minimum, maximum);
+}
+
 function providerIdentity(id) {
   const value = String(id || "").toLowerCase();
   const table = [
@@ -111,14 +116,18 @@ function normalizeEntry(item, providerName = "Codex Galaxy") {
   // selected GPT model accepts images. Unless the provider explicitly marks it
   // text-only, keep the known GPT multimodal capability visible to Codex.
   if (isGptModelId(id) && modalities.length === 1 && modalities[0] === "text" && source.supports_image_input !== false) modalities = ["text", "image"];
+  const contextWindow = optionalNumeric(source.context_window, 1024, MAX_CONTEXT_WINDOW);
+  const maxContextWindow = optionalNumeric(source.max_context_window, 1024, MAX_CONTEXT_WINDOW);
+  const effectiveContextWindowPercent = optionalNumeric(source.effective_context_window_percent, 1, 100);
   return {
     sourceId: id,
     display_name: displayName,
     description,
     default_reasoning_level: defaultReasoning,
     supported_reasoning_levels: levels,
-    context_window: numeric(source.context_window, 128000, 1024, MAX_CONTEXT_WINDOW),
-    max_context_window: numeric(source.max_context_window, numeric(source.context_window, 128000, 1024, MAX_CONTEXT_WINDOW), 1024, MAX_CONTEXT_WINDOW),
+    ...(contextWindow === undefined ? {} : { context_window: contextWindow }),
+    ...(maxContextWindow === undefined ? {} : { max_context_window: maxContextWindow }),
+    ...(effectiveContextWindowPercent === undefined ? {} : { effective_context_window_percent: effectiveContextWindowPercent }),
     input_modalities: modalities.length ? modalities : ["text"],
     supports_parallel_tool_calls: source.supports_parallel_tool_calls !== false,
     supports_reasoning_summaries: Boolean(source.supports_reasoning_summaries),
@@ -177,9 +186,9 @@ export function buildModelCatalog(entries, { providerName = "Codex Galaxy", prov
       truncation_policy: { mode: "tokens", limit: 10000 },
       supports_parallel_tool_calls: entry.supports_parallel_tool_calls,
       supports_image_detail_original: entry.supports_image_detail_original,
-      context_window: entry.context_window,
-      max_context_window: entry.max_context_window,
-      effective_context_window_percent: 95,
+      ...(entry.context_window === undefined ? {} : { context_window: entry.context_window }),
+      ...(entry.max_context_window === undefined ? {} : { max_context_window: entry.max_context_window }),
+      ...(entry.effective_context_window_percent === undefined ? {} : { effective_context_window_percent: entry.effective_context_window_percent }),
       experimental_supported_tools: [],
       input_modalities: entry.input_modalities,
       supports_search_tool: true,
