@@ -26,8 +26,8 @@ test("release identity stays compatible with 0.1.0 upgrades and preserves user d
   const profilesJs = await fs.readFile(path.join(root, "profiles.js"), "utf8");
   const modelCatalog = await fs.readFile(path.join(root, "model-catalog.js"), "utf8");
   const relayTest = await fs.readFile(path.join(root, "relay-connection.js"), "utf8");
-  const releaseNotes = await fs.readFile(path.join(root, "release-notes", "v1.9.3.md"), "utf8");
-  assert.equal(packageJson.version, "1.9.3");
+  const releaseNotes = await fs.readFile(path.join(root, "release-notes", "v1.9.4.md"), "utf8");
+  assert.equal(packageJson.version, "1.9.4");
   assert.equal(packageJson.author, "Guan Jingyang <guanjingyang@gmail.com>");
   assert.equal(packageJson.license, "MIT");
   assert.equal(packageJson.build.appId, "io.github.codex-galaxy.app");
@@ -76,6 +76,8 @@ test("release identity stays compatible with 0.1.0 upgrades and preserves user d
   assert.match(electronMain, /canContinue/);
   assert.match(electronMain, /bootstrapOfficialCodex/);
   assert.match(electronMain, /waitForCodexDesktopWindow/);
+  assert.match(electronMain, /resumeThreadInCodex/);
+  assert.match(electronMain, /codex:\/\/threads/);
   assert.match(gatewayHost, /ELECTRON_RUN_AS_NODE/);
   assert.match(gatewayHost, /gateway-host\.json/);
   assert.match(gatewayHost, /unrelated process/);
@@ -87,6 +89,8 @@ test("release identity stays compatible with 0.1.0 upgrades and preserves user d
   assert.match(releaseInfo, /33490869449/);
   assert.match(releaseInfo, /e3e61a5b51e6f903394302b3eeb2437c94d7d318/);
   assert.match(releaseInfo, /33505366436/);
+  assert.match(releaseInfo, /94c9a78fa6b5688e90994b628666e615c727dea5/);
+  assert.match(releaseInfo, /33519336408/);
   assert.match(profilesJs, /PROFILE_SCHEMA_VERSION = 5/);
   assert.match(relayTest, /\/models/);
   assert.doesNotMatch(renderer, /profile\.current\s*\?/);

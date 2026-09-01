@@ -444,12 +444,16 @@ async function launchThread(id, selectedProfile = null) {
   throw new Error("未找到 Codex CLI。请先安装 Codex，或在 CODEX_CLI_PATH 中指定可执行文件。");
 }
 
-async function openCodexDesktop() {
+async function openCodexDesktop(threadId = null) {
   if (process.env.CODEX_GALAXY_SKIP_LAUNCH === "1") return { method: "skipped-for-test" };
+  const targetUrl = threadId
+    ? `codex://threads/${encodeURIComponent(String(threadId))}`
+    : "codex://";
   try {
-    await shell.openExternal("codex://");
+    await shell.openExternal(targetUrl);
     return { method: "codex-protocol" };
   } catch (protocolError) {
+    if (threadId) throw protocolError;
     const fallback = process.platform === "win32"
       ? { command: "explorer.exe", args: ["shell:AppsFolder\\OpenAI.Codex_2p2nqsd0c76g0!App"] }
       : process.platform === "darwin"
@@ -460,6 +464,15 @@ async function openCodexDesktop() {
     await waitForSpawn(child);
     child.unref();
     return { method: "platform-fallback" };
+  }
+}
+
+async function resumeThreadInCodex(profile, threadId) {
+  if (!threadId) return openCodexDesktop();
+  try {
+    return await openCodexDesktop(threadId);
+  } catch {
+    return launchThread(threadId, profile);
   }
 }
 
@@ -715,13 +728,9 @@ function registerHandlers() {
       codexPaths,
       dataPaths,
       stopCodexDesktop: stopCodexDesktopSafely,
-      launch: (profile, resumeThreadId) => resumeThreadId
-        ? launchThread(resumeThreadId, profile)
-        : openCodexDesktop(),
+      launch: (profile, resumeThreadId) => resumeThreadInCodex(profile, resumeThreadId),
       bootstrapOfficial: bootstrapOfficialCodex,
-      restoreLaunch: (profile, resumeThreadId) => resumeThreadId
-        ? launchThread(resumeThreadId, profile)
-        : openCodexDesktop(),
+      restoreLaunch: (profile, resumeThreadId) => resumeThreadInCodex(profile, resumeThreadId),
       prepareRuntime: prepareProfileRuntime,
       launchVerificationDelayMs: 500,
       launchVerificationTimeoutMs: 8000,
@@ -764,11 +773,9 @@ function registerHandlers() {
       codexPaths,
       dataPaths,
       stopCodexDesktop: stopCodexDesktopSafely,
-      launch: (profile) => launchThread(request.threadId, profile),
+      launch: (profile) => resumeThreadInCodex(profile, request.threadId),
       bootstrapOfficial: bootstrapOfficialCodex,
-      restoreLaunch: (profile, resumeThreadId) => resumeThreadId
-        ? launchThread(resumeThreadId, profile)
-        : openCodexDesktop(),
+      restoreLaunch: (profile, resumeThreadId) => resumeThreadInCodex(profile, resumeThreadId),
       prepareRuntime: prepareProfileRuntime,
       launchMessage: "正在打开该项目线程",
       launchVerificationDelayMs: 500,

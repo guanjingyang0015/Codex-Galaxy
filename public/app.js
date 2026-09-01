@@ -1,7 +1,7 @@
 const $ = (selector) => document.querySelector(selector);
 const state = {
   profiles: [],
-  version: "1.9.3",
+  version: "1.9.4",
   threads: [],
   currentId: null,
   selectedProfileId: null,
@@ -26,7 +26,7 @@ const state = {
   releases: [],
   update: {
     phase: "idle",
-    currentVersion: "1.9.3",
+    currentVersion: "1.9.4",
     latestVersion: null,
     available: false,
     action: "install",
