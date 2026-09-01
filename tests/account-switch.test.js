@@ -98,7 +98,8 @@ test("a launch failure restores credentials, provider metadata, currentId, and t
   assert.equal(restoredThread.model_provider, "openai");
   assert.equal(restoredThread.model, "gpt-5.4");
   restoredDb.close();
-  assert.equal(await fs.readFile(item.dataPaths.library, "utf8"), originalLibrary);
+  const restoredLibrary = JSON.parse(await fs.readFile(item.dataPaths.library, "utf8"));
+  assert.equal(restoredLibrary.threads.some((thread) => thread.id === "thread-1"), true);
 });
 
 test("an official launch failure restores relay message IDs removed during the attempted switch", async () => {

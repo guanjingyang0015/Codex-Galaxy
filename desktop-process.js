@@ -218,12 +218,16 @@ export async function stopCodexDesktopAndWait({
   platform = process.platform,
   timeoutMs = STOP_TIMEOUT_MS,
   listProcesses = () => findCodexWriterProcesses(platform),
+  gracefulTerminate = null,
+  gracefulTimeoutMs = 5000,
   terminate = (pid) => process.kill(pid, platform === "darwin" ? "SIGTERM" : "SIGKILL"),
   pollIntervalMs = POLL_INTERVAL_MS,
 } = {}) {
   if (process.env.CODEX_GALAXY_SKIP_PROCESS_CONTROL === "1") return { stopped: 0, processIds: [] };
   const deadline = Date.now() + timeoutMs;
   const processIds = new Set();
+  let gracefulAttempted = false;
+  let gracefulDeadline = 0;
   let emptyScans = 0;
   let remaining = [];
   while (Date.now() < deadline) {
@@ -237,9 +241,18 @@ export async function stopCodexDesktopAndWait({
       }
     } else {
       emptyScans = 0;
-      for (const pid of remaining) {
-        processIds.add(pid);
-        try { terminate(pid); } catch (error) { if (error?.code !== "ESRCH") throw error; }
+      if (!gracefulAttempted && typeof gracefulTerminate === "function") {
+        gracefulAttempted = true;
+        const requested = await gracefulTerminate(found).catch(() => 0);
+        if (Number(requested) > 0) {
+          gracefulDeadline = Date.now() + Math.max(0, Number(gracefulTimeoutMs) || 0);
+        }
+      }
+      if (!gracefulDeadline || Date.now() >= gracefulDeadline) {
+        for (const pid of remaining) {
+          processIds.add(pid);
+          try { terminate(pid); } catch (error) { if (error?.code !== "ESRCH") throw error; }
+        }
       }
     }
     await wait(Math.max(0, pollIntervalMs));

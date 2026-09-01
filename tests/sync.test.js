@@ -3,8 +3,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { syncConversations, readLibrary } from "../sync.js";
-import { readThreadDetail } from "../sync.js";
+import { syncConversations, readLibrary, readThreadDetail } from "../sync.js";
 
 test("sync groups rollout events by session_meta thread id", async () => {
   const home = await fs.mkdtemp(path.join(os.tmpdir(), "codex-galaxy-codex-"));
@@ -174,6 +173,32 @@ test("sync includes desktop thread_history messages when no rollout path exists"
   assert.equal(detail.messages.length, 2);
 });
 
+test("sync accepts Windows extended rollout paths and keeps the source for full detail reads", async () => {
+  const home = await fs.mkdtemp(path.join(os.tmpdir(), "codex-galaxy-extended-rollout-"));
+  const sessions = path.join(home, "sessions");
+  await fs.mkdir(sessions, { recursive: true });
+  const rollout = path.join(sessions, "extended.jsonl");
+  const threadId = "extended-thread";
+  await fs.writeFile(rollout, [
+    JSON.stringify({ type: "session_meta", payload: { id: threadId, cwd: "C:\\project", model_provider: "openai" } }),
+    JSON.stringify({ type: "response_item", payload: { type: "message", role: "assistant", content: [{ type: "output_text", text: "完整原始回复" }] } }),
+  ].join("\n") + "\n");
+
+  const { DatabaseSync } = await import("node:sqlite");
+  const db = new DatabaseSync(path.join(home, "state_5.sqlite"));
+  db.exec("create table threads (id text primary key, title text, cwd text, model_provider text, rollout_path text, updated_at_ms integer)");
+  const extended = process.platform === "win32" ? `\\\\?\\${rollout}` : rollout;
+  db.prepare("insert into threads values (?, ?, ?, ?, ?, ?)").run(threadId, "扩展路径任务", "C:\\project", "openai", extended, 1780000000000);
+  db.close();
+  const libraryFile = path.join(home, "library.json");
+
+  await syncConversations({ codexHome: home, libraryFile });
+  const library = await readLibrary(libraryFile);
+  assert.equal(library.threads[0].source, rollout);
+  const detail = await readThreadDetail(library.threads[0], home);
+  assert.equal(detail.messages[0].content, "完整原始回复");
+});
+
 test("modern root state is authoritative and legacy state cannot revive archived or stale projects", async () => {
   const home = await fs.mkdtemp(path.join(os.tmpdir(), "codex-galaxy-authoritative-root-"));
   const { DatabaseSync } = await import("node:sqlite");
@@ -214,4 +239,44 @@ test("modern root state is authoritative and legacy state cannot revive archived
   assert.equal(library.threads.some((thread) => thread.id === "archived-root"), false);
   assert.equal(library.threads.some((thread) => thread.id === "legacy-only"), false);
   assert.equal(library.threads.some((thread) => thread.id === "catalog-without-history"), false);
+});
+
+test("sync keeps a real user thread when the root projection has_user_event is stale", async () => {
+  const home = await fs.mkdtemp(path.join(os.tmpdir(), "codex-galaxy-stale-user-flag-"));
+  const { DatabaseSync } = await import("node:sqlite");
+  const root = new DatabaseSync(path.join(home, "state_5.sqlite"));
+  root.exec("create table threads (id text primary key, title text, cwd text, model_provider text, rollout_path text, updated_at_ms integer, archived integer, has_user_event integer, thread_source text)");
+  root.prepare("insert into threads values (?, ?, ?, ?, ?, ?, ?, ?, ?)").run("real-thread", "仍在使用的任务", "C:\\project", "galaxy", null, 1788250000000, 0, 0, "user");
+  root.close();
+  const history = new DatabaseSync(path.join(home, "thread_history_1.sqlite"));
+  history.exec("create table thread_items (thread_id text, item_json text, item_type text, created_at_ms integer)");
+  history.prepare("insert into thread_items values (?, ?, ?, ?)").run("real-thread", JSON.stringify({ type: "userMessage", content: "保留这条聊天" }), "userMessage", 1788250000000);
+  history.close();
+  const libraryFile = path.join(home, "library.json");
+
+  const result = await syncConversations({ codexHome: home, libraryFile });
+  const library = await readLibrary(libraryFile);
+  assert.equal(result.threads, 1);
+  assert.equal(library.threads[0].id, "real-thread");
+  assert.equal(library.threads[0].messages[0].content, "保留这条聊天");
+});
+
+test("an empty transient scan preserves the existing local library", async () => {
+  const home = await fs.mkdtemp(path.join(os.tmpdir(), "codex-galaxy-preserve-empty-scan-"));
+  const libraryFile = path.join(home, "library.json");
+  const original = {
+    version: 2,
+    catalogVersion: 5,
+    syncedAt: "2026-09-01T00:00:00.000Z",
+    threads: [{ id: "keep-thread", title: "不要丢失", messages: [{ role: "assistant", content: "GitHub 发布记录" }], accounts: ["api-a"] }],
+  };
+  await fs.writeFile(libraryFile, `${JSON.stringify(original)}\n`);
+  await fs.writeFile(path.join(home, "session_index.jsonl"), `${JSON.stringify({ id: "keep-thread", thread_name: "索引仍在" })}\n`);
+
+  const result = await syncConversations({ codexHome: home, libraryFile });
+  const library = await readLibrary(libraryFile);
+  assert.equal(result.preservedExisting, true);
+  assert.equal(result.removed, 0);
+  assert.equal(library.threads[0].id, "keep-thread");
+  assert.equal(library.threads[0].messages[0].content, "GitHub 发布记录");
 });

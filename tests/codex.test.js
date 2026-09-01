@@ -269,6 +269,29 @@ test("reselecting an official profile clears stale global auto-compaction overri
   assert.equal((await liveProfileMatch(paths, profile, vaultFile)).matches, true);
 });
 
+test("official selection enables the Windows desktop compatibility mode without changing full-access or sandbox level", async () => {
+  const home = await fs.mkdtemp(path.join(os.tmpdir(), "galaxy-codex-official-sandbox-conflict-"));
+  const paths = { home, config: path.join(home, "config.toml"), auth: path.join(home, "auth.json"), modelCatalog: path.join(home, "catalog.json"), backupDir: path.join(home, "backups") };
+  const vaultFile = path.join(home, "vault.json");
+  const profile = { id: "official-a", name: "Official A", kind: "official", model: "gpt-5.6" };
+  await fs.writeFile(paths.config, 'model = "gpt-5.6"\nmodel_provider = "galaxy"\nsandbox_mode = "danger-full-access"\n\n[windows]\nsandbox = "elevated"\n');
+  await fs.writeFile(paths.auth, '{"auth_mode":"chatgpt","tokens":{"account_id":"account-a","access_token":"official-token"}}\n');
+  await captureCurrent(paths, profile, vaultFile);
+  await fs.writeFile(paths.config, 'model = "gpt-5.6"\nmodel_provider = "openai"\ncli_auth_credentials_store = "file"\nsandbox_mode = "danger-full-access"\n\n[windows]\nsandbox = "elevated"\n');
+
+  const stale = await liveProfileMatch(paths, profile, vaultFile);
+  assert.equal(stale.matches, false);
+  assert.equal(stale.reason, "official-context-config-stale");
+
+  await switchProfile(paths, profile, vaultFile);
+
+  const config = TOML.parse(await fs.readFile(paths.config, "utf8"));
+  assert.equal(config.sandbox_mode, "danger-full-access");
+  assert.equal(config.windows.sandbox, "elevated");
+  assert.equal(config.windows.sandbox_private_desktop, false);
+  assert.equal((await liveProfileMatch(paths, profile, vaultFile)).matches, true);
+});
+
 test("official capture rejects API auth and protects a captured account identity", async () => {
   const home = await fs.mkdtemp(path.join(os.tmpdir(), "galaxy-official-capture-"));
   const paths = { home, config: path.join(home, "config.toml"), auth: path.join(home, "auth.json"), backupDir: path.join(home, "backups") };

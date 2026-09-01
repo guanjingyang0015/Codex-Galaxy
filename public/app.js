@@ -1,7 +1,7 @@
 const $ = (selector) => document.querySelector(selector);
 const state = {
   profiles: [],
-  version: "1.9.1",
+  version: "1.9.2",
   threads: [],
   currentId: null,
   selectedProfileId: null,
@@ -23,9 +23,10 @@ const state = {
   librarySyncedAt: null,
   plugins: [],
   automation: { settings: { autoCleanCompleted: false }, completedFiles: 0, completedBytes: 0 },
+  releases: [],
   update: {
     phase: "idle",
-    currentVersion: "1.9.1",
+    currentVersion: "1.9.2",
     latestVersion: null,
     available: false,
     action: "install",
@@ -254,6 +255,9 @@ const translations = {
     "footer.codexHome": "CODEX HOME",
     "footer.library": "本地项目库",
     "footer.author": "作者邮箱",
+    "release.label": "最近发布记录",
+    "release.github": "GitHub Release",
+    "release.meta": "提交 {commit} · Actions {run}",
     "language.chinese": "简体中文",
     "language.english": "English",
     "dialog.close": "关闭",
@@ -497,6 +501,9 @@ const translations = {
     "footer.codexHome": "CODEX HOME",
     "footer.library": "Local project library",
     "footer.author": "Author email",
+    "release.label": "Latest release record",
+    "release.github": "GitHub Release",
+    "release.meta": "Commit {commit} · Actions {run}",
     "language.chinese": "简体中文",
     "language.english": "English",
     "dialog.close": "Close",
@@ -523,7 +530,7 @@ const translations = {
     "tutorial.step9.title": "Plugins, images, and automation cleanup",
     "tutorial.step1.body": "<ol><li>Sign in normally in Codex Desktop and wait for its project list to load.</li><li>In Galaxy, click + and add an “Official Codex account”. You can rename it later.</li><li>Click Capture on that account. The login can only be restored after capture succeeds.</li></ol>",
     "tutorial.step2.body": "<ol><li>Click + and choose “Relay API”.</li><li>Enter a name, Base URL, and API Key. The model ID is optional; Galaxy can read the relay model catalog and remember a working model.</li><li>Every API account uses an independent pure-API login and does not require an official account. You can switch directly between multiple API accounts.</li><li>The relay must support the OpenAI Responses API. If model discovery is unavailable and no model was previously learned, enter the model ID manually.</li><li>API keys are encrypted locally and never shown in project records.</li></ol>",
-    "tutorial.step3.body": "<ol><li>Select the target account and confirm the displayed login mode and model.</li><li>Click “Switch and open Codex”. If Codex is still running, Galaxy warns that an active task may be interrupted; cancel first if a task is generating.</li><li>Galaxy waits for Codex to stop writing, saves the local index, and applies the target credentials/provider. Direct API mode uses the entered Base URL; the loopback gateway starts only when “Compatibility gateway” is selected.</li><li>Compatibility checks cover only new or changed history. When “Continue in Codex” opens a specific thread, Galaxy prioritizes that rollout instead of rescanning the entire Codex Home.</li><li>Session provider metadata is updated with bounded memory and progress feedback, then Codex reopens after synchronization reaches 100%.</li></ol>",
+    "tutorial.step3.body": "<ol><li>Select the target account and confirm the displayed login mode and model.</li><li>If Codex is still generating a reply, Galaxy blocks switching until it finishes. If Codex is only idle, Galaxy requests a normal close and waits for local writes.</li><li>Galaxy saves the local index and applies the target credentials/provider. Direct API mode uses the entered Base URL; the loopback gateway starts only when “Compatibility gateway” is selected.</li><li>Compatibility checks cover only new or changed history. When “Continue in Codex” opens a specific thread, Galaxy prioritizes that rollout instead of rescanning the entire Codex Home.</li><li>Session provider metadata is updated with bounded memory and progress feedback, then Codex reopens after synchronization reaches 100%.</li></ol>",
     "tutorial.step4.body": "<ol><li>“View details” only previews the local thread in Galaxy and never changes accounts.</li><li>“Continue in Codex” switches or resynchronizes the selected account when needed, then restores that project in Codex.</li><li>Historical messages are preserved across GPT, DeepSeek, and other compatible providers; new replies use the active provider.</li><li>An encrypted-state warning only means a different provider may not reuse hidden reasoning state. It does not delete chat or project files.</li></ol>",
     "tutorial.step5.body": "<p>In Direct API mode, Codex connects to the entered Base URL directly, so Galaxy can exit after switching without affecting Codex, authentication, or chat history. Only Compatibility gateway mode needs the Galaxy gateway; closing the main window minimizes it to the tray, and exiting safely hands the gateway to an independent background host.</p>",
     "tutorial.step6.body": "<ol><li>Refresh rebuilds the visible list from current Codex state and does not delete source data.</li><li>Clean Data can remove explicitly archived/deleted projects and completed automation history only after creating a recoverable backup.</li><li>Galaxy never deletes user project folders or source code.</li></ol>",
@@ -735,6 +742,27 @@ function updateStatusBoard() {
   updateStatusPill();
 }
 
+function renderReleaseRecord() {
+  const release = state.releases[0];
+  const version = $("#releaseRecordVersion");
+  const link = $("#releaseRecordLink");
+  const meta = $("#releaseRecordMeta");
+  if (!version || !link || !meta) return;
+  if (!release) {
+    version.textContent = t("common.none");
+    link.hidden = true;
+    meta.textContent = "";
+    return;
+  }
+  version.textContent = release.tag || `v${release.version}`;
+  link.hidden = false;
+  link.href = release.url;
+  meta.textContent = t("release.meta", {
+    commit: String(release.commit || "").slice(0, 7),
+    run: release.actionsRun || t("common.unknown"),
+  });
+}
+
 function profileModelLabel(profile) {
   if (!profile.model) return profile.resolvedModel ? `${t("profile.modelAutoPrefix")} → ${profile.resolvedModel}` : t("profile.modelAuto");
   return profile.resolvedModel && profile.resolvedModel !== profile.model
@@ -842,6 +870,7 @@ async function refresh() {
   state.threads = snapshot.library.threads;
   state.plugins = snapshot.plugins || [];
   state.automation = snapshot.automation || state.automation;
+  state.releases = Array.isArray(snapshot.releases) ? snapshot.releases : [];
   state.update = snapshot.update || state.update;
   state.gatewayRunning = Boolean(snapshot.gateway?.running);
   state.codexRunning = Boolean(snapshot.codex.running);
@@ -852,6 +881,7 @@ async function refresh() {
   }
   $("#codexHome").textContent = snapshot.codex.home;
   applyLanguage();
+  renderReleaseRecord();
   if (snapshot.gateway?.error && snapshot.gateway.error !== state.gatewayError) {
     notice(t("gateway.localFailed", { error: snapshot.gateway.error }), true);
   }
@@ -1029,6 +1059,7 @@ function showSwitchConfirmation(request) {
   const dialog = $("#switchConfirmDialog");
   if (dialog.open) dialog.close();
   state.switchConfirmation = request.requestId;
+  $("#continueSwitchConfirm").hidden = request.canContinue === false;
   $("#switchConfirmTitle").textContent = request.title || t("confirm.title");
   $("#switchConfirmMessage").textContent = request.message || t("confirm.message");
   $("#switchConfirmDetail").textContent = request.detail || "";

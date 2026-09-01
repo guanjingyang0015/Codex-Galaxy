@@ -100,7 +100,7 @@ test("project cleanup removes only archived or explicitly missing tasks and keep
   assert.equal(index.includes("active"), true);
   const library = JSON.parse(await fs.readFile(libraryFile, "utf8"));
   assert.deepEqual(library.threads.map((thread) => thread.id), ["active"]);
-  assert.equal(library.catalogVersion, 4);
+  assert.equal(library.catalogVersion, 5);
 });
 
 test("project cleanup is a no-op when there are no archived or deleted projects", async () => {

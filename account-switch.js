@@ -119,11 +119,10 @@ export async function switchAccountTransaction({
   report({ percent: 10, stage: "stop", message: "正在安全关闭 Codex Desktop" });
   const stopped = await stopCodexDesktop();
 
-  const [liveSnapshot, profilesSnapshot, vaultSnapshot, librarySnapshot] = await Promise.all([
+  const [liveSnapshot, profilesSnapshot, vaultSnapshot] = await Promise.all([
     snapshotLiveFiles(codexPaths),
     snapshotFile(dataPaths.profiles),
     snapshotFile(dataPaths.vault),
-    snapshotFile(dataPaths.library),
   ]);
   let providerSync = null;
   let runtime = null;
@@ -270,7 +269,16 @@ export async function switchAccountTransaction({
     await restoreLiveFiles(codexPaths, liveSnapshot).catch((rollbackError) => rollbackErrors.push(rollbackError));
     await restoreFile(dataPaths.profiles, profilesSnapshot).catch((rollbackError) => rollbackErrors.push(rollbackError));
     await restoreFile(dataPaths.vault, vaultSnapshot).catch((rollbackError) => rollbackErrors.push(rollbackError));
-    await restoreFile(dataPaths.library, librarySnapshot).catch((rollbackError) => rollbackErrors.push(rollbackError));
+    // The library is a derived cache, not part of the credential transaction.
+    // Never roll it back to the pre-sync snapshot: doing so discarded the
+    // newest local assistant reply when a later launch step failed. Rebuild it
+    // from the restored Codex files instead, while syncConversations protects
+    // the existing cache if the source is temporarily unavailable.
+    await syncConversations({
+      codexHome: codexPaths.home,
+      libraryFile: dataPaths.library,
+      accountId: data.currentId,
+    }).catch((rollbackError) => rollbackErrors.push(rollbackError));
     const message = error instanceof Error ? error.message : String(error);
     if (rollbackErrors.length) throw new Error(`${message}；自动恢复未完全成功，请不要打开 Codex，并在教程的“异常恢复”中处理。`);
     throw new Error(`${message}；已自动恢复切换前状态，可以重试。`);

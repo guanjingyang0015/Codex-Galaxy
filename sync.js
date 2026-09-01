@@ -4,6 +4,7 @@ import crypto from "node:crypto";
 import { readJson, writeJson } from "./vault.js";
 
 const ignored = new Set(["node_modules", ".git", "cache", "tmp", ".tmp", "backups", "backups_state"]);
+export const THREAD_LIBRARY_CATALOG_VERSION = 5;
 
 async function walk(directory, result = []) {
   let entries;
@@ -50,6 +51,12 @@ export async function syncConversations({ codexHome, libraryFile, accountId, onP
   const files = catalog.length ? catalog.map((item) => item.source).filter(Boolean) : await walk(path.join(codexHome, "sessions"));
   const index = await readJsonLines(path.join(codexHome, "session_index.jsonl"));
   const prior = await readJson(libraryFile, { version: 2, threads: [] });
+  if (!catalog.length && !files.length && !historyMessages.size && Array.isArray(prior.threads)) {
+    const syncedAt = prior.syncedAt || null;
+    onProgress?.({ phase: "write", completed: 0, total: 0 });
+    onProgress?.({ phase: "complete", completed: prior.threads.length, total: prior.threads.length });
+    return { files: 0, imported: 0, threads: prior.threads.length, removed: 0, syncedAt, preservedExisting: true };
+  }
   const priorById = new Map(prior.threads.map((thread) => [thread.id, thread]));
   const byId = new Map();
   const total = catalog.length + index.length + (catalog.length ? 0 : files.length);
@@ -178,7 +185,7 @@ export async function syncConversations({ codexHome, libraryFile, accountId, onP
   const removed = prior.threads.filter((thread) => !byId.has(thread.id)).length;
   report("write");
   const syncedAt = new Date().toISOString();
-  await writeJson(libraryFile, { version: 2, catalogVersion: 4, syncedAt, threads });
+  await writeJson(libraryFile, { version: 2, catalogVersion: THREAD_LIBRARY_CATALOG_VERSION, syncedAt, threads });
   report("complete");
   return { files: files.length, imported, threads: threads.length, removed, syncedAt };
 }
@@ -209,14 +216,16 @@ async function readThreadCatalog(codexHome, historyThreadIds = new Set()) {
           }
         }
       }
-      if (columns.includes("has_user_event")) filters.push("coalesce(has_user_event, 0) = 1");
       if (columns.includes("thread_source")) filters.push("lower(coalesce(thread_source, '')) not in ('subagent', 'sub_agent', 'internal')");
       const where = filters.length ? ` where ${filters.join(" and ")}` : "";
       const updated = pick("updated_at_ms", pick("updated_at", "0"));
-      const rows = db.prepare(`select "id" as id, ${pick("title", "''")} as title, ${pick("cwd", "''")} as cwd, ${pick("model_provider", "''")} as provider, ${pick("rollout_path", "''")} as rollout_path, ${updated} as updated_at from "threads"${where}`).all();
+      const rows = db.prepare(`select "id" as id, ${pick("title", "''")} as title, ${pick("cwd", "''")} as cwd, ${pick("model_provider", "''")} as provider, ${pick("rollout_path", "''")} as rollout_path, ${pick("has_user_event", "0")} as has_user_event, ${pick("thread_source", "''")} as thread_source, ${updated} as updated_at from "threads"${where}`).all();
       for (const row of rows) {
         const id = String(row.id || "").trim();
         if (!id) continue;
+        const source = String(row.thread_source || "").trim().toLowerCase();
+        const hasHistory = historyThreadIds.has(id);
+        if (Number(row.has_user_event || 0) !== 1 && (!hasHistory || ["automation", "subagent", "sub_agent", "internal", "guardian_review"].includes(source))) continue;
         const candidate = {
           id,
           title: row.title || "未命名线程",
@@ -292,9 +301,20 @@ async function readThreadCatalog(codexHome, historyThreadIds = new Set()) {
 
 function resolveRolloutPath(codexHome, value) {
   if (!value) return null;
-  const candidate = path.isAbsolute(value) ? value : path.join(codexHome, value);
-  const relative = path.relative(codexHome, candidate);
-  return relative && !relative.startsWith("..") && !path.isAbsolute(relative) ? candidate : null;
+  const rawValue = String(value);
+  const isExtendedWindowsPath = /^\\\\\?\\/i.test(rawValue);
+  const candidate = isExtendedWindowsPath || path.isAbsolute(rawValue)
+    ? rawValue
+    : path.join(codexHome, rawValue);
+  const stripExtendedPrefix = (input) => {
+    if (process.platform !== "win32") return input;
+    if (/^\\\\\?\\UNC\\/i.test(input)) return `\\\\${input.slice(8)}`;
+    return input.replace(/^\\\\\?\\/i, "");
+  };
+  const root = path.resolve(stripExtendedPrefix(String(codexHome)));
+  const normalizedCandidate = path.resolve(stripExtendedPrefix(candidate));
+  const relative = path.relative(root, normalizedCandidate);
+  return relative && !relative.startsWith("..") && !path.isAbsolute(relative) ? normalizedCandidate : null;
 }
 
 export async function readThreadDetail(thread, codexHome) {

@@ -1,6 +1,6 @@
 {
   "name": "codex-galaxy",
-  "version": "1.9.1",
+  "version": "1.9.2",
   "private": true,
   "author": "Guan Jingyang <guanjingyang@gmail.com>",
   "description": "Codex Galaxy: local account switching and cross-model project continuity for Codex.",
@@ -54,6 +54,8 @@
       "project-cleanup.js",
       "thread-repair.js",
       "desktop-process.js",
+      "codex-activity.js",
+      "release-info.js",
       "sync.js",
       "vault.js",
       "electron/windows-codex-window.mjs",

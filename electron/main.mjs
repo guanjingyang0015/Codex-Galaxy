@@ -22,6 +22,8 @@ import { cleanupInvalidProjects, previewInvalidProjects } from "../project-clean
 import { AppUpdater } from "../app-updater.js";
 import { diagnoseThreadRollout, repairThreadRollout } from "../thread-repair.js";
 import { testApiProfile } from "../relay-connection.js";
+import { hasActiveCodexTurn } from "../codex-activity.js";
+import { releaseHistory } from "../release-info.js";
 
 const appRoot = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const codexPaths = defaultPaths();
@@ -72,7 +74,7 @@ function result(task) {
 async function getState() {
   const profiles = await publicProfiles(dataPaths);
   let library = await readLibrary(dataPaths.library);
-  if (Number(library.version || 1) < 2 || Number(library.catalogVersion || 1) < 4) {
+  if (Number(library.version || 1) < 2 || Number(library.catalogVersion || 1) < 5) {
     await syncConversations({
       codexHome: codexPaths.home,
       libraryFile: dataPaths.library,
@@ -95,6 +97,7 @@ async function getState() {
     gateway: { ...responsesGateway.status, error: gatewayStartupError },
     plugins,
     automation: { settings: automation.settings, completedFiles: automation.preview.files.length, completedRuns: automation.preview.rows || 0, completedBytes: automation.preview.bytes },
+    releases: releaseHistory(),
     update: { ...appUpdater.status },
   };
 }
@@ -168,6 +171,16 @@ async function loadNativeCodexWindowApi() {
       .catch(() => null);
   }
   return nativeCodexWindowApiPromise;
+}
+
+async function stopCodexDesktopSafely() {
+  if (process.platform !== "win32") return stopCodexDesktopAndWait();
+  const nativeApi = await loadNativeCodexWindowApi();
+  return stopCodexDesktopAndWait({
+    gracefulTerminate: nativeApi?.requestCodexDesktopClose
+      ? () => nativeApi.requestCodexDesktopClose()
+      : null,
+  });
 }
 
 async function refreshCodexVersionOverlay() {
@@ -539,6 +552,8 @@ async function confirmRunningCodexSwitch(event) {
   if (!running.length) return true;
   const owner = BrowserWindow.fromWebContents(event.sender) || undefined;
   if (!owner || owner.isDestroyed() || owner.webContents.isDestroyed()) return false;
+  const activeTurn = await hasActiveCodexTurn(codexPaths.home);
+  const canContinue = activeTurn === false;
   const requestId = `switch-${process.pid}-${Date.now()}-${++switchConfirmationSequence}`;
   owner.show();
   owner.focus();
@@ -550,9 +565,14 @@ async function confirmRunningCodexSwitch(event) {
     pendingSwitchConfirmations.set(requestId, { sender: owner.webContents, timer, resolve });
     owner.webContents.send("codex-galaxy:confirm-switch", {
       requestId,
-      title: "Codex 可能仍有任务进行中",
-      message: "检测到 Codex 或 Codex CLI 正在运行。",
-      detail: "Codex Galaxy 无法可靠判断模型是否仍在生成或执行命令。继续切换会关闭 Codex 及其写入进程，正在进行的任务可能被中断。\n\n如果任务仍在运行，请取消并先在 Codex 中手动停止；确认没有任务后再切换。",
+      canContinue,
+      title: canContinue ? "Codex 当前处于空闲状态" : "当前回复尚未完成",
+      message: canContinue
+        ? "检测到 Codex 正在运行，但没有发现尚未完成的回复。"
+        : "检测到 Codex 仍有未完成的回复或无法确认回复已经写入本地。",
+      detail: canContinue
+        ? "继续切换会先请求 Codex 正常关闭，并等待本地线程记录写入完成。"
+        : "为防止当前回复丢失，Galaxy 已阻止切换。请回到 Codex，等待回复完成后再切换；不要强制结束 Codex，也不要删除 config.toml。",
     });
   });
 }
@@ -651,7 +671,7 @@ function registerHandlers() {
       profileId: id,
       codexPaths,
       dataPaths,
-      stopCodexDesktop: stopCodexDesktopAndWait,
+      stopCodexDesktop: stopCodexDesktopSafely,
       launch: openCodexDesktop,
       prepareRuntime: prepareProfileRuntime,
       launchVerificationDelayMs: 500,
@@ -694,7 +714,7 @@ function registerHandlers() {
       threadId: request.threadId,
       codexPaths,
       dataPaths,
-      stopCodexDesktop: stopCodexDesktopAndWait,
+      stopCodexDesktop: stopCodexDesktopSafely,
       launch: (profile) => launchThread(request.threadId, profile),
       prepareRuntime: prepareProfileRuntime,
       launchMessage: "正在打开该项目线程",
@@ -743,7 +763,7 @@ function registerHandlers() {
     let reopenedCodex = false;
     if (reopenCodex) {
       report({ percent: 2, stage: "stop", message: "正在安全关闭 Codex，准备清理项目数据库" });
-      await stopCodexDesktopAndWait();
+      await stopCodexDesktopSafely();
     }
     try {
       let automationResult = null;

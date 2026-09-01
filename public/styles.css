@@ -175,11 +175,15 @@ button:focus-visible, input:focus-visible, select:focus-visible, [tabindex]:focu
 .thread-actions { display: flex; align-items: center; gap: 5px; }
 .empty { padding: 40px 18px; color: var(--muted); font-size: 12px; line-height: 1.6; text-align: center; }
 
-.footer-strip { display: grid; flex: 0 0 auto; grid-template-columns: 1.5fr 0.7fr 0.8fr; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }
+.footer-strip { display: grid; flex: 0 0 auto; grid-template-columns: 1.35fr 0.65fr 0.75fr 1.25fr; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }
 .footer-strip > div { min-width: 0; padding: 7px 11px; border-right: 1px solid var(--line-soft); }
 .footer-strip > div:last-child { border-right: 0; }
 .footer-strip .mini-label { display: block; margin-bottom: 2px; }
 .footer-strip code, .footer-strip strong { display: block; overflow: hidden; color: #c8ced4; font-size: 10px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+.footer-strip a, .footer-strip small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.footer-strip a { color: #79aaff; font-size: 10px; text-decoration: none; }
+.footer-strip a:hover { text-decoration: underline; }
+.footer-strip small { margin-top: 2px; color: var(--muted); font-size: 9px; }
 
 dialog { width: min(820px, calc(100vw - 48px)); max-height: calc(100vh - 40px); padding: 0; overflow: hidden; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--text); }
 dialog::backdrop { background: rgba(0, 0, 0, 0.72); }

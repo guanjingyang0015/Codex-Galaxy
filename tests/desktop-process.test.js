@@ -87,6 +87,27 @@ test("desktop process shutdown also catches an app-server that appears after the
   assert.deepEqual(result, { stopped: 2, processIds: [51, 52] });
 });
 
+test("desktop process shutdown requests a graceful close before forcing remaining writers", async () => {
+  let running = [{ pid: 61 }];
+  const graceful = [];
+  const forced = [];
+  const result = await stopCodexDesktopAndWait({
+    platform: "win32",
+    listProcesses: async () => running,
+    gracefulTerminate: async (found) => {
+      graceful.push(found.map((item) => item.pid));
+      running = [];
+      return found.length;
+    },
+    terminate: (pid) => forced.push(pid),
+    gracefulTimeoutMs: 1000,
+    pollIntervalMs: 0,
+  });
+  assert.deepEqual(graceful, [[61]]);
+  assert.deepEqual(forced, []);
+  assert.deepEqual(result, { stopped: 0, processIds: [] });
+});
+
 test("Codex overlay selects only a visible foreground desktop window and reserves the native controls", () => {
   const target = selectCodexOverlayTarget([
     { pid: 1, visible: true, minimized: false, foreground: false, left: 0, top: 0, right: 1600, bottom: 900 },

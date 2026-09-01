@@ -19,6 +19,7 @@ const GetForegroundWindow = user32.func("HWND __stdcall GetForegroundWindow(void
 const GetAncestor = user32.func("HWND __stdcall GetAncestor(HWND hWnd, uint32_t gaFlags)");
 const GetWindow = user32.func("HWND __stdcall GetWindow(HWND hWnd, uint32_t uCmd)");
 const SetWindowPos = user32.func("bool __stdcall SetWindowPos(HWND hWnd, HWND hWndInsertAfter, int X, int Y, int cx, int cy, uint32_t uFlags)");
+const PostMessageW = user32.func("bool __stdcall PostMessageW(HWND hWnd, uint32_t Msg, uintptr_t wParam, intptr_t lParam)");
 const OpenProcess = kernel32.func("HANDLE __stdcall OpenProcess(uint32_t dwDesiredAccess, bool bInheritHandle, uint32_t dwProcessId)");
 const QueryFullProcessImageNameW = kernel32.func("bool __stdcall QueryFullProcessImageNameW(HANDLE hProcess, uint32_t dwFlags, _Out_ char16_t *lpExeName, _Inout_ uint32_t *lpdwSize)");
 const CloseHandle = kernel32.func("bool __stdcall CloseHandle(HANDLE hObject)");
@@ -28,6 +29,7 @@ const SWP_NOACTIVATE = 0x0010;
 const SWP_NOZORDER = 0x0004;
 const SWP_NOOWNERZORDER = 0x0200;
 const SWP_SHOWWINDOW = 0x0040;
+const WM_CLOSE = 0x0010;
 const GW_HWNDPREV = 3;
 const GA_ROOT = 2;
 const GW_OWNER = 4;
@@ -133,6 +135,18 @@ export function findCodexWindows() {
     return rightArea - leftArea;
   });
   return windows;
+}
+
+export function requestCodexDesktopClose() {
+  let requested = 0;
+  for (const window of findCodexWindows()) {
+    const handle = asBigIntHandle(window.hwnd);
+    if (!handle) continue;
+    try {
+      if (PostMessageW(handle, WM_CLOSE, 0n, 0n)) requested += 1;
+    } catch {}
+  }
+  return requested;
 }
 
 /** Pure selector used by the overlay loop and by unit tests. */

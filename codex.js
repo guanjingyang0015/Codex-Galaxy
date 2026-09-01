@@ -71,6 +71,7 @@ export async function liveProfileMatch(paths, profile, vaultFile) {
       && String(definition.wire_api || "").toLowerCase() === "responses"
       && baseUrlMatches;
     const contextMetadataStale = hasModelContextOverrides(config)
+      || hasWindowsSandboxConflict(config)
       || hasStaleApiModelCatalog(paths, config, profile, modelCatalogText);
     const expectedModel = activeProfileModel(profile).toLowerCase();
     const modelMatches = !expectedModel || String(config.model || "").trim().toLowerCase() === expectedModel;
@@ -97,6 +98,7 @@ export async function liveProfileMatch(paths, profile, vaultFile) {
     && credentialConfigMatches(config);
   const contextConfigStale = hasModelContextOverrides(config)
     || Object.hasOwn(config, "model_catalog_json")
+    || hasWindowsSandboxConflict(config)
     || String(config.model || "").trim() !== String(profile.model || "").trim();
   const matches = baseMatches && !contextConfigStale;
   return {
@@ -221,6 +223,7 @@ function buildApiConfig(profile, liveConfig = "", catalogPath = "") {
   const config = parseToml(liveConfig);
   for (const key of ["base_url", "openai_base_url", "chatgpt_base_url", "model_catalog_json", "OPENAI_API_KEY"]) delete config[key];
   clearModelContextOverrides(config);
+  normalizeWindowsSandboxCompatibility(config);
   enforceFileCredentials(config);
   config.model = model;
   config.model_provider = provider;
@@ -263,6 +266,7 @@ function selectProfileModel(configText, profile, provider) {
   const config = parseToml(configText);
   delete config.model_catalog_json;
   clearModelContextOverrides(config);
+  if (provider === "openai") normalizeWindowsSandboxCompatibility(config);
   enforceFileCredentials(config);
   config.model = profile.model;
   config.model_provider = provider;
@@ -301,6 +305,17 @@ function clearModelContextOverrides(config) {
 
 function hasModelContextOverrides(config) {
   return MODEL_CONTEXT_OVERRIDE_KEYS.some((key) => Object.hasOwn(config, key));
+}
+
+function normalizeWindowsSandboxCompatibility(config) {
+  if (!hasWindowsSandboxConflict(config)) return;
+  config.windows = { ...(config.windows || {}), sandbox_private_desktop: false };
+}
+
+function hasWindowsSandboxConflict(config) {
+  return String(config?.sandbox_mode || "").trim().toLowerCase() === "danger-full-access"
+    && String(config?.windows?.sandbox || "").trim().toLowerCase() === "elevated"
+    && config?.windows?.sandbox_private_desktop !== false;
 }
 
 function hasStaleApiModelCatalog(paths, config, profile, catalogText) {

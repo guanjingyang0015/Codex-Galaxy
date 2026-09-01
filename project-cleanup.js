@@ -437,7 +437,7 @@ export async function cleanupInvalidProjects(codexHome, libraryFile, { onProgres
   report("index");
   await writeJson(libraryFile, {
     ...library,
-    catalogVersion: Math.max(Number(library.catalogVersion || 1), 4),
+    catalogVersion: Math.max(Number(library.catalogVersion || 1), 5),
     syncedAt: new Date().toISOString(),
     threads: (library.threads || []).filter((thread) => !targetIds.has(String(thread.id))),
   });
