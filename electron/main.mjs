@@ -50,6 +50,7 @@ let codexVersionOverlayIntervalMs = 0;
 let nativeCodexWindowApiPromise = null;
 let nativeCodexWindowApi = null;
 let updateCheckTimer = null;
+let initialLibrarySyncDone = false;
 const responsesGateway = new ResponsesGateway({
   fetchUpstream: (url, options) => net.fetch(url, options),
   onModelResolved: ({ profileId, configuredModel, resolvedModel }) => setResolvedModel(profileId, configuredModel, resolvedModel, dataPaths),
@@ -74,12 +75,13 @@ function result(task) {
 async function getState() {
   const profiles = await publicProfiles(dataPaths);
   let library = await readLibrary(dataPaths.library);
-  if (Number(library.version || 1) < 2 || Number(library.catalogVersion || 1) < 5) {
+  if (!initialLibrarySyncDone || Number(library.version || 1) < 2 || Number(library.catalogVersion || 1) < 5) {
     await syncConversations({
       codexHome: codexPaths.home,
       libraryFile: dataPaths.library,
       accountId: profiles.currentId,
     });
+    initialLibrarySyncDone = true;
     library = await readLibrary(dataPaths.library);
   }
   const codex = await inspectCodex(codexPaths);
@@ -97,7 +99,7 @@ async function getState() {
     gateway: { ...responsesGateway.status, error: gatewayStartupError },
     plugins,
     automation: { settings: automation.settings, completedFiles: automation.preview.files.length, completedRuns: automation.preview.rows || 0, completedBytes: automation.preview.bytes },
-    releases: releaseHistory(),
+    releases: releaseHistory(app.getVersion()),
     update: { ...appUpdater.status },
   };
 }

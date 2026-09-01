@@ -2,6 +2,13 @@ const REPOSITORY = "https://github.com/guanjingyang0015/Codex-Galaxy";
 
 const RELEASES = [
   {
+    version: "1.9.4",
+    tag: "v1.9.4",
+    commit: "c7e0034525e895bbd0f855cc5edd229098e1f938",
+    actionsRun: "33521136697",
+    url: `${REPOSITORY}/releases/tag/v1.9.4`,
+  },
+  {
     version: "1.9.3",
     tag: "v1.9.3",
     commit: "94c9a78fa6b5688e90994b628666e615c727dea5",
@@ -24,6 +31,19 @@ const RELEASES = [
   },
 ];
 
-export function releaseHistory() {
-  return RELEASES.map((release) => ({ ...release }));
+export function releaseHistory(currentVersion = null) {
+  const normalizedVersion = String(currentVersion || "").trim().replace(/^v/i, "");
+  if (!normalizedVersion) return RELEASES.map((release) => ({ ...release }));
+  const current = RELEASES.find((release) => release.version === normalizedVersion);
+  if (current) return [current, ...RELEASES.filter((release) => release !== current)].map((release) => ({ ...release }));
+  return [
+    {
+      version: normalizedVersion,
+      tag: `v${normalizedVersion}`,
+      commit: null,
+      actionsRun: null,
+      url: `${REPOSITORY}/releases/tag/v${normalizedVersion}`,
+    },
+    ...RELEASES,
+  ].map((release) => ({ ...release }));
 }

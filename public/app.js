@@ -1,7 +1,7 @@
 const $ = (selector) => document.querySelector(selector);
 const state = {
   profiles: [],
-  version: "1.9.4",
+  version: "1.9.5",
   threads: [],
   currentId: null,
   selectedProfileId: null,
@@ -26,7 +26,7 @@ const state = {
   releases: [],
   update: {
     phase: "idle",
-    currentVersion: "1.9.4",
+    currentVersion: "1.9.5",
     latestVersion: null,
     available: false,
     action: "install",
@@ -61,6 +61,7 @@ const translations = {
     "common.current": "当前",
     "common.none": "无",
     "common.unknown": "未知",
+    "release.local": "本地版本",
     "common.notSelected": "未选择",
     "common.pleaseSelect": "请选择账号",
     "common.selectToSwitch": "选择后可切换",
@@ -307,6 +308,7 @@ const translations = {
     "common.current": "Current",
     "common.none": "None",
     "common.unknown": "Unknown",
+    "release.local": "Local build",
     "common.notSelected": "Not selected",
     "common.pleaseSelect": "Select an account",
     "common.selectToSwitch": "Select to switch",
@@ -758,7 +760,7 @@ function renderReleaseRecord() {
   link.hidden = false;
   link.href = release.url;
   meta.textContent = t("release.meta", {
-    commit: String(release.commit || "").slice(0, 7),
+    commit: release.commit ? String(release.commit).slice(0, 7) : t("release.local"),
     run: release.actionsRun || t("common.unknown"),
   });
 }
@@ -1142,7 +1144,7 @@ function renderThreadDialog(thread) {
   compatibility.textContent = thread.compatibility?.encryptedContent
     ? t("threads.dialogCompatibility")
     : "";
-  $("#dialogMessages").innerHTML = (thread.messages || []).slice(-80).map((message) => `<div class="message ${escapeHtml(message.role)}"><div class="message-label">${escapeHtml(message.role)} · ${formatDate(message.timestamp)}</div>${escapeHtml(message.content)}</div>`).join("") || `<div class="empty">${t("threads.messagesEmpty")}</div>`;
+  $("#dialogMessages").innerHTML = (thread.messages || []).map((message) => `<div class="message ${escapeHtml(message.role)}"><div class="message-label">${escapeHtml(message.role)} · ${formatDate(message.timestamp)}</div>${escapeHtml(message.content)}</div>`).join("") || `<div class="empty">${t("threads.messagesEmpty")}</div>`;
   const blocked = threadHealthBlocksResume(thread);
   const disabled = blocked || operationBusy() ? " disabled" : "";
   $("#resumeProfiles").innerHTML = state.profiles.map((profile) => `<button data-profile-id="${escapeHtml(profile.id)}"${disabled}>${escapeHtml(profile.name)}<small>${escapeHtml(profileModelLabel(profile))}</small></button>`).join("") || `<span class="empty">${t("threads.addAccountFirst")}</span>`;

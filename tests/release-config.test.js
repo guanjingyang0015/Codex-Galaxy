@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { releaseHistory } from "../release-info.js";
 
 const root = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 
@@ -26,8 +27,8 @@ test("release identity stays compatible with 0.1.0 upgrades and preserves user d
   const profilesJs = await fs.readFile(path.join(root, "profiles.js"), "utf8");
   const modelCatalog = await fs.readFile(path.join(root, "model-catalog.js"), "utf8");
   const relayTest = await fs.readFile(path.join(root, "relay-connection.js"), "utf8");
-  const releaseNotes = await fs.readFile(path.join(root, "release-notes", "v1.9.4.md"), "utf8");
-  assert.equal(packageJson.version, "1.9.4");
+  const releaseNotes = await fs.readFile(path.join(root, "release-notes", "v1.9.5.md"), "utf8");
+  assert.equal(packageJson.version, "1.9.5");
   assert.equal(packageJson.author, "Guan Jingyang <guanjingyang@gmail.com>");
   assert.equal(packageJson.license, "MIT");
   assert.equal(packageJson.build.appId, "io.github.codex-galaxy.app");
@@ -78,6 +79,7 @@ test("release identity stays compatible with 0.1.0 upgrades and preserves user d
   assert.match(electronMain, /waitForCodexDesktopWindow/);
   assert.match(electronMain, /resumeThreadInCodex/);
   assert.match(electronMain, /codex:\/\/threads/);
+  assert.match(electronMain, /initialLibrarySyncDone/);
   assert.match(gatewayHost, /ELECTRON_RUN_AS_NODE/);
   assert.match(gatewayHost, /gateway-host\.json/);
   assert.match(gatewayHost, /unrelated process/);
@@ -91,10 +93,19 @@ test("release identity stays compatible with 0.1.0 upgrades and preserves user d
   assert.match(releaseInfo, /33505366436/);
   assert.match(releaseInfo, /94c9a78fa6b5688e90994b628666e615c727dea5/);
   assert.match(releaseInfo, /33519336408/);
+  assert.match(releaseInfo, /c7e0034525e895bbd0f855cc5edd229098e1f938/);
+  assert.match(releaseInfo, /33521136697/);
+  assert.deepEqual(releaseHistory("1.9.5")[0], {
+    version: "1.9.5",
+    tag: "v1.9.5",
+    commit: null,
+    actionsRun: null,
+    url: "https://github.com/guanjingyang0015/Codex-Galaxy/releases/tag/v1.9.5",
+  });
   assert.match(profilesJs, /PROFILE_SCHEMA_VERSION = 5/);
   assert.match(relayTest, /\/models/);
   assert.doesNotMatch(renderer, /profile\.current\s*\?/);
-  assert.match(releaseNotes, /多中转站管理/);
+  assert.match(releaseNotes, /误报/);
   assert.match(modelCatalog, /instructions_template: "\{\{ personality \}\}"/);
   assert.match(preload, /checkUpdate/);
   assert.match(preload, /installUpdate/);
@@ -122,7 +133,9 @@ test("release identity stays compatible with 0.1.0 upgrades and preserves user d
   assert.match(html, /id="appVersionInline"/);
   assert.match(html, /id="updateBtn"/);
   assert.match(html, /id="releaseRecordVersion"/);
+  assert.match(html, /id="releaseRecordVersion">v1\.9\.5</);
   assert.match(renderer, /state\.releases/);
+  assert.doesNotMatch(renderer, /thread\.messages \|\| \[\]\)\.slice\(-80\)/);
   assert.match(renderer, /state\.version = String\(snapshot\.version \|\| state\.version\)/);
   assert.match(renderer, /\$\("#appVersionInline"\)\.textContent = state\.version/);
   assert.doesNotMatch(renderer, /\$\("#appVersion"\)/);

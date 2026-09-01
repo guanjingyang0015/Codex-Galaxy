@@ -173,6 +173,68 @@ test("sync includes desktop thread_history messages when no rollout path exists"
   assert.equal(detail.messages.length, 2);
 });
 
+test("thread detail returns the complete SQLite history instead of the list cache tail", async () => {
+  const home = await fs.mkdtemp(path.join(os.tmpdir(), "codex-galaxy-thread-history-complete-"));
+  const { DatabaseSync } = await import("node:sqlite");
+  const db = new DatabaseSync(path.join(home, "thread_history_1.sqlite"));
+  db.exec("create table thread_items (thread_id text, item_json text, item_type text, created_at_ms integer)");
+  for (let index = 0; index < 240; index += 1) {
+    const type = index % 2 === 0 ? "userMessage" : "agentMessage";
+    db.prepare("insert into thread_items values (?, ?, ?, ?)").run(
+      "long-thread",
+      JSON.stringify({ type, content: [{ type: "text", text: `message-${index}` }] }),
+      type,
+      1787627933000 + index,
+    );
+  }
+  db.close();
+  await fs.mkdir(path.join(home, "sqlite"), { recursive: true });
+  const catalog = new DatabaseSync(path.join(home, "sqlite", "codex-dev.db"));
+  catalog.exec("create table local_thread_catalog (thread_id text primary key, display_title text, cwd text, model_provider text, source_updated_at real, source_kind text, missing_candidate integer)");
+  catalog.prepare("insert into local_thread_catalog values (?, ?, ?, ?, ?, ?, ?)").run("long-thread", "长对话", "C:\\project", "openai", 1787627934, "vscode", 0);
+  catalog.close();
+
+  const libraryFile = path.join(home, "library.json");
+  await syncConversations({ codexHome: home, libraryFile });
+  const library = await readLibrary(libraryFile);
+  assert.equal(library.threads[0].messages.length, 200);
+  const detail = await readThreadDetail(library.threads[0], home);
+  assert.equal(detail.messages.length, 240);
+  assert.equal(detail.messages[0].content, "message-0");
+  assert.equal(detail.messages.at(-1).content, "message-239");
+});
+
+test("thread detail merges SQLite items that were not flushed to the rollout file", async () => {
+  const home = await fs.mkdtemp(path.join(os.tmpdir(), "codex-galaxy-thread-history-merge-"));
+  const sessions = path.join(home, "sessions");
+  await fs.mkdir(sessions, { recursive: true });
+  const rollout = path.join(sessions, "partial.jsonl");
+  await fs.writeFile(rollout, [
+    JSON.stringify({ type: "session_meta", payload: { id: "partial-thread", cwd: "C:\\project", model_provider: "openai" } }),
+    JSON.stringify({ type: "response_item", payload: { type: "message", role: "user", content: [{ type: "input_text", text: "第一条" }] }, timestamp: "2026-09-01T10:00:00.000Z" }),
+  ].join("\n") + "\n");
+
+  const { DatabaseSync } = await import("node:sqlite");
+  const history = new DatabaseSync(path.join(home, "thread_history_1.sqlite"));
+  history.exec("create table thread_items (thread_id text, item_json text, item_type text, created_at_ms integer)");
+  history.prepare("insert into thread_items values (?, ?, ?, ?)").run(
+    "partial-thread",
+    JSON.stringify({ type: "userMessage", content: [{ type: "text", text: "第一条" }] }),
+    "userMessage",
+    Date.parse("2026-09-01T10:00:00.000Z"),
+  );
+  history.prepare("insert into thread_items values (?, ?, ?, ?)").run(
+    "partial-thread",
+    JSON.stringify({ type: "agentMessage", content: [{ type: "text", text: "第二条仍在 SQLite" }] }),
+    "agentMessage",
+    Date.parse("2026-09-01T10:01:00.000Z"),
+  );
+  history.close();
+
+  const detail = await readThreadDetail({ id: "partial-thread", source: rollout, cwd: "C:\\project", provider: "openai" }, home);
+  assert.deepEqual(detail.messages.map((message) => message.content), ["第一条", "第二条仍在 SQLite"]);
+});
+
 test("sync accepts Windows extended rollout paths and keeps the source for full detail reads", async () => {
   const home = await fs.mkdtemp(path.join(os.tmpdir(), "codex-galaxy-extended-rollout-"));
   const sessions = path.join(home, "sessions");

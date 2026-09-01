@@ -29,6 +29,36 @@ function textOf(value) {
   return textOf(value.text || value.content || value.message || value.body || "");
 }
 
+function messageFingerprint(message) {
+  return message?.fingerprint
+    || crypto.createHash("sha1").update(`${message?.role || "event"}\0${message?.content || ""}`).digest("hex");
+}
+
+function mergeMessages(target, additions) {
+  const seen = new Set(target.map(messageFingerprint));
+  for (const message of additions) {
+    const fingerprint = messageFingerprint(message);
+    if (seen.has(fingerprint)) continue;
+    seen.add(fingerprint);
+    target.push({ ...message, fingerprint });
+  }
+  return target;
+}
+
+function sortMessages(messages) {
+  return messages
+    .map((message, index) => ({ message, index, time: Date.parse(String(message.timestamp || "")) }))
+    .sort((left, right) => {
+      const leftTime = Number.isFinite(left.time) ? left.time : null;
+      const rightTime = Number.isFinite(right.time) ? right.time : null;
+      if (leftTime === null && rightTime === null) return left.index - right.index;
+      if (leftTime === null) return 1;
+      if (rightTime === null) return -1;
+      return leftTime - rightTime || left.index - right.index;
+    })
+    .map(({ message }) => message);
+}
+
 function parseRecord(record, source) {
   if (record.type === "session_meta") return null;
   const message = record.message || record;
@@ -320,7 +350,7 @@ function resolveRolloutPath(codexHome, value) {
 export async function readThreadDetail(thread, codexHome) {
   if (!thread.source) {
     const messages = (await readThreadHistoryMessages(codexHome)).get(String(thread.id)) || [];
-    return { ...thread, messages: messages.slice(-200), compatibility: { encryptedContent: false } };
+    return { ...thread, messages: sortMessages(messages), compatibility: { encryptedContent: false } };
   }
   let content;
   try { content = await fs.readFile(thread.source, "utf8"); } catch { return thread; }
@@ -334,13 +364,18 @@ export async function readThreadDetail(thread, codexHome) {
       continue;
     }
     const parsed = parseRecord({ ...record, id: record.id || session.id, thread_id: record.thread_id || session.id }, thread.source);
-    if (parsed) messages.push(parsed);
+    if (parsed) messages.push({ ...parsed, fingerprint: messageFingerprint(parsed) });
   }
+  // Desktop history can contain items that have not yet been flushed to the
+  // rollout file. Merge it into the detail view so reopening Galaxy does not
+  // make a partially written rollout look like lost chat history.
+  const history = (await readThreadHistoryMessages(codexHome)).get(String(thread.id)) || [];
+  mergeMessages(messages, history);
   return {
     ...thread,
     cwd: session.cwd,
     provider: session.provider,
-    messages: messages.slice(-200),
+    messages: sortMessages(messages),
     compatibility: { encryptedContent: content.includes('"encrypted_content"') },
   };
 }
