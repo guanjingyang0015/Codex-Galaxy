@@ -1,6 +1,6 @@
 {
   "name": "codex-galaxy",
-  "version": "1.9.2",
+  "version": "1.9.3",
   "private": true,
   "author": "Guan Jingyang <guanjingyang@gmail.com>",
   "description": "Codex Galaxy: local account switching and cross-model project continuity for Codex.",

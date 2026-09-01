@@ -55,7 +55,7 @@ export async function syncConversations({ codexHome, libraryFile, accountId, onP
     const syncedAt = prior.syncedAt || null;
     onProgress?.({ phase: "write", completed: 0, total: 0 });
     onProgress?.({ phase: "complete", completed: prior.threads.length, total: prior.threads.length });
-    return { files: 0, imported: 0, threads: prior.threads.length, removed: 0, syncedAt, preservedExisting: true };
+    return { files: 0, imported: 0, threads: prior.threads.length, latestThreadId: prior.threads[0]?.id || null, removed: 0, syncedAt, preservedExisting: true };
   }
   const priorById = new Map(prior.threads.map((thread) => [thread.id, thread]));
   const byId = new Map();
@@ -187,7 +187,7 @@ export async function syncConversations({ codexHome, libraryFile, accountId, onP
   const syncedAt = new Date().toISOString();
   await writeJson(libraryFile, { version: 2, catalogVersion: THREAD_LIBRARY_CATALOG_VERSION, syncedAt, threads });
   report("complete");
-  return { files: files.length, imported, threads: threads.length, removed, syncedAt };
+  return { files: files.length, imported, threads: threads.length, latestThreadId: threads[0]?.id || null, removed, syncedAt };
 }
 
 async function readThreadCatalog(codexHome, historyThreadIds = new Set()) {

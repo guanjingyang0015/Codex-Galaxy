@@ -269,7 +269,7 @@ test("reselecting an official profile clears stale global auto-compaction overri
   assert.equal((await liveProfileMatch(paths, profile, vaultFile)).matches, true);
 });
 
-test("official selection enables the Windows desktop compatibility mode without changing full-access or sandbox level", async () => {
+test("official selection removes the stale private-desktop override without changing full-access or sandbox level", async () => {
   const home = await fs.mkdtemp(path.join(os.tmpdir(), "galaxy-codex-official-sandbox-conflict-"));
   const paths = { home, config: path.join(home, "config.toml"), auth: path.join(home, "auth.json"), modelCatalog: path.join(home, "catalog.json"), backupDir: path.join(home, "backups") };
   const vaultFile = path.join(home, "vault.json");
@@ -277,7 +277,7 @@ test("official selection enables the Windows desktop compatibility mode without 
   await fs.writeFile(paths.config, 'model = "gpt-5.6"\nmodel_provider = "galaxy"\nsandbox_mode = "danger-full-access"\n\n[windows]\nsandbox = "elevated"\n');
   await fs.writeFile(paths.auth, '{"auth_mode":"chatgpt","tokens":{"account_id":"account-a","access_token":"official-token"}}\n');
   await captureCurrent(paths, profile, vaultFile);
-  await fs.writeFile(paths.config, 'model = "gpt-5.6"\nmodel_provider = "openai"\ncli_auth_credentials_store = "file"\nsandbox_mode = "danger-full-access"\n\n[windows]\nsandbox = "elevated"\n');
+  await fs.writeFile(paths.config, 'model = "gpt-5.6"\nmodel_provider = "openai"\ncli_auth_credentials_store = "file"\nsandbox_mode = "danger-full-access"\n\n[windows]\nsandbox = "elevated"\nsandbox_private_desktop = false\n');
 
   const stale = await liveProfileMatch(paths, profile, vaultFile);
   assert.equal(stale.matches, false);
@@ -288,8 +288,34 @@ test("official selection enables the Windows desktop compatibility mode without 
   const config = TOML.parse(await fs.readFile(paths.config, "utf8"));
   assert.equal(config.sandbox_mode, "danger-full-access");
   assert.equal(config.windows.sandbox, "elevated");
-  assert.equal(config.windows.sandbox_private_desktop, false);
+  assert.equal(config.windows.sandbox_private_desktop, undefined);
   assert.equal((await liveProfileMatch(paths, profile, vaultFile)).matches, true);
+});
+
+test("API selection also removes the stale private-desktop override", async () => {
+  const home = await fs.mkdtemp(path.join(os.tmpdir(), "galaxy-codex-api-sandbox-"));
+  const paths = { home, config: path.join(home, "config.toml"), auth: path.join(home, "auth.json"), modelCatalog: path.join(home, "catalog.json"), backupDir: path.join(home, "backups") };
+  const vaultFile = path.join(home, "vault.json");
+  const profile = {
+    id: "api-a",
+    name: "API A",
+    kind: "api",
+    providerKey: "api-a",
+    runtimeMode: "direct",
+    baseUrl: "https://relay.invalid/v1",
+    apiKey: "test-key-not-real",
+    model: "gpt-5.6-sol",
+    singleModel: true,
+    modelCatalog: [{ sourceId: "gpt-5.6-sol", display_name: "GPT-5.6 Sol" }],
+  };
+  await fs.writeFile(paths.config, 'model_provider = "openai"\nmodel = "gpt-5.6"\nsandbox_mode = "danger-full-access"\n\n[windows]\nsandbox = "elevated"\nsandbox_private_desktop = false\n');
+  await fs.writeFile(paths.auth, '{"auth_mode":"apikey","OPENAI_API_KEY":"test-key-not-real"}\n');
+
+  await switchProfile(paths, profile, vaultFile);
+
+  const config = TOML.parse(await fs.readFile(paths.config, "utf8"));
+  assert.equal(config.windows?.sandbox_private_desktop, undefined);
+  assert.equal(config.windows?.sandbox, "elevated");
 });
 
 test("official capture rejects API auth and protects a captured account identity", async () => {

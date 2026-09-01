@@ -22,7 +22,7 @@ import { cleanupInvalidProjects, previewInvalidProjects } from "../project-clean
 import { AppUpdater } from "../app-updater.js";
 import { diagnoseThreadRollout, repairThreadRollout } from "../thread-repair.js";
 import { testApiProfile } from "../relay-connection.js";
-import { hasActiveCodexTurn } from "../codex-activity.js";
+import { hasActiveCodexTurn, latestCodexThreadId } from "../codex-activity.js";
 import { releaseHistory } from "../release-info.js";
 
 const appRoot = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
@@ -463,6 +463,47 @@ async function openCodexDesktop() {
   }
 }
 
+async function waitForCodexDesktopWindow(timeoutMs = 10000) {
+  const deadline = Date.now() + timeoutMs;
+  do {
+    const windows = await findCodexDesktopWindows("win32");
+    if (windows.length) return windows[0];
+    const remaining = deadline - Date.now();
+    if (remaining <= 0) break;
+    await new Promise((resolve) => setTimeout(resolve, Math.min(250, remaining)));
+  } while (Date.now() <= deadline);
+  throw new Error("官方 Codex 未能进入使用页面，账号和本地聊天数据未被继续改写。");
+}
+
+async function bootstrapOfficialCodex(profile) {
+  const launched = await openCodexDesktop();
+  if (process.platform !== "win32" || profile?.kind !== "official") return launched;
+  try {
+    await waitForCodexDesktopWindow();
+    const owner = mainWindow && !mainWindow.isDestroyed() ? mainWindow : undefined;
+    const choice = owner
+      ? await dialog.showMessageBox(owner, {
+        type: "info",
+        title: "请先完成官方 Codex 初始化",
+        message: "请在刚打开的 Codex 窗口中完成 Windows 设置或官方登录。",
+        detail: "确认 Codex 已经进入正常使用页面、能够看到项目列表后，再回到这里点击“已完成，继续同步”。如果仍停留在 config_load 页面，请点击页面中的允许按钮；如果无法完成，请取消，Galaxy 会恢复切换前的账号和聊天状态。",
+        buttons: ["取消切换", "已完成，继续同步"],
+        defaultId: 1,
+        cancelId: 0,
+        noLink: true,
+      })
+      : { response: 1 };
+    if (choice.response !== 1) {
+      await stopCodexDesktopSafely();
+      return { ...launched, cancelled: true };
+    }
+    return launched;
+  } catch (error) {
+    await stopCodexDesktopSafely().catch(() => {});
+    throw error;
+  }
+}
+
 async function exclusiveSwitch(task) {
   if (switching) throw new Error("另一个账号切换仍在进行，请等待完成。");
   if (refreshing) throw new Error("项目刷新仍在进行，请等待完成后再切换账号。");
@@ -667,12 +708,20 @@ function registerHandlers() {
     if (!id) throw new Error("请选择要切换的账号。");
     const report = progressReporter(event, request?.operationId);
     if (!await confirmRunningCodexSwitch(event)) return { cancelled: true };
+    const threadId = await latestCodexThreadId(codexPaths.home);
     return switchAccountTransaction({
       profileId: id,
+      threadId,
       codexPaths,
       dataPaths,
       stopCodexDesktop: stopCodexDesktopSafely,
-      launch: openCodexDesktop,
+      launch: (profile, resumeThreadId) => resumeThreadId
+        ? launchThread(resumeThreadId, profile)
+        : openCodexDesktop(),
+      bootstrapOfficial: bootstrapOfficialCodex,
+      restoreLaunch: (profile, resumeThreadId) => resumeThreadId
+        ? launchThread(resumeThreadId, profile)
+        : openCodexDesktop(),
       prepareRuntime: prepareProfileRuntime,
       launchVerificationDelayMs: 500,
       launchVerificationTimeoutMs: 8000,
@@ -716,6 +765,10 @@ function registerHandlers() {
       dataPaths,
       stopCodexDesktop: stopCodexDesktopSafely,
       launch: (profile) => launchThread(request.threadId, profile),
+      bootstrapOfficial: bootstrapOfficialCodex,
+      restoreLaunch: (profile, resumeThreadId) => resumeThreadId
+        ? launchThread(resumeThreadId, profile)
+        : openCodexDesktop(),
       prepareRuntime: prepareProfileRuntime,
       launchMessage: "正在打开该项目线程",
       launchVerificationDelayMs: 500,

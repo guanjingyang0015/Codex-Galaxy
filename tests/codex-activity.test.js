@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { hasActiveCodexTurn } from "../codex-activity.js";
+import { hasActiveCodexTurn, latestCodexThreadId } from "../codex-activity.js";
 
 test("active Codex turns block account switching while completed turns do not", async () => {
   const home = await fs.mkdtemp(path.join(os.tmpdir(), "galaxy-codex-activity-"));
@@ -25,4 +25,17 @@ test("active Codex turns block account switching while completed turns do not", 
 test("Codex activity returns unknown when no readable turn database exists", async () => {
   const home = await fs.mkdtemp(path.join(os.tmpdir(), "galaxy-codex-activity-empty-"));
   assert.equal(await hasActiveCodexTurn(home), null);
+});
+
+test("latest Codex thread prefers an active user turn and excludes automation", async () => {
+  const home = await fs.mkdtemp(path.join(os.tmpdir(), "galaxy-codex-latest-thread-"));
+  const { DatabaseSync } = await import("node:sqlite");
+  const db = new DatabaseSync(path.join(home, "state_5.sqlite"));
+  db.exec("create table threads (id text primary key, updated_at_ms integer, archived integer, thread_source text)");
+  db.prepare("insert into threads values (?, ?, ?, ?)").run("old-user", 100, 0, "user");
+  db.prepare("insert into threads values (?, ?, ?, ?)").run("new-automation", 200, 0, "automation");
+  db.exec("create table thread_turns (thread_id text, status text, completed_at text, started_at integer)");
+  db.prepare("insert into thread_turns values (?, ?, ?, ?)").run("old-user", "inProgress", null, 300);
+  db.close();
+  assert.equal(await latestCodexThreadId(home), "old-user");
 });

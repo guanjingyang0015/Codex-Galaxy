@@ -308,14 +308,15 @@ function hasModelContextOverrides(config) {
 }
 
 function normalizeWindowsSandboxCompatibility(config) {
-  if (!hasWindowsSandboxConflict(config)) return;
-  config.windows = { ...(config.windows || {}), sandbox_private_desktop: false };
+  if (config?.windows?.sandbox_private_desktop !== false) return;
+  const windows = { ...(config.windows || {}) };
+  delete windows.sandbox_private_desktop;
+  if (Object.keys(windows).length) config.windows = windows;
+  else delete config.windows;
 }
 
 function hasWindowsSandboxConflict(config) {
-  return String(config?.sandbox_mode || "").trim().toLowerCase() === "danger-full-access"
-    && String(config?.windows?.sandbox || "").trim().toLowerCase() === "elevated"
-    && config?.windows?.sandbox_private_desktop !== false;
+  return config?.windows?.sandbox_private_desktop === false;
 }
 
 function hasStaleApiModelCatalog(paths, config, profile, catalogText) {

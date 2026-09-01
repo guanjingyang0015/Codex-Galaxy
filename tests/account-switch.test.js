@@ -60,6 +60,81 @@ test("a retry repairs the stale official currentId left after an API half-switch
   assert.match(progress.at(-1).message, /本地同步完成/);
 });
 
+test("official switching bootstraps first and resumes the latest local thread after synchronization", async () => {
+  const item = await fixture();
+  const sessions = path.join(item.codexHome, "sessions");
+  await fs.mkdir(sessions, { recursive: true });
+  await fs.writeFile(path.join(sessions, "root.jsonl"), [
+    JSON.stringify({ type: "session_meta", payload: { id: "thread-1", cwd: item.root, model_provider: "openai" } }),
+    JSON.stringify({ type: "response_item", payload: { type: "message", role: "assistant", content: [{ type: "output_text", text: "保留原聊天" }] } }),
+  ].join("\n") + "\n");
+  const events = [];
+
+  await switchAccountTransaction({
+    profileId: item.api.id,
+    codexPaths: item.codexPaths,
+    dataPaths: item.dataPaths,
+    stopCodexDesktop: async () => {
+      events.push("stop");
+      return { stopped: 0, processIds: [] };
+    },
+    launch: async () => {
+      events.push("api-launch");
+      return { method: "test" };
+    },
+  });
+  events.length = 0;
+
+  const result = await switchAccountTransaction({
+    profileId: item.official.id,
+    codexPaths: item.codexPaths,
+    dataPaths: item.dataPaths,
+    stopCodexDesktop: async () => {
+      events.push("stop");
+      return { stopped: 0, processIds: [] };
+    },
+    bootstrapOfficial: async () => {
+      events.push("bootstrap");
+      await fs.writeFile(item.codexPaths.auth, '{"auth_mode":"chatgpt","tokens":{"account_id":"official-a","access_token":"refreshed-token"}}\n');
+      return { method: "test" };
+    },
+    launch: async (_profile, threadId) => {
+      events.push(`launch:${threadId}`);
+      return { method: "test" };
+    },
+  });
+
+  assert.equal(result.resumeThreadId, "thread-1");
+  assert.deepEqual(events, ["stop", "bootstrap", "stop", "launch:thread-1"]);
+  const refreshedOfficial = await profileForSwitch(item.official.id, item.dataPaths);
+  assert.match(refreshedOfficial.auth, /refreshed-token/);
+});
+
+test("cancelling official bootstrap restores the previous account without changing the library", async () => {
+  const item = await fixture();
+  await switchAccountTransaction({
+    profileId: item.api.id,
+    codexPaths: item.codexPaths,
+    dataPaths: item.dataPaths,
+    stopCodexDesktop: async () => ({ stopped: 0, processIds: [] }),
+    launch: async () => ({ method: "test" }),
+  });
+  const originalConfig = await fs.readFile(item.codexPaths.config);
+  const originalAuth = await fs.readFile(item.codexPaths.auth);
+  const originalCurrent = (await loadProfiles(item.dataPaths)).data.currentId;
+  await assert.rejects(switchAccountTransaction({
+    profileId: item.official.id,
+    codexPaths: item.codexPaths,
+    dataPaths: item.dataPaths,
+    stopCodexDesktop: async () => ({ stopped: 0, processIds: [] }),
+    launch: async () => ({ method: "test" }),
+    bootstrapOfficial: async () => ({ method: "test", cancelled: true }),
+  }), /已自动恢复切换前状态/);
+  assert.deepEqual(await fs.readFile(item.codexPaths.config), originalConfig);
+  assert.deepEqual(await fs.readFile(item.codexPaths.auth), originalAuth);
+  assert.equal((await loadProfiles(item.dataPaths)).data.currentId, originalCurrent);
+});
+
 test("a launch failure restores credentials, provider metadata, currentId, and the local library", async () => {
   const item = await fixture();
   const sessions = path.join(item.codexHome, "sessions");

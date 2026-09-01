@@ -108,6 +108,8 @@ export async function switchAccountTransaction({
   launchVerificationDelayMs = 0,
   launchVerificationTimeoutMs = 8000,
   launchVerificationPollIntervalMs = 100,
+  bootstrapOfficial = null,
+  restoreLaunch = null,
   onProgress = () => {},
 }) {
   if (!profileId) throw new Error("请选择要切换的账号。");
@@ -127,6 +129,8 @@ export async function switchAccountTransaction({
   let providerSync = null;
   let runtime = null;
   let automationCleanup = null;
+  let previousProfile = null;
+  let resumeThreadId = threadId || null;
 
   try {
     let currentProfile = null;
@@ -135,6 +139,7 @@ export async function switchAccountTransaction({
       currentProfile = data.profiles.some((item) => item.id === data.currentId)
         ? await profileForSwitch(data.currentId, dataPaths)
         : null;
+      previousProfile = currentProfile;
       currentMatch = currentProfile ? await liveProfileMatch(codexPaths, currentProfile, dataPaths.vault) : currentMatch;
     }
 
@@ -186,6 +191,15 @@ export async function switchAccountTransaction({
     const appliedMatch = await liveProfileMatch(codexPaths, effectiveProfile, dataPaths.vault);
     if (!appliedMatch.matches) {
       throw new Error(`目标账号 ${profile.name} 的本地登录配置校验失败（${appliedMatch.reason || "状态不一致"}），已停止继续启动。`);
+    }
+
+    if (profile.kind === "official" && typeof bootstrapOfficial === "function") {
+      report({ percent: 40, stage: "bootstrap", message: "正在先启动官方 Codex，确认可以进入使用页面" });
+      const bootstrapResult = await bootstrapOfficial(profile);
+      if (bootstrapResult?.cancelled) throw new Error("已取消官方 Codex 初始化，账号和聊天数据没有被继续改写。");
+      report({ percent: 44, stage: "bootstrap-stop", message: "官方 Codex 已进入使用页面，正在安全关闭并同步原有项目" });
+      await stopCodexDesktop();
+      await captureCurrent(codexPaths, profile, dataPaths.vault);
     }
 
     report({ percent: 47, stage: "history", message: profile.kind === "api" ? "正在同步本地线程的 API 路由" : "正在同步本地线程的官方账号和模型" });
@@ -245,7 +259,8 @@ export async function switchAccountTransaction({
     await runtime?.commit?.();
     report({ percent: 92, stage: "activated", message: "账号和项目记录已切换完成" });
     report({ percent: 96, stage: "launch", message: launchMessage });
-    const launched = await launch(profile);
+    resumeThreadId = threadId || conversationSync.latestThreadId || preSwitchSync.latestThreadId || null;
+    const launched = await launch(profile, resumeThreadId);
     if (launchVerificationDelayMs > 0) await wait(launchVerificationDelayMs);
     report({ percent: 98, stage: "verify-launch", message: "正在确认 Codex 启动后的登录状态" });
     const launchedMatch = await waitForProfileMatch(
@@ -258,7 +273,7 @@ export async function switchAccountTransaction({
       throw new Error(`Codex 启动后未保持目标账号 ${profile.name}（${launchedMatch.reason || "状态不一致"}），已阻止错误账号继续运行`);
     }
     report({ percent: 100, stage: "complete", message: "本地同步完成，切换完成，可以继续原项目" });
-    return { profile: safeProfile(profile), switched, preSwitchSync, providerSync, conversationSync, automationCleanup, stopped, launched };
+    return { profile: safeProfile(profile), switched, preSwitchSync, providerSync, conversationSync, automationCleanup, stopped, launched, resumeThreadId };
   } catch (error) {
     report({ percent: 94, stage: "rollback", message: "切换未完成，正在恢复原账号状态" });
     const rollbackErrors = [];
@@ -279,6 +294,9 @@ export async function switchAccountTransaction({
       libraryFile: dataPaths.library,
       accountId: data.currentId,
     }).catch((rollbackError) => rollbackErrors.push(rollbackError));
+    if (previousProfile && typeof restoreLaunch === "function") {
+      await restoreLaunch(previousProfile, resumeThreadId).catch((rollbackError) => rollbackErrors.push(rollbackError));
+    }
     const message = error instanceof Error ? error.message : String(error);
     if (rollbackErrors.length) throw new Error(`${message}；自动恢复未完全成功，请不要打开 Codex，并在教程的“异常恢复”中处理。`);
     throw new Error(`${message}；已自动恢复切换前状态，可以重试。`);
