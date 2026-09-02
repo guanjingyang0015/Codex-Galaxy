@@ -91,6 +91,10 @@ test("release identity stays compatible with 0.1.0 upgrades and preserves user d
   assert.match(gatewayHost, /unrelated process/);
   assert.match(electronMain, /if \(profile\.runtimeMode !== "gateway"\)/);
   assert.match(codexJs, /apiRuntimeMode/);
+  assert.match(codexJs, /allowUncapturedOfficial/);
+  assert.match(codexJs, /setOfficialWindowsSandboxFallback/);
+  assert.match(codexJs, /model_catalog_json/);
+  assert.match(profilesJs, /setModelCatalog/);
   assert.match(codexActivity, /hasActiveCodexTurn/);
   assert.match(codexActivity, /latestCodexThreadId/);
   assert.match(releaseInfo, /e43ce460a8bdcfbdd5fad76979740da29639c4a5/);
@@ -110,7 +114,7 @@ test("release identity stays compatible with 0.1.0 upgrades and preserves user d
     actionsRun: null,
     url: "https://github.com/guanjingyang0015/Codex-Galaxy/releases/tag/v1.9.7",
   });
-  assert.match(profilesJs, /PROFILE_SCHEMA_VERSION = 5/);
+  assert.match(profilesJs, /PROFILE_SCHEMA_VERSION = 6/);
   assert.match(relayTest, /\/models/);
   assert.doesNotMatch(renderer, /profile\.current\s*\?/);
   assert.match(releaseNotes, /文档|documentation/i);
@@ -127,6 +131,7 @@ test("release identity stays compatible with 0.1.0 upgrades and preserves user d
   assert.match(diagnostics, /REDACTED/);
   assert.match(diagnostics, /diagnosticLogPath/);
   assert.match(diagnostics, /MAX_LOG_BYTES/);
+  assert.match(diagnostics, /localTime/);
   assert.match(electronMain, /diagnoseThreadRollout/);
   assert.match(electronMain, /repairThreadRollout/);
   assert.match(threadRepair, /byte-exact/i);
@@ -177,6 +182,7 @@ test("release identity stays compatible with 0.1.0 upgrades and preserves user d
   assert.match(renderer, /codexGalaxyLanguage/);
   assert.match(renderer, /Step-by-step API ↔ official switching/);
   assert.match(renderer, /openDiagnostics/);
+  assert.doesNotMatch(renderer, /Error log/);
   assert.match(renderer, /navigator\.language/);
   assert.match(styles, /html,\s*body\s*\{[^}]*overflow:\s*hidden/);
   assert.match(styles, /\.profile-list\s*\{[^}]*overflow:\s*auto/);

@@ -768,12 +768,17 @@ export async function prepareGatewayRuntime(gateway, profile, options = {}) {
   try {
     if (profile.kind === "api") {
       const runtimeMode = profile.runtimeMode === "direct" ? "direct" : "gateway";
+      const configuredModel = String(profile.model || "").trim();
       const explicitModel = String(profile.model || profile.resolvedModel || "").trim();
-      // A direct API profile with an explicit model does not need the local
-      // gateway or an upstream /models probe.  This keeps account switching
-      // fast and avoids spending a request/context budget on discovery when
-      // the user already selected the model to use.
-      const resolvedProfile = runtimeMode === "direct" && explicitModel
+      // Even an exact GPT model can be one entry in a larger relay catalog.
+      // Read /models so Codex can expose the other selectable GPT variants,
+      // while resolveProfile still keeps the explicitly configured model as
+      // the active default.
+      const shouldDiscoverModels = !configuredModel || isGptFamily(configuredModel) || modelCanResolveVariants(configuredModel);
+      // A direct API profile still avoids starting the local gateway when the
+      // user already selected an exact model; discovery above is only used to
+      // populate Codex's model catalog.
+      const resolvedProfile = runtimeMode === "direct" && explicitModel && !shouldDiscoverModels
         ? {
           ...profile,
           ...validateProfile({ ...profile, model: explicitModel, runtimeMode }),

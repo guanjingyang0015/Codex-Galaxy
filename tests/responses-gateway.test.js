@@ -495,6 +495,58 @@ test("direct API runtime keeps Codex on the provider URL without starting Galaxy
   assert.equal(gateway.status.running, false);
 });
 
+test("direct API profiles with a remembered blank model refresh the full model catalog", async () => {
+  const calls = [];
+  const gateway = new ResponsesGateway({
+    port: 0,
+    fetchUpstream: async (url) => {
+      calls.push(url);
+      return new Response(JSON.stringify({
+        data: [
+          { id: "gpt-5.6-sol", display_name: "GPT-5.6 Sol" },
+          { id: "gpt-5.6-terra", display_name: "GPT-5.6 Terra" },
+        ],
+      }), { status: 200, headers: { "content-type": "application/json" } });
+    },
+  });
+  const runtime = await prepareGatewayRuntime(gateway, {
+    ...profile("https://relay.example/v1", ""),
+    resolvedModel: "gpt-5.6-sol",
+    runtimeMode: "direct",
+  });
+
+  assert.deepEqual(calls, ["https://relay.example/v1/models"]);
+  assert.equal(runtime.profile.model, "gpt-5.6-sol");
+  assert.deepEqual(runtime.profile.modelCatalog.map((item) => item.sourceId), ["gpt-5.6-sol", "gpt-5.6-terra"]);
+  assert.deepEqual(runtime.profile.modelCandidates, ["gpt-5.6-terra"]);
+});
+
+test("direct API profiles with an exact GPT model refresh the selectable model catalog", async () => {
+  const calls = [];
+  const gateway = new ResponsesGateway({
+    port: 0,
+    fetchUpstream: async (url) => {
+      calls.push(url);
+      return new Response(JSON.stringify({
+        data: [
+          { id: "gpt-5.6-sol", display_name: "GPT-5.6 Sol" },
+          { id: "gpt-5.6-terra", display_name: "GPT-5.6 Terra" },
+        ],
+      }), { status: 200, headers: { "content-type": "application/json" } });
+    },
+  });
+  const runtime = await prepareGatewayRuntime(gateway, {
+    ...profile("https://relay.example/v1", "gpt-5.6-sol"),
+    runtimeMode: "direct",
+  });
+
+  assert.deepEqual(calls, ["https://relay.example/v1/models"]);
+  assert.equal(runtime.profile.model, "gpt-5.6-sol");
+  assert.equal(runtime.profile.singleModel, false);
+  assert.deepEqual(runtime.profile.modelCandidates, []);
+  assert.deepEqual(runtime.profile.modelCatalog.map((item) => item.sourceId), ["gpt-5.6-sol", "gpt-5.6-terra"]);
+});
+
 test("profile resolution uses the relay model catalog and an observed provider model", async () => {
   const calls = [];
   const gateway = new ResponsesGateway({ port: 0, fetchUpstream: async (url) => {

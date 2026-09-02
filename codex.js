@@ -51,14 +51,15 @@ export async function liveProfileMatch(paths, profile, vaultFile) {
   let config;
   let auth;
   try { config = parseToml(configText); } catch { return { matches: false, reason: "invalid-config" }; }
-  try { auth = JSON.parse(authText); } catch { return { matches: false, reason: "invalid-auth" }; }
+  try { auth = authText.trim() ? JSON.parse(authText) : {}; } catch { return { matches: false, reason: "invalid-auth" }; }
 
   if (profile.kind === "api") {
     const mode = apiRuntimeMode(profile);
     const provider = String(profile.runtimeProvider || profile.providerKey || profile.id).trim();
     const selected = config.model_provider === provider;
-    const authMatches = String(auth.auth_mode || "").toLowerCase() === "apikey"
-      && auth.OPENAI_API_KEY === profile.apiKey;
+    const legacyApiAuth = String(auth.auth_mode || "").toLowerCase() === "apikey"
+      || Object.hasOwn(auth, "OPENAI_API_KEY");
+    const authMatches = !legacyApiAuth;
     const credentialsMatch = credentialConfigMatches(config);
     const definition = config.model_providers?.[provider];
     const providerExists = Boolean(definition && typeof definition === "object" && !Array.isArray(definition));
@@ -69,20 +70,24 @@ export async function liveProfileMatch(paths, profile, vaultFile) {
       : Boolean(expectedBaseUrl) && actualBaseUrl === expectedBaseUrl;
     const providerValid = providerExists
       && String(definition.wire_api || "").toLowerCase() === "responses"
-      && baseUrlMatches;
+      && baseUrlMatches
+      && definition.requires_openai_auth === false
+      && definition.experimental_bearer_token === profile.apiKey;
     const contextMetadataStale = hasModelContextOverrides(config)
       || hasWindowsSandboxConflict(config)
       || hasStaleApiModelCatalog(paths, config, profile, modelCatalogText);
     const expectedModel = activeProfileModel(profile).toLowerCase();
     const modelMatches = !expectedModel || String(config.model || "").trim().toLowerCase() === expectedModel;
     const matches = selected && authMatches && credentialsMatch && providerValid && !contextMetadataStale && modelMatches;
-    const recoverableConfig = selected && authMatches && credentialsMatch && (!providerValid || contextMetadataStale || !modelMatches);
+    const recoverableConfig = selected && credentialsMatch && (!authMatches || !providerValid || contextMetadataStale || !modelMatches);
     const reason = matches
       ? "api-match"
       : recoverableConfig
         ? !providerValid
           ? providerExists ? "api-provider-invalid" : "api-provider-missing"
-          : "api-context-metadata-stale"
+          : !authMatches
+            ? "api-auth-legacy"
+            : "api-context-metadata-stale"
         : "api-mismatch";
     return { matches, reason, recoverableConfig };
   }
@@ -162,15 +167,16 @@ export async function captureCurrent(paths, profile, vaultFile) {
   return { id: profile.id, capturedAt: vault.profiles[profile.id].capturedAt, hasAuth: Boolean(auth) };
 }
 
-export async function switchProfile(paths, profile, vaultFile) {
+export async function switchProfile(paths, profile, vaultFile, { allowUncapturedOfficial = false } = {}) {
   const vault = await readJson(vaultFile, { version: 1, profiles: {} });
   const saved = vault.profiles[profile.id];
-  if (profile.kind === "official" && !saved?.auth) {
+  if (profile.kind === "official" && !saved?.auth && !allowUncapturedOfficial) {
     throw new Error("该官方账号尚未捕获登录状态，请先在 Codex 中登录后点击“捕获当前账号”。");
   }
   const liveSnapshot = await snapshotLiveFiles(paths);
   const backupDir = await backup(paths, profile.id);
   const liveConfig = await fs.readFile(paths.config, "utf8").catch(() => "");
+  const liveAuth = await fs.readFile(paths.auth, "utf8").catch(() => "");
   const currentConfig = saved?.config ? decrypt(saved.config) : "";
   const activeModel = activeProfileModel(profile);
   const suppliedCatalog = Array.isArray(profile.modelCatalog) && profile.modelCatalog.length
@@ -186,20 +192,28 @@ export async function switchProfile(paths, profile, vaultFile) {
     : null;
   const config = profile.kind === "api"
     ? buildApiConfig(profile, liveConfig, modelCatalogPath(paths))
-    : selectProfileModel(mergeCommonConfig(currentConfig || buildOfficialConfig(profile), liveConfig), profile, "openai");
+    : selectProfileModel(
+      mergeCommonConfig(currentConfig || buildOfficialConfig(profile), liveConfig, { skipKeys: ["windows"] }),
+      profile,
+      "openai",
+    );
   if (profile.kind === "api" && !profile.apiKey) throw new Error("中转 API 账号缺少 API Key。");
   const auth = profile.kind === "official"
-    ? decrypt(saved.auth)
-    : `${JSON.stringify({ auth_mode: "apikey", OPENAI_API_KEY: profile.apiKey }, null, 2)}\n`;
-  if (profile.kind === "official" && !officialAuthFingerprint(auth)) {
+    ? saved?.auth
+      ? decrypt(saved.auth)
+      : null
+    : officialAuthFingerprint(liveAuth)
+      ? liveAuth
+      : null;
+  if (profile.kind === "official" && !allowUncapturedOfficial && !officialAuthFingerprint(auth)) {
     throw new Error("该槽位没有有效的官方 ChatGPT 登录快照，请重新登录并捕获。");
   }
   TOML.parse(config);
-  JSON.parse(auth);
+  if (auth !== null) JSON.parse(auth);
   try {
     await writeLiveFilesAtomic(paths, config, auth, catalog ? `${JSON.stringify(catalog, null, 2)}\n` : null);
     const applied = await liveProfileMatch(paths, profile, vaultFile);
-    if (!applied.matches) {
+    if (!allowUncapturedOfficial && !applied.matches) {
       throw new Error(`目标账号 ${profile.name || profile.id} 的认证文件写入后校验失败（${applied.reason || "状态不一致"}）。`);
     }
   } catch (error) {
@@ -207,6 +221,23 @@ export async function switchProfile(paths, profile, vaultFile) {
     throw error;
   }
   return { profile: profile.id, backupDir, config: config.split(/\r?\n/).filter(Boolean).length };
+}
+
+export async function setOfficialWindowsSandboxFallback(paths) {
+  const configText = await fs.readFile(paths.config, "utf8").catch(() => "");
+  const config = parseToml(configText);
+  normalizeWindowsSandboxCompatibility(config);
+  config.windows = { ...(config.windows || {}), sandbox: "unelevated" };
+  const temporary = `${paths.config}.${process.pid}-${Date.now()}.sandbox-fallback.tmp`;
+  await fs.mkdir(paths.home, { recursive: true });
+  await fs.writeFile(temporary, TOML.stringify(config), { mode: 0o600 });
+  try {
+    await replaceFile(temporary, paths.config);
+  } catch (error) {
+    await fs.rm(temporary, { force: true });
+    throw error;
+  }
+  return { sandbox: "unelevated" };
 }
 
 function buildOfficialConfig(profile) {
@@ -232,10 +263,11 @@ function buildApiConfig(profile, liveConfig = "", catalogPath = "") {
   // a URL that is not running anymore, so write only the current provider.
   config.model_providers = {
     [provider]: {
-    name: profile.name,
-    wire_api: "responses",
-    base_url: profile.baseUrl,
-    requires_openai_auth: true,
+      name: profile.name,
+      wire_api: "responses",
+      base_url: profile.baseUrl,
+      requires_openai_auth: false,
+      experimental_bearer_token: profile.apiKey,
     },
   };
   if (catalogPath) config.model_catalog_json = catalogPath;
@@ -281,11 +313,12 @@ function selectProfileModel(configText, profile, provider) {
   return TOML.stringify(config);
 }
 
-function mergeCommonConfig(targetText, liveText) {
+function mergeCommonConfig(targetText, liveText, { skipKeys = [] } = {}) {
   const target = parseToml(targetText);
   const live = parseToml(liveText);
   const providerKeys = new Set(["model", "model_provider", "base_url", "openai_base_url", "chatgpt_base_url", "model_catalog_json", "OPENAI_API_KEY", "model_providers"]);
   for (const [key, value] of Object.entries(live)) {
+    if (skipKeys.includes(key)) continue;
     if (!providerKeys.has(key)) target[key] = value;
   }
   return TOML.stringify(target);
@@ -406,10 +439,11 @@ async function writeLiveFilesAtomic(paths, config, auth, modelCatalog = null) {
   const oldAuth = await fs.readFile(paths.auth).catch(() => null);
   const oldCatalog = await fs.readFile(catalogPath).catch(() => null);
   await fs.writeFile(configTemp, config, { mode: 0o600 });
-  await fs.writeFile(authTemp, auth, { mode: 0o600 });
+  if (auth !== null) await fs.writeFile(authTemp, auth, { mode: 0o600 });
   if (modelCatalog !== null) await fs.writeFile(catalogTemp, modelCatalog, { mode: 0o600 });
   try {
-    await replaceFile(authTemp, paths.auth);
+    if (auth !== null) await replaceFile(authTemp, paths.auth);
+    else await fs.rm(paths.auth, { force: true });
     await replaceFile(configTemp, paths.config);
     if (modelCatalog !== null) await replaceFile(catalogTemp, catalogPath);
     else await fs.rm(catalogPath, { force: true });

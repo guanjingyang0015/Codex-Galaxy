@@ -17,7 +17,7 @@ Codex Galaxy is a local desktop utility for switching between Codex accounts and
 - Rebuild complete thread details by merging local SQLite history with rollout files instead of showing a truncated tail
 - Check old session format and safely restore it from a verified backup when needed
 - Manage local plugins, downloaded marketplaces, and project data
-- Record a redacted local error log so switch failures can be inspected and reported
+- Record a timestamped redacted local log so switch failures can be inspected and reported
 - Check for updates automatically; Windows can install them and macOS opens the latest download page
 - Use Simplified Chinese or English
 
@@ -29,7 +29,7 @@ Codex Galaxy is a local desktop utility for switching between Codex accounts and
 4. Choose **Continue in Codex** for a local project to resume that task.
 5. If Codex is merely idle, Galaxy requests a graceful close and waits for local writes; it blocks only when a recent reply is actually unfinished.
 6. After switching, reopen the project. Local Codex files, SQLite data, and chat history remain in place; Galaxy never repairs this by deleting `config.toml`.
-7. If switching fails, open **Error log** at the top to inspect or copy the redacted reason; never delete configuration or chat data.
+7. If switching fails, open **Log** at the top to inspect or copy the redacted reason; never delete configuration or chat data.
 
 API profiles must support the OpenAI Responses API. API keys stay in encrypted local settings and are not written to project documents or logs.
 
@@ -39,7 +39,9 @@ API profiles must support the OpenAI Responses API. API keys stay in encrypted l
 - Galaxy performs one authoritative local project synchronization when it starts, so reopening the app does not keep serving an old derived cache.
 - Thread details merge rollout messages with user/assistant items already present in the local `thread_history` SQLite database and de-duplicate them. Details are no longer capped at 200 messages.
 - The current installed version is placed first in the release record, so a new installation does not continue to display an older release as the latest record.
-- If recovery is needed, keep redacted screenshots and error text. Do not delete `config.toml`, `~/.codex`, or `~/.codex-galaxy`.
+- If recovery is needed, open **Log** and keep redacted screenshots and error text. Do not delete `config.toml`, `~/.codex`, or `~/.codex-galaxy`.
+- If the bottom-right area shows only one model and its reasoning level, leave the API profile's model ID blank and switch again so Galaxy refreshes the relay `/models` catalog. If the relay returns only one model, or Codex Desktop's official-account gate hides custom models, that is an upstream/provider limitation; the CLI model list can be checked separately.
+- Even when an exact GPT model ID is configured, Galaxy reads `/models` on the first switch and saves the full selectable catalog; the configured model remains the default.
 
 ## API ↔ official switching steps
 
@@ -57,7 +59,9 @@ API profiles must support the OpenAI Responses API. API keys stay in encrypted l
 2. Select the API profile and choose **Switch and open Codex**.
 3. Galaxy closes an idle Codex gracefully, waits for local writes, synchronizes the provider and project records, and opens Codex again.
 4. Wait for progress to reach 100%, then choose **Continue in Codex**. Direct API mode can run after Galaxy exits; Compatibility gateway mode requires Galaxy to remain running.
-5. If switching fails, open **Error log** at the top and copy the redacted log and error text. The default file is `~/.codex-galaxy/logs/galaxy.log`.
+5. If switching fails, open **Log** at the top and copy the redacted log and error text. The default file is `~/.codex-galaxy/logs/galaxy.log`; each record contains UTC and local time.
+
+During an official switch, Galaxy no longer merges the current API profile's Windows sandbox table into the official profile; a saved official profile keeps its own sandbox settings. During first-time official login, if Windows setup stalls, choose **Compatibility retry** in the prompt to explicitly use the `unelevated` backend. After login reaches the normal project list, choose **Done, continue sync** and Galaxy will recapture and verify the official state.
 
 ## Plugins
 

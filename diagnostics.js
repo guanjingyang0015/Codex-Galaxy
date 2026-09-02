@@ -63,8 +63,10 @@ export function createDiagnosticLogger(root, versionProvider = () => null) {
   let queue = Promise.resolve();
   const enqueue = (level, event, message, details) => {
     const task = queue.then(async () => {
+      const now = new Date();
       const record = {
-        timestamp: new Date().toISOString(),
+        timestamp: now.toISOString(),
+        localTime: now.toLocaleString("zh-CN", { hour12: false }),
         version: redactString(versionProvider?.() || ""),
         level,
         event: redactString(event),

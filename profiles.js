@@ -3,7 +3,9 @@ import os from "node:os";
 import crypto from "node:crypto";
 import { readJson, writeJson, encrypt, decrypt } from "./vault.js";
 
-const PROFILE_SCHEMA_VERSION = 5;
+const PROFILE_SCHEMA_VERSION = 6;
+const MAX_MODEL_CATALOG_ENTRIES = 512;
+const MODEL_ID_PATTERN = /^[a-zA-Z0-9][a-zA-Z0-9._:/@+-]*$/;
 
 function providerKeyFor(profile) {
   const fallback = profile?.id || "relay";
@@ -16,6 +18,45 @@ function providerKeyFor(profile) {
 function normalizeRuntimeMode(profile) {
   if (profile?.kind !== "api") return "direct";
   return profile?.runtimeMode === "gateway" ? "gateway" : "direct";
+}
+
+function normalizeModelCatalog(entries) {
+  const seen = new Set();
+  return (Array.isArray(entries) ? entries : [])
+    .map((entry) => {
+      const id = String(entry?.sourceId || entry?.slug || entry?.id || entry?.model || "").trim();
+      if (!MODEL_ID_PATTERN.test(id)) return null;
+      const key = id.toLowerCase();
+      if (seen.has(key)) return null;
+      seen.add(key);
+      const levels = Array.isArray(entry?.supported_reasoning_levels)
+        ? entry.supported_reasoning_levels
+          .map((level) => ({
+            effort: String(level?.effort || "").trim(),
+            description: String(level?.description || "").trim().slice(0, 320),
+          }))
+          .filter((level) => ["minimal", "low", "medium", "high", "xhigh"].includes(level.effort) && level.description)
+          .slice(0, 8)
+        : [];
+      const contextWindow = entry?.context_window !== undefined && entry?.context_window !== null && String(entry.context_window).trim() !== ""
+        ? Number(entry.context_window)
+        : null;
+      const maxContextWindow = entry?.max_context_window !== undefined && entry?.max_context_window !== null && String(entry.max_context_window).trim() !== ""
+        ? Number(entry.max_context_window)
+        : null;
+      return {
+        sourceId: id,
+        display_name: String(entry?.display_name || entry?.name || id).trim().slice(0, 320) || id,
+        description: String(entry?.description || "").trim().slice(0, 320),
+        default_reasoning_level: String(entry?.default_reasoning_level || "").trim(),
+        supported_reasoning_levels: levels,
+        ...(Number.isFinite(contextWindow) && contextWindow > 0 ? { context_window: contextWindow } : {}),
+        ...(Number.isFinite(maxContextWindow) && maxContextWindow > 0 ? { max_context_window: maxContextWindow } : {}),
+        input_modalities: Array.isArray(entry?.input_modalities) ? entry.input_modalities.map((value) => String(value)).slice(0, 8) : undefined,
+      };
+    })
+    .filter(Boolean)
+    .slice(0, MAX_MODEL_CATALOG_ENTRIES);
 }
 
 export function runtimePaths() {
@@ -36,7 +77,7 @@ export async function loadProfiles(paths = runtimePaths()) {
         providerKey,
         runtimeMode,
         runtimeProvider: runtimeMode === "gateway" ? "galaxy" : providerKey,
-        preserveOfficialLogin: false,
+        preserveOfficialLogin: true,
       };
     });
     data.version = PROFILE_SCHEMA_VERSION;
@@ -88,8 +129,14 @@ export async function saveProfile(input, paths = runtimePaths()) {
         : "openai",
     runtimeMode,
     model: model.slice(0, 160),
-    preserveOfficialLogin: false,
+    preserveOfficialLogin: input.kind === "api",
     resolvedModel: previous?.model === model && previous?.baseUrl === baseUrl ? previous.resolvedModel || null : null,
+    modelCatalog: input.kind === "api"
+      && previous?.kind === "api"
+      && previous.baseUrl === baseUrl
+      && previous.model === model
+      ? normalizeModelCatalog(previous.modelCatalog)
+      : [],
     lastTest: input.kind === "api" && previous?.kind === "api" && previous.baseUrl === baseUrl && !providedApiKey
       ? previous.lastTest || null
       : null,
@@ -181,9 +228,30 @@ export async function setResolvedModel(id, configuredModel, resolvedModel, paths
   return true;
 }
 
+export async function setModelCatalog(id, configuredModel, baseUrl, modelCatalog, paths = runtimePaths()) {
+  const { data } = await loadProfiles(paths);
+  const profile = data.profiles.find((item) => item.id === id);
+  if (!profile || profile.kind !== "api") return false;
+  if (String(profile.model || "") !== String(configuredModel || "")) return false;
+  if (String(profile.baseUrl || "").replace(/\/+$/, "") !== String(baseUrl || "").replace(/\/+$/, "")) return false;
+  profile.modelCatalog = normalizeModelCatalog(modelCatalog);
+  profile.updatedAt = new Date().toISOString();
+  await writeJson(paths.profiles, data);
+  return true;
+}
+
 export async function publicProfiles(paths = runtimePaths()) {
   const { data, vault } = await loadProfiles(paths);
-  return { currentId: data.currentId, profiles: data.profiles.map((profile) => ({ ...profile, hasApiKey: Boolean(vault.profiles[profile.id]?.apiKey), hasAuthSnapshot: Boolean(vault.profiles[profile.id]?.auth) })) };
+  return {
+    currentId: data.currentId,
+    profiles: data.profiles.map((profile) => ({
+      ...profile,
+      modelCatalog: undefined,
+      modelCatalogCount: Array.isArray(profile.modelCatalog) ? profile.modelCatalog.length : 0,
+      hasApiKey: Boolean(vault.profiles[profile.id]?.apiKey),
+      hasAuthSnapshot: Boolean(vault.profiles[profile.id]?.auth),
+    })),
+  };
 }
 
 export async function profileForSwitch(id, paths = runtimePaths()) {
@@ -196,10 +264,11 @@ export async function profileForSwitch(id, paths = runtimePaths()) {
     runtimeProvider: profile.kind === "api"
       ? (normalizeRuntimeMode(profile) === "gateway" ? "galaxy" : providerKeyFor(profile))
       : "openai",
-    preserveOfficialLogin: false,
+    preserveOfficialLogin: profile.kind === "api",
     apiKey: vault.profiles[id]?.apiKey ? decrypt(vault.profiles[id].apiKey) : null,
     auth: vault.profiles[id]?.auth ? decrypt(vault.profiles[id].auth) : null,
     savedConfig: vault.profiles[id]?.config ? decrypt(vault.profiles[id].config) : null,
+    modelCatalog: normalizeModelCatalog(profile.modelCatalog),
   };
 }
 

@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { clearApiKey, deleteProfile, recordProfileTest, saveProfile, profileForSwitch, publicProfiles, setCurrent, setResolvedModel } from "../profiles.js";
+import { clearApiKey, deleteProfile, recordProfileTest, saveProfile, profileForSwitch, publicProfiles, setCurrent, setModelCatalog, setResolvedModel } from "../profiles.js";
 
 test("profiles persist API keys in the encrypted vault only", async () => {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), "codex-galaxy-profiles-"));
@@ -18,17 +18,17 @@ test("profiles persist API keys in the encrypted vault only", async () => {
   assert.equal(vaultText.includes("sk-private-value"), false);
 });
 
-test("API profiles always use pure API login even when old clients request mixed mode", async () => {
+test("API profiles use provider-scoped keys and preserve official login identity", async () => {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), "codex-galaxy-profile-auth-mode-"));
   const paths = { root, profiles: path.join(root, "profiles.json"), vault: path.join(root, "vault.json"), library: path.join(root, "library.json") };
   await saveProfile({ id: "relay-pure", name: "纯 API", kind: "api", baseUrl: "https://relay.test/v1", apiKey: "secret", model: "model" }, paths);
-  assert.equal((await profileForSwitch("relay-pure", paths)).preserveOfficialLogin, false);
+  assert.equal((await profileForSwitch("relay-pure", paths)).preserveOfficialLogin, true);
   await saveProfile({ id: "relay-mixed", name: "插件 API", kind: "api", baseUrl: "https://relay.test/v1", apiKey: "secret", model: "model", preserveOfficialLogin: true }, paths);
-  assert.equal((await profileForSwitch("relay-mixed", paths)).preserveOfficialLogin, false);
-  assert.equal((await publicProfiles(paths)).profiles.find((profile) => profile.id === "relay-mixed").preserveOfficialLogin, false);
+  assert.equal((await profileForSwitch("relay-mixed", paths)).preserveOfficialLogin, true);
+  assert.equal((await publicProfiles(paths)).profiles.find((profile) => profile.id === "relay-mixed").preserveOfficialLogin, true);
 });
 
-test("legacy API profiles migrate once from mixed login to pure API mode", async () => {
+test("legacy API profiles migrate to provider-scoped keys with official login preservation", async () => {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), "codex-galaxy-profile-migration-"));
   const paths = { root, profiles: path.join(root, "profiles.json"), vault: path.join(root, "vault.json"), library: path.join(root, "library.json") };
   await fs.writeFile(paths.profiles, JSON.stringify({
@@ -41,16 +41,16 @@ test("legacy API profiles migrate once from mixed login to pure API mode", async
   }));
 
   const publicState = await publicProfiles(paths);
-  assert.equal(publicState.profiles.find((profile) => profile.id === "relay-legacy").preserveOfficialLogin, false);
+  assert.equal(publicState.profiles.find((profile) => profile.id === "relay-legacy").preserveOfficialLogin, true);
   assert.equal(publicState.profiles.find((profile) => profile.id === "official-a").preserveOfficialLogin, true);
   const persisted = JSON.parse(await fs.readFile(paths.profiles, "utf8"));
-  assert.equal(persisted.version, 5);
-  assert.equal(persisted.profiles.find((profile) => profile.id === "relay-legacy").preserveOfficialLogin, false);
+  assert.equal(persisted.version, 6);
+  assert.equal(persisted.profiles.find((profile) => profile.id === "relay-legacy").preserveOfficialLogin, true);
   assert.equal(persisted.profiles.find((profile) => profile.id === "relay-legacy").runtimeMode, "direct");
   assert.equal(persisted.profiles.find((profile) => profile.id === "relay-legacy").runtimeProvider, "relay-legacy");
 });
 
-test("schema v2 mixed API profiles migrate to pure API mode", async () => {
+test("schema v2 API profiles migrate to preserved official login mode", async () => {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), "codex-galaxy-profile-v2-mixed-"));
   const paths = { root, profiles: path.join(root, "profiles.json"), vault: path.join(root, "vault.json"), library: path.join(root, "library.json") };
   await fs.writeFile(paths.profiles, JSON.stringify({
@@ -59,10 +59,10 @@ test("schema v2 mixed API profiles migrate to pure API mode", async () => {
     profiles: [{ id: "relay-mixed", name: "插件 API", kind: "api", preserveOfficialLogin: true }],
   }));
 
-  assert.equal((await publicProfiles(paths)).profiles[0].preserveOfficialLogin, false);
+  assert.equal((await publicProfiles(paths)).profiles[0].preserveOfficialLogin, true);
   const persisted = JSON.parse(await fs.readFile(paths.profiles, "utf8"));
-  assert.equal(persisted.version, 5);
-  assert.equal(persisted.profiles[0].preserveOfficialLogin, false);
+  assert.equal(persisted.version, 6);
+  assert.equal(persisted.profiles[0].preserveOfficialLogin, true);
   assert.equal(persisted.profiles[0].runtimeMode, "direct");
 });
 
@@ -103,6 +103,20 @@ test("an API profile can leave its model blank and remember the discovered model
 
   await saveProfile({ id: "relay-auto", name: "Renamed Relay", kind: "api", baseUrl: "https://relay.test/v1", apiKey: "", model: "" }, paths);
   assert.equal((await profileForSwitch("relay-auto", paths)).resolvedModel, "vendor/text-model@2026");
+});
+
+test("an API profile persists a bounded model catalog without exposing API keys", async () => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), "codex-galaxy-profile-catalog-"));
+  const paths = { root, profiles: path.join(root, "profiles.json"), vault: path.join(root, "vault.json"), library: path.join(root, "library.json") };
+  await saveProfile({ id: "relay-catalog", name: "Relay", kind: "api", baseUrl: "https://relay.test/v1", apiKey: "secret", model: "" }, paths);
+
+  assert.equal(await setModelCatalog("relay-catalog", "", "https://relay.test/v1", [
+    { sourceId: "gpt-5.6-sol", display_name: "GPT-5.6 Sol", supported_reasoning_levels: [{ effort: "high", description: "Deep" }] },
+    { sourceId: "gpt-5.6-terra", display_name: "GPT-5.6 Terra", supported_reasoning_levels: [{ effort: "low", description: "Fast" }] },
+  ], paths), true);
+  const profile = await profileForSwitch("relay-catalog", paths);
+  assert.deepEqual(profile.modelCatalog.map((item) => item.sourceId), ["gpt-5.6-sol", "gpt-5.6-terra"]);
+  assert.equal(JSON.stringify(await publicProfiles(paths)).includes("secret"), false);
 });
 
 test("API profile Base URLs cannot hide plaintext credentials", async () => {

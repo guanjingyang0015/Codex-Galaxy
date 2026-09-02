@@ -4,8 +4,8 @@ import path from "node:path";
 import os from "node:os";
 import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
-import { defaultPaths, inspectCodex, captureCurrent, liveProfileMatch, switchProfile as applyProfile } from "../codex.js";
-import { runtimePaths, loadProfiles, publicProfiles, saveProfile, profileForSwitch, setCurrent, setResolvedModel, deleteProfile, clearApiKey } from "../profiles.js";
+import { defaultPaths, inspectCodex, captureCurrent, liveProfileMatch, setOfficialWindowsSandboxFallback, switchProfile as applyProfile } from "../codex.js";
+import { runtimePaths, loadProfiles, publicProfiles, saveProfile, profileForSwitch, setCurrent, setResolvedModel, setModelCatalog, deleteProfile, clearApiKey } from "../profiles.js";
 import { syncConversations, readLibrary, readThreadDetail } from "../sync.js";
 import { setPlatformSecretProvider } from "../vault.js";
 import { buildMacTerminalArgs, buildResumeArgs, formatResumeCommand, waitForSpawn } from "../launcher.js";
@@ -13,7 +13,7 @@ import { findCodexCli } from "../cli-discovery.js";
 import { switchAccountTransaction } from "../account-switch.js";
 import { findCodexDesktopWindows, findCodexWriterProcesses, stopCodexDesktopAndWait } from "../desktop-process.js";
 import { codexOverlayBounds, CODEX_VERSION_OVERLAY_SIZE, selectCodexOverlayTarget } from "./codex-overlay.mjs";
-import { prepareGatewayRuntime, ResponsesGateway } from "../responses-gateway.js";
+import { modelCanResolveVariants, prepareGatewayRuntime, ResponsesGateway } from "../responses-gateway.js";
 import { handoffGatewayToHost, stopOwnedGatewayHost } from "./gateway-host.mjs";
 import { recentThreadModels, targetProviderForProfile } from "../provider-sync.js";
 import { addMarketplace, expandMarketplace, installLocalPlugin, listLocalPlugins } from "../plugin-manager.js";
@@ -334,7 +334,7 @@ function updateGatewayTray() {
 async function prepareProfileRuntime(profile) {
   let preferredModels = [];
   const needsModelDiscovery = profile.kind === "api"
-    && (profile.runtimeMode === "gateway" || !String(profile.model || profile.resolvedModel || "").trim());
+    && (profile.runtimeMode === "gateway" || !String(profile.model || "").trim() || modelCanResolveVariants(profile.model));
   if (needsModelDiscovery) {
     const [providerModels, recentModels] = await Promise.all([
       recentThreadModels(codexPaths.home, targetProviderForProfile(profile)),
@@ -351,6 +351,9 @@ async function prepareProfileRuntime(profile) {
       await runtime.commit?.();
       if (profile.kind === "api" && runtime.profile?.modelResolved) {
         await setResolvedModel(profile.id, profile.model, runtime.profile.model, dataPaths);
+      }
+      if (profile.kind === "api" && Array.isArray(runtime.profile?.modelCatalog)) {
+        await setModelCatalog(profile.id, profile.model, profile.baseUrl, runtime.profile.modelCatalog, dataPaths);
       }
       updateGatewayTray();
     },
@@ -497,23 +500,41 @@ async function waitForCodexDesktopWindow(timeoutMs = 10000) {
 }
 
 async function bootstrapOfficialCodex(profile) {
-  const launched = await openCodexDesktop();
+  let launched = await openCodexDesktop();
   if (process.platform !== "win32" || profile?.kind !== "official") return launched;
   try {
     await waitForCodexDesktopWindow();
     const owner = mainWindow && !mainWindow.isDestroyed() ? mainWindow : undefined;
-    const choice = owner
+    let choice = owner
       ? await dialog.showMessageBox(owner, {
         type: "info",
         title: "请先完成官方 Codex 初始化",
         message: "请在刚打开的 Codex 窗口中完成 Windows 设置或官方登录。",
-        detail: "确认 Codex 已经进入正常使用页面、能够看到项目列表后，再回到这里点击“已完成，继续同步”。如果仍停留在 config_load 页面，请点击页面中的允许按钮；如果无法完成，请取消，Galaxy 会恢复切换前的账号和聊天状态。",
-        buttons: ["取消切换", "已完成，继续同步"],
+        detail: "确认 Codex 已经进入正常使用页面、能够看到项目列表后，再回到这里点击“已完成，继续同步”。如果 elevated Windows 沙盒设置被本机策略阻止，可选择“兼容模式重试”；Galaxy 只会在你明确选择后改用 unelevated 后端。",
+        buttons: ["取消切换", "已完成，继续同步", "兼容模式重试"],
         defaultId: 1,
         cancelId: 0,
         noLink: true,
       })
       : { response: 1 };
+    if (choice.response === 2) {
+      await stopCodexDesktopSafely();
+      await setOfficialWindowsSandboxFallback(codexPaths);
+      launched = await openCodexDesktop();
+      await waitForCodexDesktopWindow();
+      choice = owner
+        ? await dialog.showMessageBox(owner, {
+          type: "info",
+          title: "已使用 Windows 兼容模式",
+          message: "请完成官方登录，并确认 Codex 已进入正常使用页面。",
+          detail: "兼容模式使用 unelevated Windows 沙盒。看到项目列表后点击“已完成，继续同步”；如仍无法进入，请取消，Galaxy 会恢复切换前的账号和聊天状态。",
+          buttons: ["取消切换", "已完成，继续同步"],
+          defaultId: 1,
+          cancelId: 0,
+          noLink: true,
+        })
+        : { response: 1 };
+    }
     if (choice.response !== 1) {
       await stopCodexDesktopSafely();
       return { ...launched, cancelled: true };
@@ -648,8 +669,8 @@ function registerHandlers() {
     clearTimeout(pending.timer);
     pending.resolve(payload?.confirmed === true);
   });
-  ipcMain.handle("codex-galaxy:get-state", () => result(getState));
-  ipcMain.handle("codex-galaxy:check-update", () => result(() => appUpdater.check()));
+  ipcMain.handle("codex-galaxy:get-state", () => result(getState, "get-state"));
+  ipcMain.handle("codex-galaxy:check-update", () => result(() => appUpdater.check(), "check-update"));
   ipcMain.handle("codex-galaxy:install-update", (event, request) => result(async () => {
     const status = appUpdater.status.available
       ? { ...appUpdater.status }
@@ -678,7 +699,7 @@ function registerHandlers() {
       : await dialog.showMessageBox(options);
     if (choice.response !== 1) return { cancelled: true, status };
     return appUpdater.act();
-  }));
+  }, "install-update"));
   ipcMain.handle("codex-galaxy:sync", (event, request) => result(() => exclusiveRefresh(async () => {
     const { data } = await loadProfiles(dataPaths);
     const report = progressReporter(event, request?.operationId, "codex-galaxy:sync-progress");
@@ -702,28 +723,28 @@ function registerHandlers() {
     const removedMessage = synced.removed ? `，已从列表隐藏 ${synced.removed} 条归档或失效记录` : "";
     report({ percent: 100, stage: "complete", message: `刷新完成，共发现 ${synced.threads} 条有效项目${removedMessage}`, completed: synced.threads, total: synced.threads });
     return synced;
-  })));
+  }), "sync"));
   ipcMain.handle("codex-galaxy:save-profile", (_, profile) => result(async () => {
     const saved = await saveProfile(profile, dataPaths);
     const profiles = await publicProfiles(dataPaths);
     return { profile: profiles.profiles.find((item) => item.id === saved.id) };
-  }));
+  }, "save-profile"));
   ipcMain.handle("codex-galaxy:delete-profile", (_, id) => result(async () => {
     const deleted = await deleteProfile(id, dataPaths);
     return { ...deleted, profiles: await publicProfiles(dataPaths) };
-  }));
+  }, "delete-profile"));
   ipcMain.handle("codex-galaxy:clear-profile-key", (_, id) => result(async () => {
     const cleared = await clearApiKey(id, dataPaths);
     return { ...cleared, profiles: await publicProfiles(dataPaths) };
-  }));
+  }, "clear-profile-key"));
   ipcMain.handle("codex-galaxy:test-profile", (_, id) => result(() => testApiProfile(id, dataPaths, {
     fetcher: (url, options) => net.fetch(url, options),
-  })));
+  }), "test-profile"));
   ipcMain.handle("codex-galaxy:capture-profile", (_, id) => result(async () => {
     const captured = await captureCurrent(codexPaths, await profileForSwitch(id, dataPaths), dataPaths.vault);
     await setCurrent(id, dataPaths);
     return captured;
-  }));
+  }, "capture-profile"));
   ipcMain.handle("codex-galaxy:switch-profile", (event, request) => result(() => exclusiveSwitch(async () => {
     const id = typeof request === "string" ? request : request?.profileId;
     if (!id) throw new Error("请选择要切换的账号。");
@@ -752,7 +773,7 @@ function registerHandlers() {
     await fs.mkdir(path.dirname(file), { recursive: true });
     await fs.writeFile(file, "", { encoding: "utf8", flag: "a" });
     const openError = await shell.openPath(file);
-    if (openError) throw new Error("无法打开本地故障日志文件。");
+    if (openError) throw new Error("无法打开本地日志文件。");
     return { path: file };
   }, "open-diagnostic-log"));
   ipcMain.handle("codex-galaxy:get-thread", (_, id) => result(async () => {

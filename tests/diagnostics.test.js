@@ -21,6 +21,7 @@ test("diagnostic logs record failures without persisting sensitive values", asyn
   assert.equal(record.level, "error");
   assert.equal(record.event, "switch-failed");
   assert.equal(record.version, "1.9.7");
+  assert.match(record.localTime, /\d/);
   assert.match(record.message, /Bearer \[REDACTED\]/);
   assert.equal(record.details.apiKey, "[REDACTED]");
   assert.equal(record.details.requestBody, "[REDACTED]");

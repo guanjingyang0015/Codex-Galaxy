@@ -4,7 +4,7 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import TOML from "@iarna/toml";
-import { captureCurrent, liveProfileMatch, switchProfile } from "../codex.js";
+import { captureCurrent, liveProfileMatch, setOfficialWindowsSandboxFallback, switchProfile } from "../codex.js";
 
 test("API switching preserves common config and writes an arbitrary model", async () => {
   const home = await fs.mkdtemp(path.join(os.tmpdir(), "galaxy-codex-switch-"));
@@ -50,11 +50,12 @@ test("API switching preserves common config and writes an arbitrary model", asyn
   assert.equal(config.model_auto_compact_token_limit_scope, undefined);
   assert.equal(config.forced_login_method, undefined);
   assert.equal(config.forced_chatgpt_workspace_id, undefined);
+  assert.equal(config.model_providers["relay-deepseek"].requires_openai_auth, false);
+  assert.equal(config.model_providers["relay-deepseek"].experimental_bearer_token, "test-key-not-real");
   assert.equal(config.mcp_servers.keep.command, "keep-me");
-  assert.equal(configText.includes("test-key-not-real"), false);
+  assert.equal(configText.includes("test-key-not-real"), true);
   assert.deepEqual(JSON.parse(await fs.readFile(paths.auth, "utf8")), {
-    auth_mode: "apikey",
-    OPENAI_API_KEY: "test-key-not-real",
+    tokens: { access_token: "not-a-real-token" },
   });
   const match = await liveProfileMatch(paths, {
     id: "relay-b",
@@ -165,7 +166,7 @@ test("reselecting a direct API profile replaces the legacy artificial 128K catal
 
   const stale = await liveProfileMatch(paths, profile, vaultFile);
   assert.equal(stale.matches, false);
-  assert.equal(stale.reason, "api-context-metadata-stale");
+  assert.equal(stale.reason, "api-provider-invalid");
   assert.equal(stale.recoverableConfig, true);
 
   await switchProfile(paths, profile, vaultFile);
@@ -247,6 +248,48 @@ test("official switching restores file credentials and removes stale forced-logi
   assert.equal((await liveProfileMatch(paths, profile, vaultFile)).matches, true);
 });
 
+test("an uncaptured official profile can bootstrap with the live auth until manual login is captured", async () => {
+  const home = await fs.mkdtemp(path.join(os.tmpdir(), "galaxy-codex-official-bootstrap-"));
+  const paths = { home, config: path.join(home, "config.toml"), auth: path.join(home, "auth.json"), modelCatalog: path.join(home, "catalog.json"), backupDir: path.join(home, "backups") };
+  const vaultFile = path.join(home, "vault.json");
+  const profile = { id: "official-a", name: "Official A", kind: "official", model: "gpt-5.6" };
+  await fs.writeFile(paths.config, 'model = "gpt-5.6-sol"\nmodel_provider = "relay"\ncli_auth_credentials_store = "file"\n');
+  await fs.writeFile(paths.auth, '{"auth_mode":"apikey","OPENAI_API_KEY":"relay-key"}\n');
+
+  await switchProfile(paths, profile, vaultFile, { allowUncapturedOfficial: true });
+
+  const config = TOML.parse(await fs.readFile(paths.config, "utf8"));
+  assert.equal(config.model_provider, "openai");
+  assert.equal(config.windows, undefined);
+  assert.equal(await fs.stat(paths.auth).then(() => true).catch(() => false), false);
+});
+
+test("API switching preserves official auth and scopes the relay key to its provider", async () => {
+  const home = await fs.mkdtemp(path.join(os.tmpdir(), "galaxy-codex-preserved-official-"));
+  const paths = { home, config: path.join(home, "config.toml"), auth: path.join(home, "auth.json"), modelCatalog: path.join(home, "catalog.json"), backupDir: path.join(home, "backups") };
+  const vaultFile = path.join(home, "vault.json");
+  const officialAuth = '{"auth_mode":"chatgpt","tokens":{"account_id":"account-a","access_token":"official-token"}}\n';
+  await fs.writeFile(paths.config, 'model = "gpt-5.6"\nmodel_provider = "openai"\ncli_auth_credentials_store = "file"\n');
+  await fs.writeFile(paths.auth, officialAuth);
+
+  await switchProfile(paths, {
+    id: "relay-a",
+    name: "Relay A",
+    kind: "api",
+    providerKey: "relay-a",
+    runtimeMode: "direct",
+    baseUrl: "https://relay.invalid/v1",
+    apiKey: "relay-key",
+    model: "gpt-5.6-sol",
+    singleModel: true,
+  }, vaultFile);
+
+  const config = TOML.parse(await fs.readFile(paths.config, "utf8"));
+  assert.equal(config.model_providers["relay-a"].experimental_bearer_token, "relay-key");
+  assert.equal(config.model_providers["relay-a"].requires_openai_auth, false);
+  assert.equal(await fs.readFile(paths.auth, "utf8"), officialAuth);
+});
+
 test("reselecting an official profile clears stale global auto-compaction overrides", async () => {
   const home = await fs.mkdtemp(path.join(os.tmpdir(), "galaxy-codex-official-context-"));
   const paths = { home, config: path.join(home, "config.toml"), auth: path.join(home, "auth.json"), modelCatalog: path.join(home, "catalog.json"), backupDir: path.join(home, "backups") };
@@ -269,7 +312,7 @@ test("reselecting an official profile clears stale global auto-compaction overri
   assert.equal((await liveProfileMatch(paths, profile, vaultFile)).matches, true);
 });
 
-test("official selection removes the stale private-desktop override without changing full-access or sandbox level", async () => {
+test("official selection removes stale desktop overrides without weakening the saved Windows sandbox", async () => {
   const home = await fs.mkdtemp(path.join(os.tmpdir(), "galaxy-codex-official-sandbox-conflict-"));
   const paths = { home, config: path.join(home, "config.toml"), auth: path.join(home, "auth.json"), modelCatalog: path.join(home, "catalog.json"), backupDir: path.join(home, "backups") };
   const vaultFile = path.join(home, "vault.json");
@@ -290,6 +333,19 @@ test("official selection removes the stale private-desktop override without chan
   assert.equal(config.windows.sandbox, "elevated");
   assert.equal(config.windows.sandbox_private_desktop, undefined);
   assert.equal((await liveProfileMatch(paths, profile, vaultFile)).matches, true);
+});
+
+test("the Windows sandbox fallback is applied only after an explicit compatibility retry", async () => {
+  const home = await fs.mkdtemp(path.join(os.tmpdir(), "galaxy-codex-official-sandbox-fallback-"));
+  const paths = { home, config: path.join(home, "config.toml"), auth: path.join(home, "auth.json"), modelCatalog: path.join(home, "catalog.json"), backupDir: path.join(home, "backups") };
+  await fs.writeFile(paths.config, 'model = "gpt-5.6"\nmodel_provider = "openai"\nsandbox_mode = "danger-full-access"\n\n[windows]\nsandbox = "elevated"\nsandbox_private_desktop = false\n');
+
+  await setOfficialWindowsSandboxFallback(paths);
+
+  const config = TOML.parse(await fs.readFile(paths.config, "utf8"));
+  assert.equal(config.sandbox_mode, "danger-full-access");
+  assert.equal(config.windows.sandbox, "unelevated");
+  assert.equal(config.windows.sandbox_private_desktop, undefined);
 });
 
 test("API selection also removes the stale private-desktop override", async () => {

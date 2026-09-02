@@ -62,6 +62,11 @@ test("a retry repairs the stale official currentId left after an API half-switch
 
 test("official switching bootstraps first and resumes the latest local thread after synchronization", async () => {
   const item = await fixture();
+  const vault = JSON.parse(await fs.readFile(item.dataPaths.vault, "utf8"));
+  delete vault.profiles[item.official.id].auth;
+  delete vault.profiles[item.official.id].authAccountFingerprint;
+  delete vault.profiles[item.official.id].config;
+  await fs.writeFile(item.dataPaths.vault, `${JSON.stringify(vault, null, 2)}\n`);
   const sessions = path.join(item.codexHome, "sessions");
   await fs.mkdir(sessions, { recursive: true });
   await fs.writeFile(path.join(sessions, "root.jsonl"), [
@@ -110,6 +115,64 @@ test("official switching bootstraps first and resumes the latest local thread af
   assert.match(refreshedOfficial.auth, /refreshed-token/);
 });
 
+test("an uncaptured official profile enters manual bootstrap and captures the new official login", async () => {
+  const item = await fixture();
+  const vault = JSON.parse(await fs.readFile(item.dataPaths.vault, "utf8"));
+  delete vault.profiles[item.official.id].auth;
+  delete vault.profiles[item.official.id].authAccountFingerprint;
+  delete vault.profiles[item.official.id].config;
+  await fs.writeFile(item.dataPaths.vault, `${JSON.stringify(vault, null, 2)}\n`);
+  await switchAccountTransaction({
+    profileId: item.api.id,
+    codexPaths: item.codexPaths,
+    dataPaths: item.dataPaths,
+    stopCodexDesktop: async () => ({ stopped: 0, processIds: [] }),
+    launch: async () => ({ method: "test" }),
+  });
+
+  await switchAccountTransaction({
+    profileId: item.official.id,
+    codexPaths: item.codexPaths,
+    dataPaths: item.dataPaths,
+    stopCodexDesktop: async () => ({ stopped: 0, processIds: [] }),
+    bootstrapOfficial: async () => {
+      await fs.writeFile(item.codexPaths.auth, '{"auth_mode":"chatgpt","tokens":{"account_id":"official-a","access_token":"manual-login-token"}}\n');
+      return { method: "test" };
+    },
+    launch: async () => ({ method: "test" }),
+  });
+
+  const captured = await profileForSwitch(item.official.id, item.dataPaths);
+  assert.match(captured.auth, /manual-login-token/);
+});
+
+test("a captured official profile restores directly without repeating manual bootstrap", async () => {
+  const item = await fixture();
+  await switchAccountTransaction({
+    profileId: item.api.id,
+    codexPaths: item.codexPaths,
+    dataPaths: item.dataPaths,
+    stopCodexDesktop: async () => ({ stopped: 0, processIds: [] }),
+    launch: async () => ({ method: "test" }),
+  });
+
+  let bootstrapCalls = 0;
+  await switchAccountTransaction({
+    profileId: item.official.id,
+    codexPaths: item.codexPaths,
+    dataPaths: item.dataPaths,
+    stopCodexDesktop: async () => ({ stopped: 0, processIds: [] }),
+    bootstrapOfficial: async () => {
+      bootstrapCalls += 1;
+      return { method: "test" };
+    },
+    launch: async () => ({ method: "test" }),
+  });
+
+  assert.equal(bootstrapCalls, 0);
+  assert.equal((await loadProfiles(item.dataPaths)).data.currentId, item.official.id);
+});
+
 test("cancelling official bootstrap restores the previous account without changing the library", async () => {
   const item = await fixture();
   await switchAccountTransaction({
@@ -122,6 +185,11 @@ test("cancelling official bootstrap restores the previous account without changi
   const originalConfig = await fs.readFile(item.codexPaths.config);
   const originalAuth = await fs.readFile(item.codexPaths.auth);
   const originalCurrent = (await loadProfiles(item.dataPaths)).data.currentId;
+  const vault = JSON.parse(await fs.readFile(item.dataPaths.vault, "utf8"));
+  delete vault.profiles[item.official.id].auth;
+  delete vault.profiles[item.official.id].authAccountFingerprint;
+  delete vault.profiles[item.official.id].config;
+  await fs.writeFile(item.dataPaths.vault, `${JSON.stringify(vault, null, 2)}\n`);
   await assert.rejects(switchAccountTransaction({
     profileId: item.official.id,
     codexPaths: item.codexPaths,
@@ -472,14 +540,16 @@ test("API profiles switch without any official account or OAuth snapshot", async
 
   const { data, vault } = await loadProfiles(dataPaths);
   const config = TOML.parse(await fs.readFile(codexPaths.config, "utf8"));
-  const auth = JSON.parse(await fs.readFile(codexPaths.auth, "utf8"));
+  const authExists = await fs.stat(codexPaths.auth).then(() => true).catch(() => false);
   assert.deepEqual(data.profiles.map((profile) => profile.kind), ["api", "api"]);
   assert.equal(data.currentId, apiB.id);
   assert.equal(config.model_provider, apiB.providerKey);
   assert.equal(config.model, "model-b");
   assert.equal(config.model_providers[apiB.providerKey].name, "API B");
   assert.equal(config.model_providers[apiB.providerKey].base_url, "https://api-b.invalid/v1");
-  assert.deepEqual(auth, { auth_mode: "apikey", OPENAI_API_KEY: "not-a-real-key-b" });
+  assert.equal(config.model_providers[apiB.providerKey].experimental_bearer_token, "not-a-real-key-b");
+  assert.equal(config.model_providers[apiB.providerKey].requires_openai_auth, false);
+  assert.equal(authExists, false);
   assert.equal(vault.profiles[apiA.id]?.auth, undefined);
   assert.equal(vault.profiles[apiB.id]?.auth, undefined);
   assert.deepEqual(committed, [apiA.id, apiB.id]);

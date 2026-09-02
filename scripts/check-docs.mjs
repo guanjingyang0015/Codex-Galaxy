@@ -62,10 +62,12 @@ export async function checkDocumentationConsistency() {
   mustMatch(documents.readmeEn, /config\.toml/, "README.en.md");
   mustMatch(documents.readmeEn, /API ↔ official switching steps/, "README.en.md");
   mustMatch(documents.app, /Step-by-step API ↔ official switching/, "public/app.js");
-  mustMatch(documents.app, /Error log/, "public/app.js");
+  mustMatch(documents.app, /Log/, "public/app.js");
   mustMatch(documents.html, /API ↔ 官方的具体切换步骤/, "public/index.html");
-  mustMatch(documents.html, /故障日志/, "public/index.html");
-  mustMatch(documents.releaseNotes, /gracefulTerminate.*catch|本地故障日志/i, `release-notes/${tag}.md`);
+  mustMatch(documents.html, /日志/, "public/index.html");
+  mustMatch(documents.releaseNotes, /gracefulTerminate.*catch|本地日志/i, `release-notes/${tag}.md`);
+  mustMatch(documents.releaseNotes, /model_catalog_json|模型目录/i, `release-notes/${tag}.md`);
+  mustMatch(documents.releaseNotes, /Windows.*sandbox|sandbox.*Windows/i, `release-notes/${tag}.md`);
   mustMatch(documents.contributing, /Documentation and release rule/, "CONTRIBUTING.md");
   mustMatch(documents.contributing, /galaxy\.log/, "CONTRIBUTING.md");
   mustMatch(documents.security, /Release documentation rule/, "SECURITY.md");

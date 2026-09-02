@@ -185,21 +185,28 @@ export async function switchAccountTransaction({
     }
 
     report({ percent: 35, stage: "credentials", message: `正在切换到 ${profile.name}` });
+    const allowUncapturedOfficial = profile.kind === "official"
+      && !profile.auth
+      && typeof bootstrapOfficial === "function";
     const switched = targetMatch.matches && !runtime?.forceApply
       ? { profile: profile.id, backupDir: null, recoveredLiveState: data.currentId !== profileId }
-      : await applyProfile(codexPaths, effectiveProfile, dataPaths.vault);
+      : await applyProfile(codexPaths, effectiveProfile, dataPaths.vault, { allowUncapturedOfficial });
     const appliedMatch = await liveProfileMatch(codexPaths, effectiveProfile, dataPaths.vault);
-    if (!appliedMatch.matches) {
+    if (!appliedMatch.matches && !allowUncapturedOfficial) {
       throw new Error(`目标账号 ${profile.name} 的本地登录配置校验失败（${appliedMatch.reason || "状态不一致"}），已停止继续启动。`);
     }
 
-    if (profile.kind === "official" && typeof bootstrapOfficial === "function") {
+    if (profile.kind === "official" && !profile.auth && typeof bootstrapOfficial === "function") {
       report({ percent: 40, stage: "bootstrap", message: "正在先启动官方 Codex，确认可以进入使用页面" });
       const bootstrapResult = await bootstrapOfficial(profile);
       if (bootstrapResult?.cancelled) throw new Error("已取消官方 Codex 初始化，账号和聊天数据没有被继续改写。");
       report({ percent: 44, stage: "bootstrap-stop", message: "官方 Codex 已进入使用页面，正在安全关闭并同步原有项目" });
       await stopCodexDesktop();
       await captureCurrent(codexPaths, profile, dataPaths.vault);
+      const capturedMatch = await liveProfileMatch(codexPaths, profile, dataPaths.vault);
+      if (!capturedMatch.matches) {
+        throw new Error(`官方登录状态未能确认（${capturedMatch.reason || "状态不一致"}），已停止同步以保护本地聊天。`);
+      }
     }
 
     report({ percent: 47, stage: "history", message: profile.kind === "api" ? "正在同步本地线程的 API 路由" : "正在同步本地线程的官方账号和模型" });
