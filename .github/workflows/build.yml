@@ -21,6 +21,7 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      - run: npm run check:docs
       - run: npm test
 
   windows:

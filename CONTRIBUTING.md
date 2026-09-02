@@ -29,4 +29,10 @@ npm audit --omit=dev
 git diff --check
 ```
 
+## Documentation and release rule
+
+Every user-visible change must update all affected instructions in the same change: `README.md`, `README.en.md`, the Chinese and English in-app tutorial in `public/app.js` / `public/index.html`, the matching `release-notes/v<version>.md`, and any relevant security or recovery guidance. Version surfaces, release metadata, tests, and installer artifacts must remain consistent.
+
+`npm test` includes a documentation synchronization regression test. Do not bypass or weaken it to make a release pass. A version is not released until documentation checks, tests, builds, commit, tag, GitHub Actions, public Release, and asset verification all succeed.
+
 Do not commit generated installers, `node_modules`, `.codex`, `.codex-galaxy`, `.codex-project`, `auth.json`, environment files, credentials, or signing keys.

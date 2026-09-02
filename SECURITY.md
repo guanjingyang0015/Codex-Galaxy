@@ -15,3 +15,7 @@ Official login still uses the official Codex OAuth flow. Codex Galaxy does not b
 ## Supported versions
 
 Security fixes are released against the latest published version. Users should upgrade over their existing installation and keep backups of `~/.codex` and `~/.codex-galaxy` before testing major changes.
+
+## Release documentation rule
+
+Security, recovery, account-switching, and local-data behavior changes must be reflected in both READMEs, the in-app Chinese and English guide, and the matching release notes before publication. The project’s documentation consistency checks are part of the release gate.

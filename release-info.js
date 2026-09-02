@@ -2,6 +2,20 @@ const REPOSITORY = "https://github.com/guanjingyang0015/Codex-Galaxy";
 
 const RELEASES = [
   {
+    version: "1.9.6",
+    tag: "v1.9.6",
+    commit: null,
+    actionsRun: null,
+    url: `${REPOSITORY}/releases/tag/v1.9.6`,
+  },
+  {
+    version: "1.9.5",
+    tag: "v1.9.5",
+    commit: "bd79c97537d3b445cf90e699032fee748d61ec68",
+    actionsRun: "33575164593",
+    url: `${REPOSITORY}/releases/tag/v1.9.5`,
+  },
+  {
     version: "1.9.4",
     tag: "v1.9.4",
     commit: "c7e0034525e895bbd0f855cc5edd229098e1f938",
