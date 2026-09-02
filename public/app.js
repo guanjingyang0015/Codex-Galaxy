@@ -1,7 +1,7 @@
 const $ = (selector) => document.querySelector(selector);
 const state = {
   profiles: [],
-  version: "1.9.6",
+  version: "1.9.7",
   threads: [],
   currentId: null,
   selectedProfileId: null,
@@ -26,7 +26,7 @@ const state = {
   releases: [],
   update: {
     phase: "idle",
-    currentVersion: "1.9.6",
+    currentVersion: "1.9.7",
     latestVersion: null,
     available: false,
     action: "install",
@@ -273,7 +273,7 @@ const translations = {
     "relay.copied": "{name} 链接已复制，请粘贴到浏览器打开。",
     "bridge.notLoaded": "桌面桥未加载，请通过 Codex Galaxy 应用启动。",
     "tutorial.title": "安全切换教程",
-    "tutorial.intro": "项目和完整聊天记录始终保存在本机同一个 Codex Home 中。Codex Galaxy 切换的是登录凭据、API provider 和继续项目所需的本地索引，不会把聊天上传到其他账号。当前版本为 v1.9.6。",
+    "tutorial.intro": "项目和完整聊天记录始终保存在本机同一个 Codex Home 中。Codex Galaxy 切换的是登录凭据、API provider 和继续项目所需的本地索引，不会把聊天上传到其他账号。当前版本为 v1.9.7。",
     "tutorial.step1.title": "保存第一个官方账号",
     "tutorial.step2.title": "添加一个或多个中转 API",
     "tutorial.step3.title": "一键安全切换",
@@ -520,7 +520,7 @@ const translations = {
     "relay.copied": "{name} link copied. Paste it into your browser to open.",
     "bridge.notLoaded": "Desktop bridge is not loaded. Start this app through Codex Galaxy.",
     "tutorial.title": "Safe switching guide",
-    "tutorial.intro": "Projects and full chat history always stay in the same local Codex Home. Codex Galaxy switches login credentials, the API provider, and the local index needed to resume a project; it does not upload chats to another account. Current version: v1.9.6.",
+    "tutorial.intro": "Projects and full chat history always stay in the same local Codex Home. Codex Galaxy switches login credentials, the API provider, and the local index needed to resume a project; it does not upload chats to another account. Current version: v1.9.7.",
     "tutorial.step1.title": "Save your first official account",
     "tutorial.step2.title": "Add one or more relay APIs",
     "tutorial.step3.title": "One-click safe switch",
@@ -537,7 +537,7 @@ const translations = {
     "tutorial.step5.body": "<p>In Direct API mode, Codex connects to the entered Base URL directly, so Galaxy can exit after switching without affecting Codex, authentication, or chat history. Only Compatibility gateway mode needs the Galaxy gateway; closing the main window minimizes it to the tray, and exiting safely hands the gateway to an independent background host.</p>",
     "tutorial.step6.body": "<ol><li>Refresh rebuilds the visible list from current Codex state and does not delete source data; Galaxy also performs one local project-library sync when the process starts.</li><li>Clean Data can remove explicitly archived/deleted projects and completed automation history only after creating a recoverable backup.</li><li>Galaxy never deletes user project folders or source code.</li></ol>",
     "tutorial.step7.body": "<ol><li>If switching fails, read the progress message. Galaxy attempts to restore the previous credentials, provider, gateway, and current-account marker.</li><li>Only one Galaxy instance may switch accounts; stale locks from dead processes are reclaimed automatically.</li><li>DNS, TLS, proxy, upstream overload, and authentication errors originate outside the local project index. Error messages never include API keys or request bodies.</li><li>If recovery is incomplete, do not delete <code>config.toml</code> or the <code>.codex</code> folders. Keep the redacted screenshot and report it without exposing secrets.</li></ol>",
-    "tutorial.step8.body": "<ol><li>Galaxy 1.9.6 checks the latest stable GitHub release at startup; the top update button can also check manually.</li><li>On Windows, one click downloads the exact installer, verifies its official Release URL and SHA-256, and starts setup. Finish active API-backed Codex work first because setup closes Galaxy and its local gateway.</li><li>The current macOS packages have no Apple Developer signature, so the update button only opens the project’s latest GitHub release page. Choose the Intel x64 or Apple Silicon arm64 DMG and follow macOS security prompts without bypassing Gatekeeper.</li><li>Install over the existing version; manual uninstall is unnecessary, and local profiles and records are retained.</li><li>Every future version must update the version surfaces, both READMEs, the Chinese and English guide, release notes, tests, and installer artifacts together. The documentation check blocks incomplete releases.</li><li>For extra safety, back up <code>.codex-galaxy</code> locally and never upload it to Git.</li></ol>",
+    "tutorial.step8.body": "<ol><li>Galaxy 1.9.7 checks the latest stable GitHub release at startup; the top update button can also check manually.</li><li>On Windows, one click downloads the exact installer, verifies its official Release URL and SHA-256, and starts setup. Finish active API-backed Codex work first because setup closes Galaxy and its local gateway.</li><li>The current macOS packages have no Apple Developer signature, so the update button only opens the project’s latest GitHub release page. Choose the Intel x64 or Apple Silicon arm64 DMG and follow macOS security prompts without bypassing Gatekeeper.</li><li>Install over the existing version; manual uninstall is unnecessary, and local profiles and records are retained.</li><li>Every future version must update the version surfaces, both READMEs, the Chinese and English guide, release notes, release metadata, tests, and installer artifacts together. The documentation check blocks incomplete releases.</li><li>For extra safety, back up <code>.codex-galaxy</code> locally and never upload it to Git.</li></ol>",
     "tutorial.step9.body": "<ol><li>The Plugins window installs local plugin folders or adds a marketplace. The remote public catalog requires an official ChatGPT login, so switch to a captured official account for that catalog. Users without an official account can still use independent local plugins.</li><li>Galaxy preserves image/file request fields. Actual multimodal support still depends on the relay and selected model.</li><li>Automation cleanup only removes completed/archived run history after backup. Its automatic switch-time option is off by default and is independent from project cleanup.</li></ol>",
   },
 };

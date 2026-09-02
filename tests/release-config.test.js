@@ -28,7 +28,7 @@ test("release identity stays compatible with 0.1.0 upgrades and preserves user d
   const modelCatalog = await fs.readFile(path.join(root, "model-catalog.js"), "utf8");
   const relayTest = await fs.readFile(path.join(root, "relay-connection.js"), "utf8");
   const releaseNotes = await fs.readFile(path.join(root, "release-notes", `v${packageJson.version}.md`), "utf8");
-  assert.equal(packageJson.version, "1.9.6");
+  assert.equal(packageJson.version, "1.9.7");
   assert.equal(packageJson.author, "Guan Jingyang <guanjingyang@gmail.com>");
   assert.equal(packageJson.license, "MIT");
   assert.equal(packageJson.build.appId, "io.github.codex-galaxy.app");
@@ -93,14 +93,16 @@ test("release identity stays compatible with 0.1.0 upgrades and preserves user d
   assert.match(releaseInfo, /33505366436/);
   assert.match(releaseInfo, /94c9a78fa6b5688e90994b628666e615c727dea5/);
   assert.match(releaseInfo, /33519336408/);
+  assert.match(releaseInfo, /0d69c41086b50e8c6998f0e1ee5ed68b844dc378/);
+  assert.match(releaseInfo, /33596691391/);
   assert.match(releaseInfo, /c7e0034525e895bbd0f855cc5edd229098e1f938/);
   assert.match(releaseInfo, /33521136697/);
   assert.deepEqual(releaseHistory(packageJson.version)[0], {
-    version: "1.9.6",
-    tag: "v1.9.6",
+    version: "1.9.7",
+    tag: "v1.9.7",
     commit: null,
     actionsRun: null,
-    url: "https://github.com/guanjingyang0015/Codex-Galaxy/releases/tag/v1.9.6",
+    url: "https://github.com/guanjingyang0015/Codex-Galaxy/releases/tag/v1.9.7",
   });
   assert.match(profilesJs, /PROFILE_SCHEMA_VERSION = 5/);
   assert.match(relayTest, /\/models/);
@@ -133,7 +135,7 @@ test("release identity stays compatible with 0.1.0 upgrades and preserves user d
   assert.match(html, /id="appVersionInline"/);
   assert.match(html, /id="updateBtn"/);
   assert.match(html, /id="releaseRecordVersion"/);
-  assert.match(html, /id="releaseRecordVersion">v1\.9\.6</);
+  assert.match(html, /id="releaseRecordVersion">v1\.9\.7</);
   assert.match(renderer, /state\.releases/);
   assert.doesNotMatch(renderer, /thread\.messages \|\| \[\]\)\.slice\(-80\)/);
   assert.match(renderer, /state\.version = String\(snapshot\.version \|\| state\.version\)/);

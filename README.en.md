@@ -6,7 +6,7 @@
 
 Codex Galaxy is a local desktop utility for switching between Codex accounts and compatible APIs while continuing project tasks saved on the same computer.
 
-**Current stable version: Codex Galaxy 1.9.6**
+**Current stable version: Codex Galaxy 1.9.7**
 
 ## What it does
 
@@ -31,7 +31,7 @@ Codex Galaxy is a local desktop utility for switching between Codex accounts and
 
 API profiles must support the OpenAI Responses API. API keys stay in encrypted local settings and are not written to project documents or logs.
 
-## History and switching protection in 1.9.5/1.9.6
+## History and switching protection since 1.9.5
 
 - Before switching, Galaxy checks local Codex turn state. Recent activity is protected; an old unfinished marker with no later terminal turn is treated as a crash residue after the safety window.
 - Galaxy performs one authoritative local project synchronization when it starts, so reopening the app does not keep serving an old derived cache.
@@ -47,7 +47,7 @@ Galaxy can install local plugins, add marketplaces supported by the Codex CLI, a
 
 GitHub Releases provides Windows x64, macOS Intel, and macOS Apple Silicon packages. Current builds are unsigned, so the operating system may show an unknown-developer warning. Download releases from this repository and follow the platform prompt. Install over the existing version; manual uninstall is unnecessary, and local accounts, projects, and history are retained.
 
-Every release updates the version surfaces, both READMEs, the Chinese and English in-app guide, release notes, regression tests, and installer artifacts together. A version is not considered released until the documentation consistency check and the GitHub publication checks pass.
+Every release updates the version surfaces, both READMEs, the Chinese and English in-app guide, release notes, release metadata, regression tests, and installer artifacts together. A version is not considered released until the documentation consistency check and the GitHub publication checks pass.
 
 ## Local data and safety
 

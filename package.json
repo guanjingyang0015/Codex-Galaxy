@@ -1,6 +1,6 @@
 {
   "name": "codex-galaxy",
-  "version": "1.9.6",
+  "version": "1.9.7",
   "private": true,
   "author": "Guan Jingyang <guanjingyang@gmail.com>",
   "description": "Codex Galaxy: local account switching and cross-model project continuity for Codex.",
@@ -11,6 +11,7 @@
     "dev": "electron . --dev",
     "icons": "electron scripts/generate-icon.mjs",
     "check:docs": "node scripts/check-docs.mjs",
+    "stamp:release": "node scripts/stamp-release.mjs",
     "test": "node --test",
     "dist:win": "electron-builder --win nsis --x64 --publish never",
     "dist:mac": "electron-builder --mac dmg --x64 --arm64 --publish never"

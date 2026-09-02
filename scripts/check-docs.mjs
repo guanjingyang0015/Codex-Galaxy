@@ -33,6 +33,7 @@ export async function checkDocumentationConsistency() {
     releaseNotes: await read(`release-notes/${tag}.md`),
     contributing: await read("CONTRIBUTING.md"),
     security: await read("SECURITY.md"),
+    checklist: await read("RELEASE_CHECKLIST.md"),
     workflow: await read(".github/workflows/build.yml"),
   };
 
@@ -60,7 +61,11 @@ export async function checkDocumentationConsistency() {
   mustMatch(documents.readmeEn, /config\.toml/, "README.en.md");
   mustMatch(documents.contributing, /Documentation and release rule/, "CONTRIBUTING.md");
   mustMatch(documents.security, /Release documentation rule/, "SECURITY.md");
+  mustMatch(documents.checklist, /README\.md.*README\.en\.md/s, "RELEASE_CHECKLIST.md");
+  mustMatch(documents.checklist, /npm run check:docs/, "RELEASE_CHECKLIST.md");
+  mustMatch(documents.checklist, /GitHub Actions/, "RELEASE_CHECKLIST.md");
   mustMatch(documents.workflow, /npm run check:docs/, ".github/workflows/build.yml");
+  mustMatch(documents.workflow, /npm run stamp:release/, ".github/workflows/build.yml");
 
   return { version, tag, checkedFiles: Object.keys(documents) };
 }
