@@ -17,6 +17,7 @@ Codex Galaxy is a local desktop utility for switching between Codex accounts and
 - Rebuild complete thread details by merging local SQLite history with rollout files instead of showing a truncated tail
 - Check old session format and safely restore it from a verified backup when needed
 - Manage local plugins, downloaded marketplaces, and project data
+- Record a redacted local error log so switch failures can be inspected and reported
 - Check for updates automatically; Windows can install them and macOS opens the latest download page
 - Use Simplified Chinese or English
 
@@ -28,6 +29,7 @@ Codex Galaxy is a local desktop utility for switching between Codex accounts and
 4. Choose **Continue in Codex** for a local project to resume that task.
 5. If Codex is merely idle, Galaxy requests a graceful close and waits for local writes; it blocks only when a recent reply is actually unfinished.
 6. After switching, reopen the project. Local Codex files, SQLite data, and chat history remain in place; Galaxy never repairs this by deleting `config.toml`.
+7. If switching fails, open **Error log** at the top to inspect or copy the redacted reason; never delete configuration or chat data.
 
 API profiles must support the OpenAI Responses API. API keys stay in encrypted local settings and are not written to project documents or logs.
 
@@ -38,6 +40,24 @@ API profiles must support the OpenAI Responses API. API keys stay in encrypted l
 - Thread details merge rollout messages with user/assistant items already present in the local `thread_history` SQLite database and de-duplicate them. Details are no longer capped at 200 messages.
 - The current installed version is placed first in the release record, so a new installation does not continue to display an older release as the latest record.
 - If recovery is needed, keep redacted screenshots and error text. Do not delete `config.toml`, `~/.codex`, or `~/.codex-galaxy`.
+
+## API ↔ official switching steps
+
+### API → official
+
+1. Wait for the current API reply to finish; switch only when Codex is idle.
+2. Make sure the official profile is saved and captured. The first time, sign in to the official account in Codex, wait for the project list, then return to Galaxy and click **Capture**.
+3. Select the official profile and choose **Switch and open Codex**.
+4. If Windows shows setup or login, finish it in Codex. Wait until the project list is normal, then return to Galaxy and click **Done, continue sync**.
+5. Wait for progress to reach 100%, then choose **Continue in Codex** from the project list.
+
+### official → API
+
+1. Add or edit the API profile with Base URL and API Key. The model ID is optional; Direct API mode is recommended.
+2. Select the API profile and choose **Switch and open Codex**.
+3. Galaxy closes an idle Codex gracefully, waits for local writes, synchronizes the provider and project records, and opens Codex again.
+4. Wait for progress to reach 100%, then choose **Continue in Codex**. Direct API mode can run after Galaxy exits; Compatibility gateway mode requires Galaxy to remain running.
+5. If switching fails, open **Error log** at the top and copy the redacted log and error text. The default file is `~/.codex-galaxy/logs/galaxy.log`.
 
 ## Plugins
 

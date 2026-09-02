@@ -24,10 +24,12 @@ import { diagnoseThreadRollout, repairThreadRollout } from "../thread-repair.js"
 import { testApiProfile } from "../relay-connection.js";
 import { hasActiveCodexTurn, latestCodexThreadId } from "../codex-activity.js";
 import { releaseHistory } from "../release-info.js";
+import { createDiagnosticLogger, diagnosticLogPath, readDiagnosticLog } from "../diagnostics.js";
 
 const appRoot = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const codexPaths = defaultPaths();
 const dataPaths = runtimePaths();
+const diagnostics = createDiagnosticLogger(dataPaths.root, () => app.getVersion());
 if (process.env.CODEX_GALAXY_HOME || process.env.GALAXY_CHANNEL_HOME) app.setPath("userData", dataPaths.root);
 const hasSingleInstanceLock = app.requestSingleInstanceLock();
 let switching = false;
@@ -65,11 +67,15 @@ const appUpdater = new AppUpdater({
   onStatus: broadcastUpdateStatus,
 });
 
-function result(task) {
+function result(task, operation = "ipc") {
   return Promise.resolve()
     .then(task)
     .then((value) => ({ ok: true, value }))
-    .catch((error) => ({ ok: false, error: error instanceof Error ? error.message : String(error) }));
+    .catch(async (error) => {
+      const message = error instanceof Error ? error.message : String(error);
+      await diagnostics.error("operation-failed", error, { operation });
+      return { ok: false, error: message };
+    });
 }
 
 async function getState() {
@@ -739,7 +745,16 @@ function registerHandlers() {
       launchVerificationPollIntervalMs: 100,
       onProgress: report,
     });
-  })));
+  }), "switch-profile"));
+  ipcMain.handle("codex-galaxy:get-diagnostic-log", () => result(() => readDiagnosticLog(dataPaths.root), "get-diagnostic-log"));
+  ipcMain.handle("codex-galaxy:open-diagnostic-log", () => result(async () => {
+    const file = diagnosticLogPath(dataPaths.root);
+    await fs.mkdir(path.dirname(file), { recursive: true });
+    await fs.writeFile(file, "", { encoding: "utf8", flag: "a" });
+    const openError = await shell.openPath(file);
+    if (openError) throw new Error("无法打开本地故障日志文件。");
+    return { path: file };
+  }, "open-diagnostic-log"));
   ipcMain.handle("codex-galaxy:get-thread", (_, id) => result(async () => {
     const thread = await libraryThread(id);
     const health = await diagnoseThreadRollout({ codexHome: codexPaths.home, thread });
@@ -785,7 +800,7 @@ function registerHandlers() {
       launchVerificationPollIntervalMs: 100,
       onProgress: report,
     });
-  })));
+  }), "switch-and-launch"));
   ipcMain.handle("codex-galaxy:copy-text", (_, text) => result(() => clipboard.writeText(String(text))));
   ipcMain.handle("codex-galaxy:install-local-plugin", async (event) => result(async () => {
     const owner = BrowserWindow.fromWebContents(event.sender) || undefined;
@@ -943,6 +958,10 @@ if (!hasSingleInstanceLock) {
     await stopOwnedGatewayHost(dataPaths.root).catch(() => {});
     await restoreCurrentApiGateway().catch((error) => {
       gatewayStartupError = error instanceof Error ? error.message : String(error);
+    });
+    await diagnostics.info("app-started", "Codex Galaxy started", {
+      platform: process.platform,
+      arch: process.arch,
     });
     registerHandlers();
     createWindow();

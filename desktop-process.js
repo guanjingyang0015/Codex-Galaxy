@@ -243,7 +243,9 @@ export async function stopCodexDesktopAndWait({
       emptyScans = 0;
       if (!gracefulAttempted && typeof gracefulTerminate === "function") {
         gracefulAttempted = true;
-        const requested = await gracefulTerminate(found).catch(() => 0);
+        const requested = await Promise.resolve()
+          .then(() => gracefulTerminate(found))
+          .catch(() => 0);
         if (Number(requested) > 0) {
           gracefulDeadline = Date.now() + Math.max(0, Number(gracefulTimeoutMs) || 0);
         }

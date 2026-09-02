@@ -108,6 +108,27 @@ test("desktop process shutdown requests a graceful close before forcing remainin
   assert.deepEqual(result, { stopped: 0, processIds: [] });
 });
 
+test("desktop process shutdown accepts a synchronous graceful close result", async () => {
+  let running = [{ pid: 62 }];
+  const graceful = [];
+  const forced = [];
+  const result = await stopCodexDesktopAndWait({
+    platform: "win32",
+    listProcesses: async () => running,
+    gracefulTerminate: (found) => {
+      graceful.push(found.map((item) => item.pid));
+      running = [];
+      return found.length;
+    },
+    terminate: (pid) => forced.push(pid),
+    gracefulTimeoutMs: 1000,
+    pollIntervalMs: 0,
+  });
+  assert.deepEqual(graceful, [[62]]);
+  assert.deepEqual(forced, []);
+  assert.deepEqual(result, { stopped: 0, processIds: [] });
+});
+
 test("Codex overlay selects only a visible foreground desktop window and reserves the native controls", () => {
   const target = selectCodexOverlayTarget([
     { pid: 1, visible: true, minimized: false, foreground: false, left: 0, top: 0, right: 1600, bottom: 900 },

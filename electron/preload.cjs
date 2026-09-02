@@ -24,6 +24,8 @@ contextBridge.exposeInMainWorld("codexGalaxy", {
   automationSettings: (patch) => ipcRenderer.invoke("codex-galaxy:automation-settings", patch),
   dataCleanupPreview: () => ipcRenderer.invoke("codex-galaxy:data-cleanup-preview"),
   dataCleanup: (request) => ipcRenderer.invoke("codex-galaxy:data-cleanup", request),
+  getDiagnosticLog: () => ipcRenderer.invoke("codex-galaxy:get-diagnostic-log"),
+  openDiagnosticLog: () => ipcRenderer.invoke("codex-galaxy:open-diagnostic-log"),
   onSwitchProgress: (callback) => {
     const listener = (_, progress) => callback(progress);
     ipcRenderer.on("codex-galaxy:switch-progress", listener);

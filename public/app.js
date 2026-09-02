@@ -23,6 +23,7 @@ const state = {
   librarySyncedAt: null,
   plugins: [],
   automation: { settings: { autoCleanCompleted: false }, completedFiles: 0, completedBytes: 0 },
+  diagnostics: { path: "", text: "", bytes: 0, truncated: false },
   releases: [],
   update: {
     phase: "idle",
@@ -80,6 +81,7 @@ const translations = {
     "actions.plugins": "插件",
     "actions.cleanup": "清理数据",
     "actions.tutorial": "使用教程",
+    "actions.diagnostics": "故障日志",
     "actions.refresh": "刷新项目",
     "actions.refreshTitle": "重新扫描本机 Codex 项目记录",
     "update.check": "检查更新",
@@ -272,11 +274,22 @@ const translations = {
     "resume.copied": "resume 命令已复制。",
     "relay.copied": "{name} 链接已复制，请粘贴到浏览器打开。",
     "bridge.notLoaded": "桌面桥未加载，请通过 Codex Galaxy 应用启动。",
+    "diagnostics.title": "本地故障日志",
+    "diagnostics.intro": "Galaxy 只记录操作、时间、错误类型和脱敏错误信息，不记录 API Key、OAuth、聊天正文或请求体。",
+    "diagnostics.loading": "正在读取本地日志…",
+    "diagnostics.empty": "暂时没有故障日志。下次切换或其他本地操作失败时，错误原因会自动记录在这里。",
+    "diagnostics.path": "日志文件",
+    "diagnostics.refresh": "刷新日志",
+    "diagnostics.open": "打开文件",
+    "diagnostics.copy": "复制日志",
+    "diagnostics.copied": "日志已复制。发送前请再次确认没有添加任何未脱敏内容。",
+    "diagnostics.opened": "已打开本地故障日志文件。",
+    "diagnostics.truncated": "日志较长，当前只显示最后一段。",
     "tutorial.title": "安全切换教程",
     "tutorial.intro": "项目和完整聊天记录始终保存在本机同一个 Codex Home 中。Codex Galaxy 切换的是登录凭据、API provider 和继续项目所需的本地索引，不会把聊天上传到其他账号。当前版本为 v1.9.7。",
     "tutorial.step1.title": "保存第一个官方账号",
     "tutorial.step2.title": "添加一个或多个中转 API",
-    "tutorial.step3.title": "一键安全切换",
+    "tutorial.step3.title": "API ↔ 官方的具体切换步骤",
     "tutorial.step4.title": "继续处理原项目",
     "tutorial.step5.title": "API 模式按需使用网关",
     "tutorial.step6.title": "刷新项目与清理数据",
@@ -327,6 +340,7 @@ const translations = {
     "actions.plugins": "Plugins",
     "actions.cleanup": "Clean data",
     "actions.tutorial": "Guide",
+    "actions.diagnostics": "Error log",
     "actions.refresh": "Refresh projects",
     "actions.refreshTitle": "Rescan local Codex project records",
     "update.check": "Check updates",
@@ -519,11 +533,22 @@ const translations = {
     "resume.copied": "Resume command copied.",
     "relay.copied": "{name} link copied. Paste it into your browser to open.",
     "bridge.notLoaded": "Desktop bridge is not loaded. Start this app through Codex Galaxy.",
+    "diagnostics.title": "Local error log",
+    "diagnostics.intro": "Galaxy records only operations, timestamps, error types, and redacted error messages. It does not record API keys, OAuth, chat text, or request bodies.",
+    "diagnostics.loading": "Reading the local log…",
+    "diagnostics.empty": "There is no error log yet. A failed switch or local operation will be recorded here automatically.",
+    "diagnostics.path": "Log file",
+    "diagnostics.refresh": "Refresh log",
+    "diagnostics.open": "Open file",
+    "diagnostics.copy": "Copy log",
+    "diagnostics.copied": "Log copied. Check once more that you did not add any unredacted content before sending it.",
+    "diagnostics.opened": "The local error log file was opened.",
+    "diagnostics.truncated": "The log is long; only its latest section is shown.",
     "tutorial.title": "Safe switching guide",
     "tutorial.intro": "Projects and full chat history always stay in the same local Codex Home. Codex Galaxy switches login credentials, the API provider, and the local index needed to resume a project; it does not upload chats to another account. Current version: v1.9.7.",
     "tutorial.step1.title": "Save your first official account",
     "tutorial.step2.title": "Add one or more relay APIs",
-    "tutorial.step3.title": "One-click safe switch",
+    "tutorial.step3.title": "Step-by-step API ↔ official switching",
     "tutorial.step4.title": "Resume the original project",
     "tutorial.step5.title": "Use the gateway only when needed",
     "tutorial.step6.title": "Refresh projects and clean data",
@@ -532,11 +557,11 @@ const translations = {
     "tutorial.step9.title": "Plugins, images, and automation cleanup",
     "tutorial.step1.body": "<ol><li>Sign in normally in Codex Desktop and wait for its project list to load.</li><li>In Galaxy, click + and add an “Official Codex account”. You can rename it later.</li><li>Click Capture on that account. The login can only be restored after capture succeeds.</li></ol>",
     "tutorial.step2.body": "<ol><li>Click + and choose “Relay API”.</li><li>Enter a name, Base URL, and API Key. The model ID is optional; Galaxy can read the relay model catalog and remember a working model.</li><li>Every API account uses an independent pure-API login and does not require an official account. You can switch directly between multiple API accounts.</li><li>The relay must support the OpenAI Responses API. If model discovery is unavailable and no model was previously learned, enter the model ID manually.</li><li>API keys are encrypted locally and never shown in project records.</li></ol>",
-    "tutorial.step3.body": "<ol><li>Select the target account and confirm the displayed login mode and model.</li><li>If Codex is generating a recent reply, Galaxy blocks switching until it finishes. If Codex is only idle, Galaxy requests a graceful close and waits for local writes. A stale <code>inProgress</code> marker left by a crash is not enough to block switching by itself.</li><li>Galaxy saves the local index and applies the target credentials/provider. Direct API mode uses the entered Base URL; the loopback gateway starts only when “Compatibility gateway” is selected.</li><li>Compatibility checks cover only new or changed history. When “Continue in Codex” opens a specific thread, Galaxy prioritizes that rollout instead of rescanning the entire Codex Home.</li><li>Session provider metadata is updated with bounded memory and progress feedback, then Codex reopens after synchronization reaches 100%.</li></ol>",
+    "tutorial.step3.body": "<ol><li>General preparation: finish the current Codex reply first. Switching is safe when Codex is idle; if the confirmation dialog appears, continue only after confirming that no reply is still running.</li><li>API → official: make sure the official profile is saved in Galaxy and has been captured. The first time, sign in to that official account in Codex, wait for the project list, then return to Galaxy and click Capture. Select the official profile and choose Switch and open Codex. If Windows shows setup or login, finish it in Codex, wait until the project list is normal, then return to Galaxy and click “Done, continue sync”.</li><li>Official → API: add or edit the API profile with Base URL, API Key, and an optional model ID; Direct API is recommended. Select the API profile and choose Switch and open Codex. Galaxy closes an idle Codex gracefully, waits for local writes, syncs the provider and project records, and opens Codex again. Direct API mode can run after Galaxy exits; Compatibility gateway mode requires Galaxy to remain running.</li><li>For either direction, wait until progress reaches 100%, then choose Continue in Codex from the project list. If switching fails, open Error log at the top, copy the redacted log and error text, and do not delete <code>config.toml</code>, <code>~/.codex</code>, or <code>~/.codex-galaxy</code>.</li></ol>",
     "tutorial.step4.body": "<ol><li>“View details” only previews the local thread in Galaxy and never changes accounts.</li><li>“Continue in Codex” switches or resynchronizes the selected account when needed, then restores that project in Codex.</li><li>After a restart, Galaxy merges rollout messages with user/assistant items already stored in the local <code>thread_history</code> SQLite database and de-duplicates them; thread details are not reduced to a short tail.</li><li>Historical messages are preserved across GPT, DeepSeek, and other compatible providers; new replies use the active provider.</li><li>An encrypted-state warning only means a different provider may not reuse hidden reasoning state. It does not delete chat or project files.</li></ol>",
     "tutorial.step5.body": "<p>In Direct API mode, Codex connects to the entered Base URL directly, so Galaxy can exit after switching without affecting Codex, authentication, or chat history. Only Compatibility gateway mode needs the Galaxy gateway; closing the main window minimizes it to the tray, and exiting safely hands the gateway to an independent background host.</p>",
     "tutorial.step6.body": "<ol><li>Refresh rebuilds the visible list from current Codex state and does not delete source data; Galaxy also performs one local project-library sync when the process starts.</li><li>Clean Data can remove explicitly archived/deleted projects and completed automation history only after creating a recoverable backup.</li><li>Galaxy never deletes user project folders or source code.</li></ol>",
-    "tutorial.step7.body": "<ol><li>If switching fails, read the progress message. Galaxy attempts to restore the previous credentials, provider, gateway, and current-account marker.</li><li>Only one Galaxy instance may switch accounts; stale locks from dead processes are reclaimed automatically.</li><li>DNS, TLS, proxy, upstream overload, and authentication errors originate outside the local project index. Error messages never include API keys or request bodies.</li><li>If recovery is incomplete, do not delete <code>config.toml</code> or the <code>.codex</code> folders. Keep the redacted screenshot and report it without exposing secrets.</li></ol>",
+    "tutorial.step7.body": "<ol><li>If switching fails, read the progress message and open Error log at the top to see the failure reason. Galaxy attempts to restore the previous credentials, provider, gateway, and current-account marker.</li><li>Only one Galaxy instance may switch accounts; stale locks from dead processes are reclaimed automatically.</li><li>DNS, TLS, proxy, upstream overload, and authentication errors originate outside the local project index. Error messages never include API keys or request bodies.</li><li>Copy the redacted log and error text from the diagnostics window when reporting a problem. If recovery is incomplete, do not delete <code>config.toml</code>, <code>~/.codex</code>, or <code>~/.codex-galaxy</code>.</li></ol>",
     "tutorial.step8.body": "<ol><li>Galaxy 1.9.7 checks the latest stable GitHub release at startup; the top update button can also check manually.</li><li>On Windows, one click downloads the exact installer, verifies its official Release URL and SHA-256, and starts setup. Finish active API-backed Codex work first because setup closes Galaxy and its local gateway.</li><li>The current macOS packages have no Apple Developer signature, so the update button only opens the project’s latest GitHub release page. Choose the Intel x64 or Apple Silicon arm64 DMG and follow macOS security prompts without bypassing Gatekeeper.</li><li>Install over the existing version; manual uninstall is unnecessary, and local profiles and records are retained.</li><li>Every future version must update the version surfaces, both READMEs, the Chinese and English guide, release notes, release metadata, tests, and installer artifacts together. The documentation check blocks incomplete releases.</li><li>For extra safety, back up <code>.codex-galaxy</code> locally and never upload it to Git.</li></ol>",
     "tutorial.step9.body": "<ol><li>The Plugins window installs local plugin folders or adds a marketplace. The remote public catalog requires an official ChatGPT login, so switch to a captured official account for that catalog. Users without an official account can still use independent local plugins.</li><li>Galaxy preserves image/file request fields. Actual multimodal support still depends on the relay and selected model.</li><li>Automation cleanup only removes completed/archived run history after backup. Its automatic switch-time option is off by default and is independent from project cleanup.</li></ol>",
   },
@@ -633,6 +658,7 @@ function updateOperationControls() {
   $("#syncBtn").disabled = busy;
   $("#cleanupBtn").disabled = busy;
   $("#pluginBtn").disabled = busy;
+  $("#diagnosticsBtn").disabled = busy;
   $("#addProfileBtn").disabled = busy;
   $("#search").disabled = busy;
   $("#projectFilter").disabled = busy;
@@ -693,6 +719,53 @@ async function handleUpdateAction() {
     if (response.cancelled) notice(t("update.cancelled"));
     else if (response.opened) notice(t("update.macOpened"));
     else if (response.current) notice(t("update.currentNotice", { version: response.status?.currentVersion || state.version }));
+  } catch (error) {
+    notice(error.message, true);
+  }
+}
+
+async function loadDiagnostics() {
+  const snapshot = unwrap(await bridge.getDiagnosticLog());
+  state.diagnostics = {
+    path: String(snapshot.path || ""),
+    text: String(snapshot.text || ""),
+    bytes: Number(snapshot.bytes) || 0,
+    truncated: snapshot.truncated === true,
+  };
+  $("#diagnosticsPath").textContent = state.diagnostics.path || t("common.unknown");
+  const text = state.diagnostics.text || t("diagnostics.empty");
+  $("#diagnosticsText").textContent = state.diagnostics.truncated
+    ? `${t("diagnostics.truncated")}\n\n${text}`
+    : text;
+}
+
+async function openDiagnostics() {
+  if (operationBusy()) return;
+  if (!bridge) return notice(t("bridge.notLoaded"), true);
+  $("#diagnosticsDialog").showModal();
+  $("#diagnosticsText").textContent = t("diagnostics.loading");
+  try {
+    await loadDiagnostics();
+  } catch (error) {
+    $("#diagnosticsText").textContent = error.message;
+    notice(error.message, true);
+  }
+}
+
+async function copyDiagnostics() {
+  if (!state.diagnostics.text) return notice(t("diagnostics.empty"), true);
+  try {
+    unwrap(await bridge.copyText(state.diagnostics.text));
+    notice(t("diagnostics.copied"));
+  } catch (error) {
+    notice(error.message, true);
+  }
+}
+
+async function openDiagnosticsFile() {
+  try {
+    unwrap(await bridge.openDiagnosticLog());
+    notice(t("diagnostics.opened"));
   } catch (error) {
     notice(error.message, true);
   }
@@ -1278,10 +1351,21 @@ $("#updateBtn").addEventListener("click", handleUpdateAction);
 $("#languageSelect").addEventListener("change", (event) => setLanguage(event.currentTarget.value));
 $("#tutorialBtn").addEventListener("click", () => $("#tutorialDialog").showModal());
 $("#pluginBtn").addEventListener("click", openPlugins);
+$("#diagnosticsBtn").addEventListener("click", openDiagnostics);
 $("#closeTutorial").addEventListener("click", () => $("#tutorialDialog").close());
 $("#finishTutorial").addEventListener("click", () => $("#tutorialDialog").close());
 $("#closePlugins").addEventListener("click", () => $("#pluginDialog").close());
 $("#finishPlugins").addEventListener("click", () => $("#pluginDialog").close());
+$("#closeDiagnostics").addEventListener("click", () => $("#diagnosticsDialog").close());
+$("#refreshDiagnostics").addEventListener("click", async () => {
+  try {
+    await loadDiagnostics();
+  } catch (error) {
+    notice(error.message, true);
+  }
+});
+$("#openDiagnosticsFile").addEventListener("click", openDiagnosticsFile);
+$("#copyDiagnostics").addEventListener("click", copyDiagnostics);
 $("#autoCleanupCompleted").addEventListener("change", async (event) => {
   if (operationBusy()) return;
   try {

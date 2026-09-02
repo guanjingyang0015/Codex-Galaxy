@@ -23,6 +23,7 @@ test("release identity stays compatible with 0.1.0 upgrades and preserves user d
   const gatewayHost = await fs.readFile(path.join(root, "electron", "gateway-host.mjs"), "utf8");
   const codexJs = await fs.readFile(path.join(root, "codex.js"), "utf8");
   const codexActivity = await fs.readFile(path.join(root, "codex-activity.js"), "utf8");
+  const diagnostics = await fs.readFile(path.join(root, "diagnostics.js"), "utf8");
   const releaseInfo = await fs.readFile(path.join(root, "release-info.js"), "utf8");
   const profilesJs = await fs.readFile(path.join(root, "profiles.js"), "utf8");
   const modelCatalog = await fs.readFile(path.join(root, "model-catalog.js"), "utf8");
@@ -44,6 +45,7 @@ test("release identity stays compatible with 0.1.0 upgrades and preserves user d
   assert.ok(packageJson.build.files.includes("app-updater.js"));
   assert.ok(packageJson.build.files.includes("relay-connection.js"));
   assert.ok(packageJson.build.files.includes("codex-activity.js"));
+  assert.ok(packageJson.build.files.includes("diagnostics.js"));
   assert.ok(packageJson.build.files.includes("release-info.js"));
   assert.ok(packageJson.build.files.includes("cli-discovery.js"));
   assert.ok(packageJson.build.files.includes("electron/windows-codex-window.mjs"));
@@ -74,6 +76,10 @@ test("release identity stays compatible with 0.1.0 upgrades and preserves user d
   assert.match(electronMain, /handoffGatewayToHost/);
   assert.match(electronMain, /stopOwnedGatewayHost/);
   assert.match(electronMain, /stopCodexDesktopSafely/);
+  assert.match(electronMain, /get-diagnostic-log/);
+  assert.match(electronMain, /open-diagnostic-log/);
+  assert.match(electronMain, /operation-failed/);
+  assert.match(electronMain, /createDiagnosticLogger/);
   assert.match(electronMain, /canContinue/);
   assert.match(electronMain, /bootstrapOfficialCodex/);
   assert.match(electronMain, /waitForCodexDesktopWindow/);
@@ -116,6 +122,11 @@ test("release identity stays compatible with 0.1.0 upgrades and preserves user d
   assert.match(preload, /deleteProfile/);
   assert.match(preload, /clearProfileKey/);
   assert.match(preload, /testProfile/);
+  assert.match(preload, /getDiagnosticLog/);
+  assert.match(preload, /openDiagnosticLog/);
+  assert.match(diagnostics, /REDACTED/);
+  assert.match(diagnostics, /diagnosticLogPath/);
+  assert.match(diagnostics, /MAX_LOG_BYTES/);
   assert.match(electronMain, /diagnoseThreadRollout/);
   assert.match(electronMain, /repairThreadRollout/);
   assert.match(threadRepair, /byte-exact/i);
@@ -134,6 +145,9 @@ test("release identity stays compatible with 0.1.0 upgrades and preserves user d
   assert.doesNotMatch(html, /id="appVersionBadge"|class="app-version-badge"|id="appVersion"/);
   assert.match(html, /id="appVersionInline"/);
   assert.match(html, /id="updateBtn"/);
+  assert.match(html, /id="diagnosticsBtn"/);
+  assert.match(html, /id="diagnosticsDialog"/);
+  assert.match(html, /API ↔ 官方的具体切换步骤/);
   assert.match(html, /id="releaseRecordVersion"/);
   assert.match(html, /id="releaseRecordVersion">v1\.9\.7</);
   assert.match(renderer, /state\.releases/);
@@ -161,6 +175,8 @@ test("release identity stays compatible with 0.1.0 upgrades and preserves user d
   assert.match(html, /id="languageSelect"/);
   assert.match(html, /guanjingyang@gmail\.com/);
   assert.match(renderer, /codexGalaxyLanguage/);
+  assert.match(renderer, /Step-by-step API ↔ official switching/);
+  assert.match(renderer, /openDiagnostics/);
   assert.match(renderer, /navigator\.language/);
   assert.match(styles, /html,\s*body\s*\{[^}]*overflow:\s*hidden/);
   assert.match(styles, /\.profile-list\s*\{[^}]*overflow:\s*auto/);
@@ -169,6 +185,7 @@ test("release identity stays compatible with 0.1.0 upgrades and preserves user d
   assert.match(styles, /\.api-guide p\s*\{[^}]*font-size:\s*11px/);
   assert.match(styles, /\.relay-copy\s*\{[^}]*font-size:\s*12px/);
   assert.match(styles, /\.relay-url\s*\{[^}]*font-size:\s*10px/);
+  assert.match(styles, /\.diagnostics-log\s*\{/);
   assert.doesNotMatch(styles, /\.message\.api/);
   assert.doesNotMatch(renderer, /thread\.provider\s*\?\s*"api"/);
   assert.doesNotMatch(html, /preserveOfficialLogin|插件登录兼容模式/);
