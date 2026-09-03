@@ -26,7 +26,7 @@ async function fixture() {
   };
   await fs.mkdir(codexHome, { recursive: true });
   await fs.writeFile(codexPaths.config, 'model = "gpt-official"\nmodel_provider = "openai"\ncli_auth_credentials_store = "file"\n');
-  await fs.writeFile(codexPaths.auth, '{"auth_mode":"chatgpt","tokens":{"account_id":"official-a","access_token":"test-token"}}\n');
+  await fs.writeFile(codexPaths.auth, '{"auth_mode":"chatgpt","OPENAI_API_KEY":null,"tokens":{"account_id":"official-a","access_token":"test-token"}}\n');
   const official = await saveProfile({ id: "official-a", name: "官方 A", kind: "official", model: "gpt-official" }, dataPaths);
   const api = await saveProfile({ id: "api-octopus", name: "章鱼 5.6", kind: "api", baseUrl: "https://relay.invalid/v1", apiKey: "not-a-real-key", model: "model-5.6" }, dataPaths);
   await captureCurrent(codexPaths, await profileForSwitch(official.id, dataPaths), dataPaths.vault);
@@ -183,7 +183,7 @@ test("cancelling official bootstrap restores the previous account without changi
     launch: async () => ({ method: "test" }),
   });
   const originalConfig = await fs.readFile(item.codexPaths.config);
-  const originalAuth = await fs.readFile(item.codexPaths.auth);
+  const originalAuth = await fs.readFile(item.codexPaths.auth).catch((error) => error?.code === "ENOENT" ? null : Promise.reject(error));
   const originalCurrent = (await loadProfiles(item.dataPaths)).data.currentId;
   const vault = JSON.parse(await fs.readFile(item.dataPaths.vault, "utf8"));
   delete vault.profiles[item.official.id].auth;
@@ -199,7 +199,8 @@ test("cancelling official bootstrap restores the previous account without changi
     bootstrapOfficial: async () => ({ method: "test", cancelled: true }),
   }), /已自动恢复切换前状态/);
   assert.deepEqual(await fs.readFile(item.codexPaths.config), originalConfig);
-  assert.deepEqual(await fs.readFile(item.codexPaths.auth), originalAuth);
+  const restoredAuth = await fs.readFile(item.codexPaths.auth).catch((error) => error?.code === "ENOENT" ? null : Promise.reject(error));
+  assert.deepEqual(restoredAuth, originalAuth);
   assert.equal((await loadProfiles(item.dataPaths)).data.currentId, originalCurrent);
 });
 

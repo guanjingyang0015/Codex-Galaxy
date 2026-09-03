@@ -6,7 +6,7 @@
 
 Codex Galaxy is a local desktop utility for switching between Codex accounts and compatible APIs while continuing project tasks saved on the same computer.
 
-**Current stable version: Codex Galaxy 1.9.8**
+**Current version: Codex Galaxy 1.9.9**
 
 ## What it does
 
@@ -57,9 +57,11 @@ API profiles must support the OpenAI Responses API. API keys stay in encrypted l
 
 1. Add or edit the API profile with Base URL and API Key. The model ID is optional; Direct API mode is recommended.
 2. Select the API profile and choose **Switch and open Codex**.
-3. Galaxy closes an idle Codex gracefully, waits for local writes, synchronizes the provider and project records, and opens Codex again.
+3. Galaxy closes an idle Codex gracefully, saves the official login snapshot, removes official OAuth from the live `auth.json`, keeps only the API provider's own credential, synchronizes provider/project records, and opens Codex again.
 4. Wait for progress to reach 100%, then choose **Continue in Codex**. Direct API mode can run after Galaxy exits; Compatibility gateway mode requires Galaxy to remain running.
 5. If switching fails, open **Log** at the top and copy the redacted log and error text. The default file is `~/.codex-galaxy/logs/galaxy.log`; each record contains UTC and local time.
+
+Version 1.9.9 fixes official → API switches that rolled back to the official account. A current Codex official `auth.json` can contain an empty `OPENAI_API_KEY` field; version 1.9.8 incorrectly treated field presence as legacy API authentication and reported `api-auth-legacy`. Galaxy now treats only a non-empty key as a legacy API credential and never leaves official OAuth active in API mode. The captured official login remains encrypted in Galaxy and is restored unchanged when switching back, without requiring a manual official logout or process termination.
 
 During an official switch, Galaxy no longer merges the current API profile's Windows sandbox table into the official profile; a saved official profile keeps its own sandbox settings. Galaxy also never writes `[model_providers.openai]` as an override of Codex's built-in provider, and removes that stale entry from older snapshots automatically. This prevents Codex from surfacing a `config_load` error as the misleading Windows setup screen, without requiring deletion of `config.toml`. During first-time official login, if Windows setup stalls, choose **Compatibility retry** in the prompt to explicitly use the `unelevated` backend. After login reaches the normal project list, choose **Done, continue sync** and Galaxy will recapture and verify the official state.
 

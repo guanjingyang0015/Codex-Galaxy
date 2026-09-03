@@ -58,8 +58,9 @@ export async function liveProfileMatch(paths, profile, vaultFile) {
     const provider = String(profile.runtimeProvider || profile.providerKey || profile.id).trim();
     const selected = config.model_provider === provider;
     const legacyApiAuth = String(auth.auth_mode || "").toLowerCase() === "apikey"
-      || Object.hasOwn(auth, "OPENAI_API_KEY");
-    const authMatches = !legacyApiAuth;
+      || Boolean(String(auth.OPENAI_API_KEY || "").trim());
+    const officialAuthPresent = Boolean(officialAuthFingerprint(authText));
+    const authMatches = !legacyApiAuth && !officialAuthPresent;
     const credentialsMatch = credentialConfigMatches(config);
     const definition = config.model_providers?.[provider];
     const providerExists = Boolean(definition && typeof definition === "object" && !Array.isArray(definition));
@@ -85,8 +86,10 @@ export async function liveProfileMatch(paths, profile, vaultFile) {
       : recoverableConfig
         ? !providerValid
           ? providerExists ? "api-provider-invalid" : "api-provider-missing"
-          : !authMatches
+          : legacyApiAuth
             ? "api-auth-legacy"
+            : officialAuthPresent
+              ? "api-official-auth-present"
             : "api-context-metadata-stale"
         : "api-mismatch";
     return { matches, reason, recoverableConfig };
@@ -177,7 +180,6 @@ export async function switchProfile(paths, profile, vaultFile, { allowUncaptured
   const liveSnapshot = await snapshotLiveFiles(paths);
   const backupDir = await backup(paths, profile.id);
   const liveConfig = await fs.readFile(paths.config, "utf8").catch(() => "");
-  const liveAuth = await fs.readFile(paths.auth, "utf8").catch(() => "");
   const currentConfig = saved?.config ? decrypt(saved.config) : "";
   const activeModel = activeProfileModel(profile);
   const suppliedCatalog = Array.isArray(profile.modelCatalog) && profile.modelCatalog.length
@@ -199,13 +201,15 @@ export async function switchProfile(paths, profile, vaultFile, { allowUncaptured
       "openai",
     );
   if (profile.kind === "api" && !profile.apiKey) throw new Error("中转 API 账号缺少 API Key。");
+  // API profiles use provider-scoped bearer credentials. Never leave the
+  // official ChatGPT auth.json active while launching an API profile: Codex
+  // Desktop can keep the in-memory official session and appear to ignore the
+  // newly written provider until that process is manually logged out.
   const auth = profile.kind === "official"
     ? saved?.auth
       ? decrypt(saved.auth)
       : null
-    : officialAuthFingerprint(liveAuth)
-      ? liveAuth
-      : null;
+    : null;
   if (profile.kind === "official" && !allowUncapturedOfficial && !officialAuthFingerprint(auth)) {
     throw new Error("该槽位没有有效的官方 ChatGPT 登录快照，请重新登录并捕获。");
   }

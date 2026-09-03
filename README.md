@@ -6,7 +6,7 @@
 
 Codex Galaxy 是一款本地桌面工具，帮助你在不同 Codex 账号和兼容 API 之间切换，并继续本机保存的项目任务。
 
-**当前稳定版本：Codex Galaxy 1.9.8**
+**当前版本：Codex Galaxy 1.9.9**
 
 ## 你可以用它做什么
 
@@ -57,9 +57,11 @@ API 账号需要兼容 OpenAI Responses API。API Key 只保存在本机加密�
 
 1. 添加或编辑 API 账号，填写 Base URL、API Key；模型 ID 可留空自动发现，优先选择“API 直连”。
 2. 选中 API 账号，点击“切换并打开 Codex”。
-3. Galaxy 会正常关闭空闲的 Codex、等待本地写入、同步 provider 和项目记录，再重新打开 Codex。
+3. Galaxy 会正常关闭空闲的 Codex、保存官方登录快照，然后从实时 `auth.json` 中移除官方 OAuth，只保留 API provider 自己的凭据，再同步 provider 和项目记录并重新打开 Codex。
 4. 等进度到 100%，从项目列表点击“在 Codex 中继续”。API 直连模式完成后可以退出 Galaxy；兼容网关模式需要保持 Galaxy 运行。
 5. 如果失败，打开顶部“日志”，复制脱敏日志和错误文字。日志文件默认位于 `~/.codex-galaxy/logs/galaxy.log`，每条记录包含 UTC 时间和本地时间。
+
+1.9.9 修复了官方 → API 被回滚到官方账号的问题：新版 Codex 的官方 `auth.json` 可能包含值为空的 `OPENAI_API_KEY` 字段，1.9.8 会把“字段存在”误判为旧 API 登录并报 `api-auth-legacy`。现在只把非空 Key 视为旧 API 凭据，并且 API 模式不会继续激活官方 OAuth；已捕获的官方登录仍加密保存在 Galaxy 中，切回官方时会原样恢复，不需要手动退出官方账号或结束 Codex 进程。
 
 官方切换时，Galaxy 不再把当前 API 的 Windows sandbox 配置合并到官方账号配置；已保存的官方配置会保留自己的 sandbox 设置。Galaxy 也不会把 `[model_providers.openai]` 写成覆盖 Codex 内置 provider，旧快照中的过期覆盖会自动移除；这能避免 Codex 把 `config_load` 错误误显示成 Windows setup 页面，也不需要删除 `config.toml`。首次官方登录如果卡在 Windows setup，可在提示框选择“兼容模式重试”，仅在你明确选择后改用 `unelevated` 后端；完成登录并看到项目列表后，再点击“已完成，继续同步”，系统会重新捕获并验证官方状态。
 

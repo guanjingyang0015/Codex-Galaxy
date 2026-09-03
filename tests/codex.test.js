@@ -54,9 +54,7 @@ test("API switching preserves common config and writes an arbitrary model", asyn
   assert.equal(config.model_providers["relay-deepseek"].experimental_bearer_token, "test-key-not-real");
   assert.equal(config.mcp_servers.keep.command, "keep-me");
   assert.equal(configText.includes("test-key-not-real"), true);
-  assert.deepEqual(JSON.parse(await fs.readFile(paths.auth, "utf8")), {
-    tokens: { access_token: "not-a-real-token" },
-  });
+  assert.equal(await fs.stat(paths.auth).then(() => true).catch(() => false), false);
   const match = await liveProfileMatch(paths, {
     id: "relay-b",
     kind: "api",
@@ -264,13 +262,27 @@ test("an uncaptured official profile can bootstrap with the live auth until manu
   assert.equal(await fs.stat(paths.auth).then(() => true).catch(() => false), false);
 });
 
-test("API switching preserves official auth and scopes the relay key to its provider", async () => {
-  const home = await fs.mkdtemp(path.join(os.tmpdir(), "galaxy-codex-preserved-official-"));
+test("API switching removes live official auth and scopes the relay key to its provider", async () => {
+  const home = await fs.mkdtemp(path.join(os.tmpdir(), "galaxy-codex-isolated-api-auth-"));
   const paths = { home, config: path.join(home, "config.toml"), auth: path.join(home, "auth.json"), modelCatalog: path.join(home, "catalog.json"), backupDir: path.join(home, "backups") };
   const vaultFile = path.join(home, "vault.json");
-  const officialAuth = '{"auth_mode":"chatgpt","tokens":{"account_id":"account-a","access_token":"official-token"}}\n';
+  const officialAuth = '{"auth_mode":"chatgpt","OPENAI_API_KEY":null,"tokens":{"account_id":"account-a","access_token":"official-token"}}\n';
+  const officialProfile = { id: "official-a", name: "Official A", kind: "official", model: "gpt-5.6" };
   await fs.writeFile(paths.config, 'model = "gpt-5.6"\nmodel_provider = "openai"\ncli_auth_credentials_store = "file"\n');
   await fs.writeFile(paths.auth, officialAuth);
+  await captureCurrent(paths, officialProfile, vaultFile);
+  await fs.writeFile(paths.config, 'model = "gpt-5.6-sol"\nmodel_provider = "relay-a"\ncli_auth_credentials_store = "file"\n\n[model_providers.relay-a]\nname = "Relay A"\nwire_api = "responses"\nbase_url = "https://relay.invalid/v1"\nrequires_openai_auth = false\nexperimental_bearer_token = "relay-key"\n');
+  const stale = await liveProfileMatch(paths, {
+    id: "relay-a",
+    kind: "api",
+    providerKey: "relay-a",
+    runtimeMode: "direct",
+    baseUrl: "https://relay.invalid/v1",
+    apiKey: "relay-key",
+    model: "gpt-5.6-sol",
+  }, vaultFile);
+  assert.equal(stale.matches, false);
+  assert.equal(stale.reason, "api-official-auth-present");
 
   await switchProfile(paths, {
     id: "relay-a",
@@ -287,6 +299,9 @@ test("API switching preserves official auth and scopes the relay key to its prov
   const config = TOML.parse(await fs.readFile(paths.config, "utf8"));
   assert.equal(config.model_providers["relay-a"].experimental_bearer_token, "relay-key");
   assert.equal(config.model_providers["relay-a"].requires_openai_auth, false);
+  assert.equal(await fs.stat(paths.auth).then(() => true).catch(() => false), false);
+
+  await switchProfile(paths, officialProfile, vaultFile);
   assert.equal(await fs.readFile(paths.auth, "utf8"), officialAuth);
 });
 
