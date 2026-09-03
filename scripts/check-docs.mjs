@@ -57,13 +57,16 @@ export async function checkDocumentationConsistency() {
   mustMatch(documents.readme, /thread_history/, "README.md");
   mustMatch(documents.readme, /config\.toml/, "README.md");
   mustMatch(documents.readme, /API ↔ 官方切换步骤/, "README.md");
+  mustMatch(documents.readme, /第一次添加账号配置.*日常使用切换账号.*异常故障处理.*特色功能/s, "README.md");
   mustMatch(documents.readmeEn, /inProgress/, "README.en.md");
   mustMatch(documents.readmeEn, /thread_history/, "README.en.md");
   mustMatch(documents.readmeEn, /config\.toml/, "README.en.md");
   mustMatch(documents.readmeEn, /API ↔ official switching steps/, "README.en.md");
-  mustMatch(documents.app, /Step-by-step API ↔ official switching/, "public/app.js");
+  mustMatch(documents.readmeEn, /first account setup.*daily account switching.*failure recovery.*features/s, "README.en.md");
+  mustMatch(documents.app, /tutorial\.stage2\.title|tutorial\.switch\.officialToApi1/, "public/app.js");
   mustMatch(documents.app, /Log/, "public/app.js");
-  mustMatch(documents.html, /API ↔ 官方的具体切换步骤/, "public/index.html");
+  mustMatch(documents.html, /tutorial-stage-tabs/, "public/index.html");
+  mustMatch(documents.html, /日常切换/, "public/index.html");
   mustMatch(documents.html, /日志/, "public/index.html");
   mustMatch(documents.releaseNotes, /gracefulTerminate.*catch|本地日志/i, `release-notes/${tag}.md`);
   mustMatch(documents.releaseNotes, /model_catalog_json|模型目录/i, `release-notes/${tag}.md`);

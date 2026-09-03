@@ -1,7 +1,7 @@
 const $ = (selector) => document.querySelector(selector);
 const state = {
   profiles: [],
-  version: "1.9.9",
+  version: "1.10.0",
   threads: [],
   currentId: null,
   selectedProfileId: null,
@@ -27,7 +27,7 @@ const state = {
   releases: [],
   update: {
     phase: "idle",
-    currentVersion: "1.9.9",
+    currentVersion: "1.10.0",
     latestVersion: null,
     available: false,
     action: "install",
@@ -285,17 +285,74 @@ const translations = {
     "diagnostics.copied": "日志已复制。发送前请再次确认没有添加任何未脱敏内容。",
     "diagnostics.opened": "已打开本地日志文件。",
     "diagnostics.truncated": "日志较长，当前只显示最后一段。",
-    "tutorial.title": "安全切换教程",
-    "tutorial.intro": "项目和完整聊天记录始终保存在本机同一个 Codex Home 中。Codex Galaxy 切换的是登录凭据、API provider 和继续项目所需的本地索引，不会把聊天上传到其他账号。当前版本为 v1.9.9。",
-    "tutorial.step1.title": "保存第一个官方账号",
-    "tutorial.step2.title": "添加一个或多个中转 API",
-    "tutorial.step3.title": "API ↔ 官方的具体切换步骤",
-    "tutorial.step4.title": "继续处理原项目",
-    "tutorial.step5.title": "API 模式按需使用网关",
-    "tutorial.step6.title": "刷新项目与清理数据",
-    "tutorial.step7.title": "异常恢复",
-    "tutorial.step8.title": "升级 Codex Galaxy",
-    "tutorial.step9.title": "插件、图片和自动化清理",
+    "tutorial.title": "分阶段使用教程",
+    "tutorial.intro": "按使用阶段阅读教程：先完成一次账号配置，日常按步骤切换，出问题先看日志，最后了解本地历史和其他特色功能。当前版本为 v1.10.0。",
+    "tutorial.stageNav": "教程阶段",
+    "tutorial.stage1.tab": "首次配置",
+    "tutorial.stage1.short": "添加账号和模型",
+    "tutorial.stage1.kicker": "STAGE 1 · FIRST SETUP",
+    "tutorial.stage1.title": "第一次添加账号配置",
+    "tutorial.stage1.intro": "只需完成一次，之后日常使用只需要选择账号并切换。",
+    "tutorial.stage2.tab": "日常切换",
+    "tutorial.stage2.short": "按步骤切换账号",
+    "tutorial.stage2.kicker": "STAGE 2 · DAILY SWITCHING",
+    "tutorial.stage2.title": "日常使用：按步骤切换账号",
+    "tutorial.stage2.intro": "每次只选择一个目标账号，等进度到 100% 后再回 Codex 继续项目。",
+    "tutorial.stage3.tab": "异常处理",
+    "tutorial.stage3.short": "先看日志再恢复",
+    "tutorial.stage3.kicker": "STAGE 3 · RECOVERY",
+    "tutorial.stage3.title": "异常故障：先判断，再恢复",
+    "tutorial.stage3.intro": "失败时不要删除配置、不要反复点击，也不要手动结束进程；先保留现场。",
+    "tutorial.stage4.tab": "特色功能",
+    "tutorial.stage4.short": "历史、模型和网关",
+    "tutorial.stage4.kicker": "STAGE 4 · FEATURES",
+    "tutorial.stage4.title": "特色功能：知道什么时候使用它们",
+    "tutorial.stage4.intro": "Galaxy 不只切换账号，还负责本地项目连续性和可恢复操作。",
+    "tutorial.setup.officialTitle": "添加官方账号",
+    "tutorial.setup.official1": "先在 Codex Desktop 中正常登录官方账号，等待项目列表加载完成。",
+    "tutorial.setup.official2": "回到 Galaxy，点击账号区右上角“+”，类型选择“Codex 官方账号”。",
+    "tutorial.setup.official3": "点击账号右侧“捕获”，看到保存成功后，官方登录状态才可以被恢复。",
+    "tutorial.setup.apiTitle": "添加 API 账号",
+    "tutorial.setup.api1": "点击“+”，类型选择“中转 API”，填写名称、Base URL 和 API Key。",
+    "tutorial.setup.api2": "模型 ID 可留空自动发现；首次切换时 Galaxy 会读取中转站模型列表。",
+    "tutorial.setup.api3": "优先选择“API 直连”。它不依赖官方登录，也不需要 Galaxy 一直运行。",
+    "tutorial.setup.safety": "账号配置完成后，进入第二阶段，按照对应方向完成一次切换。API Key 和官方登录快照都会留在本机安全存储中。",
+    "tutorial.switch.commonTitle": "每次切换前",
+    "tutorial.switch.commonHeading": "先完成这 3 件事",
+    "tutorial.switch.common1": "在 Codex 中结束当前回复，确认没有正在生成的任务。",
+    "tutorial.switch.common2": "回到 Galaxy，选中本次要使用的目标账号。",
+    "tutorial.switch.common3": "如果出现确认框，只在确认 Codex 空闲后点击“继续切换”。切换期间不要再次点击按钮。",
+    "tutorial.switch.apiToOfficialTitle": "API → 官方",
+    "tutorial.switch.apiToOfficial1": "选中已捕获的官方账号，点击“切换并打开 Codex”。",
+    "tutorial.switch.apiToOfficial2": "首次使用时，在 Codex 中完成官方登录和 Windows 设置，看到正常项目列表后回 Galaxy 点击“已完成，继续同步”。",
+    "tutorial.switch.apiToOfficial3": "已有快照时，Galaxy 会自动恢复并验证官方配置，并清理旧的 [model_providers.openai] 覆盖。",
+    "tutorial.switch.apiToOfficial4": "等待 Galaxy 进度到 100%，再从项目列表点击“在 Codex 中继续”。",
+    "tutorial.switch.officialToApiTitle": "官方 → API",
+    "tutorial.switch.officialToApi1": "选中目标 API 账号，建议使用“API 直连”，点击“切换并打开 Codex”。",
+    "tutorial.switch.officialToApi2": "Galaxy 会先保存官方快照，安全关闭空闲 Codex，并移除实时官方 OAuth，只留下目标 API provider。",
+    "tutorial.switch.officialToApi3": "等待进度到 100%，确认 Codex 显示 API 账号后，再点击“在 Codex 中继续”。",
+    "tutorial.switch.officialToApi4": "直连模式可以退出 Galaxy；“兼容网关”模式必须保持 Galaxy 运行。",
+    "tutorial.switch.doneTitle": "完成标准",
+    "tutorial.switch.doneText": "进度 100% + Codex 已打开目标账号 + 原项目仍在列表中。",
+    "tutorial.recovery.logTitle": "1 · 先打开“日志”",
+    "tutorial.recovery.logText": "复制本次失败的进度提示和脱敏日志。日志不会记录 API Key、OAuth 或聊天正文。",
+    "tutorial.recovery.configTitle": "2 · 看到 config_load / Windows 设置",
+    "tutorial.recovery.configText": "这通常是旧配置格式问题。1.9.8 起 Galaxy 会自动清理保留 provider 覆盖；不要删除 config.toml。",
+    "tutorial.recovery.switchTitle": "3 · 账号没有切过去",
+    "tutorial.recovery.switchText": "如果进度未到 100% 或发生自动回滚，说明切换没有成功；先看日志，再重试。",
+    "tutorial.recovery.windowsTitle": "4 · 只有真正的 Windows 沙盒故障",
+    "tutorial.recovery.windowsText": "如果 Galaxy 明确提示 elevated 沙盒被本机策略阻止，才选择“兼容模式重试”；它不是日常切换步骤。",
+    "tutorial.recovery.never": "不要删除 config.toml、~/.codex、~/.codex-galaxy，也不要为了“清空状态”手动退出官方账号。若自动恢复不完整，停止继续操作并提交脱敏日志。",
+    "tutorial.feature.historyTitle": "本地历史连续",
+    "tutorial.feature.historyText": "项目、SQLite 索引和 rollout 历史保留在同一个 Codex Home，跨不同 provider 继续项目。",
+    "tutorial.feature.modelsTitle": "模型目录",
+    "tutorial.feature.modelsText": "API 模型 ID 可留空自动发现；填写具体 GPT 型号时仍会读取完整目录，并保留你的型号作为默认值。",
+    "tutorial.feature.gatewayTitle": "直连与兼容网关",
+    "tutorial.feature.gatewayText": "直连模式让 Codex 直接访问 Base URL；兼容网关模式使用本机回环网关，需要 Galaxy 保持运行。",
+    "tutorial.feature.toolsTitle": "插件、刷新和清理",
+    "tutorial.feature.toolsText": "插件窗口管理本地插件市场；刷新只重建列表；清理数据会先创建备份。",
+    "tutorial.feature.updateTitle": "安全更新",
+    "tutorial.feature.updateText": "Windows 更新会核对官方 Release 地址和 SHA-256；覆盖安装不会删除账号和本地记录。每次版本更新都会同步更新版本号、教程、发布说明和安装包。",
   },
   "en": {
     "status.connecting": "Connecting",
@@ -544,26 +601,74 @@ const translations = {
     "diagnostics.copied": "Log copied. Check once more that you did not add any unredacted content before sending it.",
     "diagnostics.opened": "The local log file was opened.",
     "diagnostics.truncated": "The log is long; only its latest section is shown.",
-    "tutorial.title": "Safe switching guide",
-    "tutorial.intro": "Projects and full chat history always stay in the same local Codex Home. Codex Galaxy switches login credentials, the API provider, and the local index needed to resume a project; it does not upload chats to another account. Current version: v1.9.9.",
-    "tutorial.step1.title": "Save your first official account",
-    "tutorial.step2.title": "Add one or more relay APIs",
-    "tutorial.step3.title": "Step-by-step API ↔ official switching",
-    "tutorial.step4.title": "Resume the original project",
-    "tutorial.step5.title": "Use the gateway only when needed",
-    "tutorial.step6.title": "Refresh projects and clean data",
-    "tutorial.step7.title": "Recovery from errors",
-    "tutorial.step8.title": "Upgrading Codex Galaxy",
-    "tutorial.step9.title": "Plugins, images, and automation cleanup",
-    "tutorial.step1.body": "<ol><li>Sign in normally in Codex Desktop and wait for its project list to load.</li><li>In Galaxy, click + and add an “Official Codex account”. You can rename it later.</li><li>Click Capture on that account. The login can only be restored after capture succeeds.</li></ol>",
-    "tutorial.step2.body": "<ol><li>Click + and choose “Relay API”.</li><li>Enter a name, Base URL, and API Key. The model ID is optional; Galaxy can read the relay model catalog and remember a working model. Even with an exact GPT model ID, Galaxy reads the full catalog so Codex can show other selectable GPT variants while keeping the configured model as the default.</li><li>Every API account uses an independent pure-API login and does not require an official account. You can switch directly between multiple API accounts.</li><li>The relay must support the OpenAI Responses API. If model discovery is unavailable and no model was previously learned, enter the model ID manually.</li><li>API keys are encrypted locally and never shown in project records.</li></ol>",
-    "tutorial.step3.body": "<ol><li>General preparation: finish the current Codex reply first. Switching is safe when Codex is idle; if the confirmation dialog appears, continue only after confirming that no reply is still running.</li><li>API → official: make sure the official profile is saved. If it has no snapshot, select it and choose Switch and open Codex; complete official login and Windows setup in the new Codex window, wait for the normal project list, then return to Galaxy and choose “Done, continue sync”. Galaxy captures that login automatically. If an older official snapshot contains [model_providers.openai], Galaxy removes that stale override automatically, so Codex does not surface a config_load error as the Windows setup screen and you do not need to delete config.toml. If Windows setup stalls, choose <strong>Compatibility retry</strong> in the prompt to explicitly use the unelevated backend. If a snapshot already exists, Galaxy restores and verifies it before opening the same project.</li><li>Official → API: add or edit the API profile with Base URL, API Key, and an optional model ID; Direct API is recommended. Select the API profile and choose Switch and open Codex. Galaxy closes an idle Codex gracefully, saves the official snapshot, removes official OAuth from live auth.json, and opens Codex with only the selected API provider credentials. Version 1.9.9 also handles official auth files that contain an empty OPENAI_API_KEY field without falsely reporting api-auth-legacy. Direct API mode can run after Galaxy exits; Compatibility gateway mode requires Galaxy to remain running.</li><li>For either direction, wait until progress reaches 100%, then choose Continue in Codex from the project list. If switching fails, open Log at the top, copy the redacted log and error text, and do not delete <code>config.toml</code>, <code>~/.codex</code>, or <code>~/.codex-galaxy</code>.</li></ol>",
-    "tutorial.step4.body": "<ol><li>“View details” only previews the local thread in Galaxy and never changes accounts.</li><li>“Continue in Codex” switches or resynchronizes the selected account when needed, then restores that project in Codex.</li><li>After a restart, Galaxy merges rollout messages with user/assistant items already stored in the local <code>thread_history</code> SQLite database and de-duplicates them; thread details are not reduced to a short tail.</li><li>Historical messages are preserved across GPT, DeepSeek, and other compatible providers; new replies use the active provider.</li><li>An encrypted-state warning only means a different provider may not reuse hidden reasoning state. It does not delete chat or project files.</li></ol>",
-    "tutorial.step5.body": "<p>In Direct API mode, Codex connects to the entered Base URL directly, so Galaxy can exit after switching without affecting Codex, authentication, or chat history. Only Compatibility gateway mode needs the Galaxy gateway; closing the main window minimizes it to the tray, and exiting safely hands the gateway to an independent background host.</p>",
-    "tutorial.step6.body": "<ol><li>Refresh rebuilds the visible list from current Codex state and does not delete source data; Galaxy also performs one local project-library sync when the process starts.</li><li>Clean Data can remove explicitly archived/deleted projects and completed automation history only after creating a recoverable backup.</li><li>Galaxy never deletes user project folders or source code.</li></ol>",
-    "tutorial.step7.body": "<ol><li>If switching fails, read the progress message and open Log at the top to see the failure reason. Galaxy attempts to restore the previous credentials, provider, gateway, and current-account marker.</li><li>Only one Galaxy instance may switch accounts; stale locks from dead processes are reclaimed automatically.</li><li>DNS, TLS, proxy, upstream overload, and authentication errors originate outside the local project index. Error messages never include API keys or request bodies.</li><li>Copy the redacted log and error text from the log window when reporting a problem. If recovery is incomplete, do not delete <code>config.toml</code>, <code>~/.codex</code>, or <code>~/.codex-galaxy</code>.</li></ol>",
-    "tutorial.step8.body": "<ol><li>Galaxy 1.9.9 checks the latest stable GitHub release at startup; the top update button can also check manually.</li><li>On Windows, one click downloads the exact installer, verifies its official Release URL and SHA-256, and starts setup. Finish active API-backed Codex work first because setup closes Galaxy and its local gateway.</li><li>The current macOS packages have no Apple Developer signature, so the update button only opens the project’s latest GitHub release page. Choose the Intel x64 or Apple Silicon arm64 DMG and follow macOS security prompts without bypassing Gatekeeper.</li><li>Install over the existing version; manual uninstall is unnecessary, and local profiles and records are retained.</li><li>Every future version must update the version surfaces, both READMEs, the Chinese and English guide, release notes, release metadata, tests, and installer artifacts together. The documentation check blocks incomplete releases.</li><li>For extra safety, back up <code>.codex-galaxy</code> locally and never upload it to Git.</li></ol>",
-    "tutorial.step9.body": "<ol><li>The Plugins window installs local plugin folders or adds a marketplace. The remote public catalog requires an official ChatGPT login, so switch to a captured official account for that catalog. Users without an official account can still use independent local plugins.</li><li>Galaxy preserves image/file request fields. Actual multimodal support still depends on the relay and selected model.</li><li>Automation cleanup only removes completed/archived run history after backup. Its automatic switch-time option is off by default and is independent from project cleanup.</li></ol>",
+    "tutorial.title": "Phased usage guide",
+    "tutorial.intro": "Read the guide by stage: configure accounts once, follow the daily switch steps, preserve the scene when something fails, then learn local history and other features. Current version: v1.10.0.",
+    "tutorial.stageNav": "Tutorial stages",
+    "tutorial.stage1.tab": "First setup",
+    "tutorial.stage1.short": "Accounts and models",
+    "tutorial.stage1.kicker": "STAGE 1 · FIRST SETUP",
+    "tutorial.stage1.title": "Add and configure accounts",
+    "tutorial.stage1.intro": "Do this once. Daily use only requires choosing a target account and switching.",
+    "tutorial.stage2.tab": "Daily switch",
+    "tutorial.stage2.short": "Follow the steps",
+    "tutorial.stage2.kicker": "STAGE 2 · DAILY SWITCHING",
+    "tutorial.stage2.title": "Daily use: switch accounts step by step",
+    "tutorial.stage2.intro": "Choose one target account, wait for 100%, then continue the project in Codex.",
+    "tutorial.stage3.tab": "Recovery",
+    "tutorial.stage3.short": "Log first, then recover",
+    "tutorial.stage3.kicker": "STAGE 3 · RECOVERY",
+    "tutorial.stage3.title": "Failures: diagnose before recovering",
+    "tutorial.stage3.intro": "Do not delete configuration, click repeatedly, or end processes manually; preserve the scene first.",
+    "tutorial.stage4.tab": "Features",
+    "tutorial.stage4.short": "History, models, gateway",
+    "tutorial.stage4.kicker": "STAGE 4 · FEATURES",
+    "tutorial.stage4.title": "Features: know when to use them",
+    "tutorial.stage4.intro": "Galaxy switches accounts and also protects local project continuity and recoverable operations.",
+    "tutorial.setup.officialTitle": "Add an official account",
+    "tutorial.setup.official1": "Sign in normally in Codex Desktop and wait for the project list to load.",
+    "tutorial.setup.official2": "Return to Galaxy, click + in the account panel, and choose “Official Codex account”.",
+    "tutorial.setup.official3": "Click Capture on the account. The official login can be restored only after the capture succeeds.",
+    "tutorial.setup.apiTitle": "Add an API account",
+    "tutorial.setup.api1": "Click +, choose “Relay API”, and enter a name, Base URL, and API Key.",
+    "tutorial.setup.api2": "The model ID can be blank for automatic discovery; Galaxy reads the relay catalog on the first switch.",
+    "tutorial.setup.api3": "Direct API is recommended. It does not depend on official login or require Galaxy to stay open.",
+    "tutorial.setup.safety": "After setup, open stage 2 and follow the steps for the direction you need. API keys and the official login snapshot stay in local secure storage.",
+    "tutorial.switch.commonTitle": "Before every switch",
+    "tutorial.switch.commonHeading": "Do these 3 things first",
+    "tutorial.switch.common1": "Finish the current Codex reply and confirm that no task is still generating.",
+    "tutorial.switch.common2": "Return to Galaxy and select the target account for this session.",
+    "tutorial.switch.common3": "If a confirmation dialog appears, click Continue only after confirming Codex is idle. Do not click the switch button again while it runs.",
+    "tutorial.switch.apiToOfficialTitle": "API → official",
+    "tutorial.switch.apiToOfficial1": "Select the captured official account and click Switch and open Codex.",
+    "tutorial.switch.apiToOfficial2": "On first use, finish official login and Windows setup in Codex. When the normal project list appears, return to Galaxy and click Done, continue sync.",
+    "tutorial.switch.apiToOfficial3": "With an existing snapshot, Galaxy restores and verifies the official configuration and removes an old [model_providers.openai] override.",
+    "tutorial.switch.apiToOfficial4": "Wait for Galaxy to reach 100%, then click Continue in Codex from the project list.",
+    "tutorial.switch.officialToApiTitle": "official → API",
+    "tutorial.switch.officialToApi1": "Select the target API account, preferably Direct API, and click Switch and open Codex.",
+    "tutorial.switch.officialToApi2": "Galaxy saves the official snapshot, gracefully closes idle Codex, removes live official OAuth, and leaves only the target API provider.",
+    "tutorial.switch.officialToApi3": "Wait for 100%, confirm Codex shows the API account, then click Continue in Codex.",
+    "tutorial.switch.officialToApi4": "Direct API can run after Galaxy exits; Compatibility gateway requires Galaxy to stay running.",
+    "tutorial.switch.doneTitle": "Done means",
+    "tutorial.switch.doneText": "100% progress + Codex opened with the target account + the original project is still listed.",
+    "tutorial.recovery.logTitle": "1 · Open Log first",
+    "tutorial.recovery.logText": "Copy the failed progress message and redacted log. Logs never record API keys, OAuth, or chat text.",
+    "tutorial.recovery.configTitle": "2 · config_load / Windows setup appears",
+    "tutorial.recovery.configText": "This is usually an old configuration-format problem. Since 1.9.8, Galaxy removes the stale provider override automatically; never delete config.toml.",
+    "tutorial.recovery.switchTitle": "3 · The account did not switch",
+    "tutorial.recovery.switchText": "If progress did not reach 100% or the transaction rolled back, the switch did not succeed; read Log before retrying.",
+    "tutorial.recovery.windowsTitle": "4 · Only a genuine Windows sandbox failure",
+    "tutorial.recovery.windowsText": "Choose Compatibility retry only when Galaxy explicitly says the elevated sandbox is blocked by a machine policy; it is not a daily switching step.",
+    "tutorial.recovery.never": "Do not delete config.toml, ~/.codex, or ~/.codex-galaxy, and do not manually log out of the official account just to clear state. Stop and submit the redacted log if recovery is incomplete.",
+    "tutorial.feature.historyTitle": "Local history continuity",
+    "tutorial.feature.historyText": "Projects, SQLite indexes, and rollout history stay in one Codex Home so a project can continue across providers.",
+    "tutorial.feature.modelsTitle": "Model catalog",
+    "tutorial.feature.modelsText": "Leave the API model ID blank for discovery; an exact GPT ID still loads the full catalog and remains the default.",
+    "tutorial.feature.gatewayTitle": "Direct API and gateway",
+    "tutorial.feature.gatewayText": "Direct API connects Codex to the Base URL; Compatibility gateway uses a local loopback gateway and requires Galaxy to run.",
+    "tutorial.feature.toolsTitle": "Plugins, refresh, and cleanup",
+    "tutorial.feature.toolsText": "Plugins manage local marketplaces; Refresh rebuilds the list; Clean Data creates a backup first.",
+    "tutorial.feature.updateTitle": "Safe updates",
+    "tutorial.feature.updateText": "Windows updates verify the official Release URL and SHA-256; overlay installation keeps accounts and local records. Every future version must update the version surfaces, guide, release notes, and installers together.",
   },
 };
 
@@ -627,6 +732,24 @@ function setLanguage(language) {
   try { window.localStorage.setItem("codexGalaxyLanguage", language); } catch { /* storage unavailable */ }
   $("#languageSelect").value = language;
   applyLanguage();
+}
+
+function selectTutorialStage(stage) {
+  const target = ["setup", "switch", "recovery", "features"].includes(stage) ? stage : "setup";
+  document.querySelectorAll("[data-tutorial-stage]").forEach((button) => {
+    const active = button.dataset.tutorialStage === target;
+    button.classList.toggle("active", active);
+    button.setAttribute("aria-selected", String(active));
+    button.tabIndex = active ? 0 : -1;
+  });
+  document.querySelectorAll("[data-tutorial-stage-panel]").forEach((panel) => {
+    panel.hidden = panel.dataset.tutorialStagePanel !== target;
+  });
+}
+
+function openTutorial() {
+  selectTutorialStage("setup");
+  $("#tutorialDialog").showModal();
 }
 
 function operationBusy() {
@@ -1349,7 +1472,28 @@ function closeProfileForm() {
 $("#syncBtn").addEventListener("click", sync);
 $("#updateBtn").addEventListener("click", handleUpdateAction);
 $("#languageSelect").addEventListener("change", (event) => setLanguage(event.currentTarget.value));
-$("#tutorialBtn").addEventListener("click", () => $("#tutorialDialog").showModal());
+$("#tutorialBtn").addEventListener("click", openTutorial);
+document.querySelectorAll("[data-tutorial-stage]").forEach((button) => {
+  button.addEventListener("click", () => selectTutorialStage(button.dataset.tutorialStage));
+  button.addEventListener("keydown", (event) => {
+    const buttons = [...document.querySelectorAll("[data-tutorial-stage]")];
+    const index = buttons.indexOf(button);
+    const nextIndex = event.key === "Home"
+      ? 0
+      : event.key === "End"
+        ? buttons.length - 1
+        : event.key === "ArrowRight"
+          ? (index + 1) % buttons.length
+          : event.key === "ArrowLeft"
+            ? (index - 1 + buttons.length) % buttons.length
+            : -1;
+    if (nextIndex < 0) return;
+    event.preventDefault();
+    const next = buttons[nextIndex];
+    selectTutorialStage(next.dataset.tutorialStage);
+    next.focus();
+  });
+});
 $("#pluginBtn").addEventListener("click", openPlugins);
 $("#diagnosticsBtn").addEventListener("click", openDiagnostics);
 $("#closeTutorial").addEventListener("click", () => $("#tutorialDialog").close());

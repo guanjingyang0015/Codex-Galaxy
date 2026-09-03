@@ -225,12 +225,48 @@ dialog::backdrop { background: rgba(0, 0, 0, 0.72); }
 .diagnostics-actions { display: flex; flex-wrap: wrap; gap: 7px; }
 .diagnostics-log { min-height: 300px; max-height: 55vh; margin: 0; padding: 15px 22px; overflow: auto; background: #101316; color: #cbd3d8; font: 10px/1.6 ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace; white-space: pre-wrap; overflow-wrap: anywhere; }
 
-.tutorial-dialog { width: min(760px, calc(100vw - 48px)); }
+.tutorial-dialog { width: min(920px, calc(100vw - 48px)); }
 .tutorial-dialog[open] { display: flex; flex-direction: column; }
 .tutorial-intro { padding: 15px 22px; border-bottom: 1px solid var(--line-soft); color: #cdd3d8; font-size: 11px; line-height: 1.65; }
 .tutorial-dialog > label { display: block; margin: 0 22px 14px; color: var(--muted); font-size: 11px; }
 .tutorial-dialog > label input:not([type="checkbox"]) { display: block; width: 100%; margin-top: 6px; padding: 9px 10px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface-3); color: var(--text); }
 .tutorial-dialog > label input[type="checkbox"] { margin-right: 7px; accent-color: var(--accent); }
+.tutorial-stage-tabs { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; padding: 12px 22px; border-bottom: 1px solid var(--line-soft); background: #141719; }
+.tutorial-stage-tab { display: flex; min-width: 0; align-items: center; gap: 9px; padding: 10px; border: 1px solid var(--line); border-radius: 7px; background: var(--surface-2); color: var(--muted); text-align: left; }
+.tutorial-stage-tab:hover { border-color: #4c6259; color: var(--text); }
+.tutorial-stage-tab.active { border-color: #4d8f75; background: #17231f; color: var(--text); box-shadow: inset 0 0 0 1px rgba(120, 214, 173, 0.08); }
+.tutorial-stage-tab > span:last-child { display: grid; min-width: 0; gap: 2px; }
+.tutorial-stage-tab strong, .tutorial-stage-tab small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tutorial-stage-tab strong { font-size: 11px; }
+.tutorial-stage-tab small { color: var(--muted); font-size: 9px; }
+.stage-index, .card-number { display: grid; flex: 0 0 auto; place-items: center; border: 1px solid #4d8f75; border-radius: 50%; color: var(--accent); font-weight: 800; }
+.stage-index { width: 24px; height: 24px; font-size: 10px; }
+.card-number { width: 25px; height: 25px; font-size: 10px; }
+.tutorial-stage-content { min-height: 0; flex: 1 1 auto; overflow: auto; padding: 18px 22px 22px; }
+.tutorial-stage-panel { display: grid; gap: 14px; }
+.tutorial-stage-heading { display: grid; gap: 5px; }
+.stage-kicker { color: var(--accent); font-size: 9px; font-weight: 800; letter-spacing: 0.08em; }
+.tutorial-stage-heading h3 { margin: 0; font-size: 17px; }
+.tutorial-stage-heading p { margin: 0; color: var(--muted); font-size: 11px; line-height: 1.65; }
+.tutorial-card-grid, .tutorial-direction-grid, .tutorial-feature-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.tutorial-card, .tutorial-feature, .tutorial-recovery-item { padding: 14px; border: 1px solid var(--line-soft); border-radius: 7px; background: #141719; }
+.tutorial-card-wide { background: #17201d; }
+.tutorial-card-title { display: flex; align-items: center; gap: 9px; margin-bottom: 9px; }
+.tutorial-card h4 { margin: 0; font-size: 12px; }
+.tutorial-card ol { margin: 0; padding-left: 19px; color: #bac2c8; font-size: 10.5px; line-height: 1.65; }
+.tutorial-card li + li { margin-top: 5px; }
+.direction-badge { display: inline-flex; min-height: 24px; align-items: center; justify-content: center; padding: 0 8px; border: 1px solid #526b61; border-radius: 999px; color: var(--accent); font-size: 9px; font-weight: 800; }
+.tutorial-callout, .tutorial-check-row { padding: 11px 13px; border: 1px solid #36594b; border-radius: 7px; background: #14201b; color: #c9d3ce; font-size: 10px; line-height: 1.65; }
+.tutorial-callout.warning { border-color: #765b31; background: #231d14; color: #dac79f; }
+.tutorial-check-row { display: flex; flex-wrap: wrap; align-items: center; gap: 7px; }
+.check-mark { color: var(--accent); font-size: 15px; font-weight: 900; }
+.tutorial-recovery-list { display: grid; gap: 8px; }
+.tutorial-recovery-item { display: grid; gap: 4px; padding: 11px 13px; }
+.tutorial-recovery-item strong, .tutorial-feature strong { font-size: 11px; }
+.tutorial-recovery-item p, .tutorial-feature p { margin: 0; color: var(--muted); font-size: 10px; line-height: 1.6; }
+.tutorial-feature-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.tutorial-feature { display: grid; gap: 5px; min-height: 92px; }
+.tutorial-stage-content code, .tutorial-callout code { padding: 1px 4px; border-radius: 4px; background: var(--surface-3); color: #d8dee3; }
 .tutorial-content { min-height: 0; flex: 1 1 auto; max-height: none; overflow: auto; padding: 4px 22px; }
 .tutorial-section { display: grid; grid-template-columns: 30px minmax(0, 1fr); gap: 12px; padding: 17px 0; border-bottom: 1px solid var(--line-soft); }
 .tutorial-section:last-child { border-bottom: 0; }
@@ -268,4 +304,6 @@ dialog::backdrop { background: rgba(0, 0, 0, 0.72); }
   .footer-strip > div { border-right: 0; border-bottom: 1px solid var(--line-soft); }
   .footer-strip > div:last-child { border-bottom: 0; }
   .thread-actions { flex-direction: column; }
+  .tutorial-stage-tabs { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .tutorial-card-grid, .tutorial-direction-grid, .tutorial-feature-grid { grid-template-columns: 1fr; }
 }
