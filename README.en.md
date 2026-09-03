@@ -6,7 +6,7 @@
 
 Codex Galaxy is a local desktop utility for switching between Codex accounts and compatible APIs while continuing project tasks saved on the same computer.
 
-**Current stable version: Codex Galaxy 1.9.7**
+**Current stable version: Codex Galaxy 1.9.8**
 
 ## What it does
 
@@ -61,7 +61,7 @@ API profiles must support the OpenAI Responses API. API keys stay in encrypted l
 4. Wait for progress to reach 100%, then choose **Continue in Codex**. Direct API mode can run after Galaxy exits; Compatibility gateway mode requires Galaxy to remain running.
 5. If switching fails, open **Log** at the top and copy the redacted log and error text. The default file is `~/.codex-galaxy/logs/galaxy.log`; each record contains UTC and local time.
 
-During an official switch, Galaxy no longer merges the current API profile's Windows sandbox table into the official profile; a saved official profile keeps its own sandbox settings. During first-time official login, if Windows setup stalls, choose **Compatibility retry** in the prompt to explicitly use the `unelevated` backend. After login reaches the normal project list, choose **Done, continue sync** and Galaxy will recapture and verify the official state.
+During an official switch, Galaxy no longer merges the current API profile's Windows sandbox table into the official profile; a saved official profile keeps its own sandbox settings. Galaxy also never writes `[model_providers.openai]` as an override of Codex's built-in provider, and removes that stale entry from older snapshots automatically. This prevents Codex from surfacing a `config_load` error as the misleading Windows setup screen, without requiring deletion of `config.toml`. During first-time official login, if Windows setup stalls, choose **Compatibility retry** in the prompt to explicitly use the `unelevated` backend. After login reaches the normal project list, choose **Done, continue sync** and Galaxy will recapture and verify the official state.
 
 ## Plugins
 

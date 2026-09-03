@@ -222,7 +222,7 @@ test("an API profile does not match when its selected provider definition is mis
   assert.equal((await liveProfileMatch(paths, profile, vaultFile)).matches, true);
 });
 
-test("official switching restores file credentials and removes stale forced-login settings", async () => {
+test("official switching restores file credentials and removes stale provider overrides", async () => {
   const home = await fs.mkdtemp(path.join(os.tmpdir(), "galaxy-codex-official-restore-"));
   const paths = { home, config: path.join(home, "config.toml"), auth: path.join(home, "auth.json"), modelCatalog: path.join(home, "catalog.json"), backupDir: path.join(home, "backups") };
   const vaultFile = path.join(home, "vault.json");
@@ -237,7 +237,7 @@ test("official switching restores file credentials and removes stale forced-logi
 
   const config = TOML.parse(await fs.readFile(paths.config, "utf8"));
   assert.equal(config.model_provider, "openai");
-  assert.deepEqual(Object.keys(config.model_providers), ["openai"]);
+  assert.equal(config.model_providers, undefined);
   assert.equal(config.cli_auth_credentials_store, "file");
   assert.equal(config.model_context_window, undefined);
   assert.equal(config.model_auto_compact_token_limit, undefined);
@@ -332,6 +332,38 @@ test("official selection removes stale desktop overrides without weakening the s
   assert.equal(config.sandbox_mode, "danger-full-access");
   assert.equal(config.windows.sandbox, "elevated");
   assert.equal(config.windows.sandbox_private_desktop, undefined);
+  assert.equal((await liveProfileMatch(paths, profile, vaultFile)).matches, true);
+});
+
+test("official switching removes the reserved built-in openai provider override", async () => {
+  const home = await fs.mkdtemp(path.join(os.tmpdir(), "galaxy-codex-official-reserved-provider-"));
+  const paths = { home, config: path.join(home, "config.toml"), auth: path.join(home, "auth.json"), modelCatalog: path.join(home, "catalog.json"), backupDir: path.join(home, "backups") };
+  const vaultFile = path.join(home, "vault.json");
+  const profile = { id: "official-a", name: "Official A", kind: "official", model: "gpt-5.6" };
+  const officialAuth = '{"auth_mode":"chatgpt","tokens":{"account_id":"account-a","access_token":"official-token"}}\n';
+  await fs.writeFile(paths.config, [
+    'model = "gpt-5.6"',
+    'model_provider = "openai"',
+    'cli_auth_credentials_store = "file"',
+    '',
+    '[model_providers.openai]',
+    'name = "OpenAI"',
+    'wire_api = "responses"',
+    'requires_openai_auth = true',
+  ].join("\n") + "\n");
+  await fs.writeFile(paths.auth, officialAuth);
+  await captureCurrent(paths, profile, vaultFile);
+
+  const stale = await liveProfileMatch(paths, profile, vaultFile);
+  assert.equal(stale.matches, false);
+  assert.equal(stale.reason, "official-context-config-stale");
+
+  await switchProfile(paths, profile, vaultFile);
+
+  const config = TOML.parse(await fs.readFile(paths.config, "utf8"));
+  assert.equal(config.model_provider, "openai");
+  assert.equal(config.model_providers?.openai, undefined);
+  assert.equal(config.model_providers, undefined);
   assert.equal((await liveProfileMatch(paths, profile, vaultFile)).matches, true);
 });
 

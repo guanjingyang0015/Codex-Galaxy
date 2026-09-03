@@ -6,7 +6,7 @@
 
 Codex Galaxy 是一款本地桌面工具，帮助你在不同 Codex 账号和兼容 API 之间切换，并继续本机保存的项目任务。
 
-**当前稳定版本：Codex Galaxy 1.9.7**
+**当前稳定版本：Codex Galaxy 1.9.8**
 
 ## 你可以用它做什么
 
@@ -61,7 +61,7 @@ API 账号需要兼容 OpenAI Responses API。API Key 只保存在本机加密�
 4. 等进度到 100%，从项目列表点击“在 Codex 中继续”。API 直连模式完成后可以退出 Galaxy；兼容网关模式需要保持 Galaxy 运行。
 5. 如果失败，打开顶部“日志”，复制脱敏日志和错误文字。日志文件默认位于 `~/.codex-galaxy/logs/galaxy.log`，每条记录包含 UTC 时间和本地时间。
 
-官方切换时，Galaxy 不再把当前 API 的 Windows sandbox 配置合并到官方账号配置；已保存的官方配置会保留自己的 sandbox 设置。首次官方登录如果卡在 Windows setup，可在提示框选择“兼容模式重试”，仅在你明确选择后改用 `unelevated` 后端；完成登录并看到项目列表后，再点击“已完成，继续同步”，系统会重新捕获并验证官方状态。
+官方切换时，Galaxy 不再把当前 API 的 Windows sandbox 配置合并到官方账号配置；已保存的官方配置会保留自己的 sandbox 设置。Galaxy 也不会把 `[model_providers.openai]` 写成覆盖 Codex 内置 provider，旧快照中的过期覆盖会自动移除；这能避免 Codex 把 `config_load` 错误误显示成 Windows setup 页面，也不需要删除 `config.toml`。首次官方登录如果卡在 Windows setup，可在提示框选择“兼容模式重试”，仅在你明确选择后改用 `unelevated` 后端；完成登录并看到项目列表后，再点击“已完成，继续同步”，系统会重新捕获并验证官方状态。
 
 ## 插件
 

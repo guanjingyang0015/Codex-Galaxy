@@ -104,6 +104,7 @@ export async function liveProfileMatch(paths, profile, vaultFile) {
   const contextConfigStale = hasModelContextOverrides(config)
     || Object.hasOwn(config, "model_catalog_json")
     || hasWindowsSandboxConflict(config)
+    || hasReservedOfficialProviderOverride(config)
     || String(config.model || "").trim() !== String(profile.model || "").trim();
   const matches = baseMatches && !contextConfigStale;
   return {
@@ -242,7 +243,11 @@ export async function setOfficialWindowsSandboxFallback(paths) {
 
 function buildOfficialConfig(profile) {
   const model = profile.model || "gpt-5.6";
-  return `model = "${model}"\nmodel_provider = "openai"\ncli_auth_credentials_store = "file"\n\n[model_providers.openai]\nname = "OpenAI"\nwire_api = "responses"\nrequires_openai_auth = true\n`;
+  // `openai` is a built-in provider in current Codex. Writing a
+  // [model_providers.openai] table makes Codex reject the whole config as an
+  // attempt to override a reserved provider, which Desktop surfaces as the
+  // misleading Windows setup screen.
+  return `model = "${model}"\nmodel_provider = "openai"\ncli_auth_credentials_store = "file"\n`;
 }
 
 function buildApiConfig(profile, liveConfig = "", catalogPath = "") {
@@ -298,18 +303,26 @@ function selectProfileModel(configText, profile, provider) {
   const config = parseToml(configText);
   delete config.model_catalog_json;
   clearModelContextOverrides(config);
-  if (provider === "openai") normalizeWindowsSandboxCompatibility(config);
+  if (provider === "openai") {
+    normalizeWindowsSandboxCompatibility(config);
+    // The official provider is built into Codex and cannot be declared under
+    // [model_providers]. Clear the whole managed provider table so stale API
+    // routes cannot be inherited by the official profile.
+    delete config.model_providers;
+  }
   enforceFileCredentials(config);
   config.model = profile.model;
   config.model_provider = provider;
-  const existing = config.model_providers?.[provider];
-  config.model_providers = {
-    [provider]: existing || {
-      name: "OpenAI",
-      wire_api: "responses",
-      requires_openai_auth: true,
-    },
-  };
+  if (provider !== "openai") {
+    const existing = config.model_providers?.[provider];
+    config.model_providers = {
+      [provider]: existing || {
+        name: "OpenAI",
+        wire_api: "responses",
+        requires_openai_auth: true,
+      },
+    };
+  }
   return TOML.stringify(config);
 }
 
@@ -350,6 +363,10 @@ function normalizeWindowsSandboxCompatibility(config) {
 
 function hasWindowsSandboxConflict(config) {
   return config?.windows?.sandbox_private_desktop === false;
+}
+
+function hasReservedOfficialProviderOverride(config) {
+  return Object.hasOwn(config?.model_providers || {}, "openai");
 }
 
 function hasStaleApiModelCatalog(paths, config, profile, catalogText) {
