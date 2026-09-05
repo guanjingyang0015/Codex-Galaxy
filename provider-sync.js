@@ -649,18 +649,28 @@ async function updateSqliteThreadRuntime(databasePath, targetProvider, targetMod
     for (const [table, idColumn] of [["threads", "id"], ["local_thread_catalog", "thread_id"]]) {
       const columns = await tableColumns(db, table);
       if (!columns.has(idColumn) || !columns.has("model_provider")) continue;
-      const update = db.prepare(`update "${table}" set model_provider = ? where "${idColumn}" = ? and coalesce(model_provider, '') <> ?`);
-      for (const threadId of rootThreads.keys()) updated += Number(update.run(targetProvider, threadId, targetProvider).changes || 0);
+      if (!rootThreads.size) {
+        updated += Number(db.prepare(`update "${table}" set model_provider = ? where coalesce(model_provider, '') <> ?`).run(targetProvider, targetProvider).changes || 0);
+      } else {
+        const update = db.prepare(`update "${table}" set model_provider = ? where "${idColumn}" = ? and coalesce(model_provider, '') <> ?`);
+        for (const threadId of rootThreads.keys()) updated += Number(update.run(targetProvider, threadId, targetProvider).changes || 0);
+      }
     }
     const threadColumns = await tableColumns(db, "threads");
     if (threadColumns.has("id") && threadColumns.has("model")) {
-      const update = db.prepare("update threads set model = ? where id = ? and coalesce(model, '') <> ?");
-      for (const [threadId, thread] of rootThreads) {
-        const model = targetModel || thread.lastTurnModel;
-        if (!model) continue;
-        const changes = Number(update.run(model, threadId, model).changes || 0);
+      if (targetModel && !rootThreads.size) {
+        const changes = Number(db.prepare("update threads set model = ? where coalesce(model, '') <> ?").run(targetModel, targetModel).changes || 0);
         modelRowsUpdated += changes;
         updated += changes;
+      } else {
+        const update = db.prepare("update threads set model = ? where id = ? and coalesce(model, '') <> ?");
+        for (const [threadId, thread] of rootThreads) {
+          const model = targetModel || thread.lastTurnModel;
+          if (!model) continue;
+          const changes = Number(update.run(model, threadId, model).changes || 0);
+          modelRowsUpdated += changes;
+          updated += changes;
+        }
       }
     }
     if (threadColumns.has("id") && threadColumns.has("has_user_event")) {
@@ -785,6 +795,34 @@ export async function syncProviderMetadata({ codexHome, targetProvider, targetMo
     const rootThreads = new Map();
     let encryptedContentFiles = 0;
     const files = rewriteSessionFiles ? await rolloutFiles(codexHome) : [];
+    if (!rewriteSessionFiles) {
+      const databases = await sqlitePaths(codexHome);
+      let sqliteRowsUpdated = 0;
+      let modelRowsUpdated = 0;
+      for (const database of databases) {
+        const update = await updateSqliteThreadRuntime(database, targetProvider, normalizedTargetModel, rootThreads);
+        sqliteRowsUpdated += update.rowsUpdated;
+        modelRowsUpdated += update.modelRowsUpdated;
+      }
+      onProgress?.({ phase: "database", completed: databases.length, total: databases.length, processedBytes: 0, totalBytes: 0 });
+      onProgress?.({ phase: "complete", completed: 0, total: 0, processedBytes: 0, totalBytes: 0 });
+      return {
+        targetProvider,
+        targetModel: normalizedTargetModel,
+        changedSessionFiles: 0,
+        sqliteRowsUpdated,
+        modelRowsUpdated,
+        skippedSessionFiles: 0,
+        backupDir: null,
+        encryptedContentFiles: 0,
+        sanitizedMessageIds: 0,
+        scannedOfficialSessionBytes: 0,
+        officialScanTotalBytes: 0,
+        officialScanFiles: 0,
+        cachedOfficialSessionBytes: 0,
+        cachedOfficialSessionFiles: 0,
+      };
+    }
     const fileEntries = (await Promise.all(files.map(async (file) => ({
       file,
       stat: await fs.stat(file).catch(() => null),

@@ -6,7 +6,7 @@
 
 Codex Galaxy is a local desktop utility for switching between Codex accounts and compatible APIs while continuing project tasks saved on the same computer.
 
-**Current version: Codex Galaxy 1.10.1**
+**Current version: Codex Galaxy 1.10.2**
 
 The in-app guide is now organized by stage: **first account setup → daily account switching → failure recovery → features**. Open **Guide** and choose only the stage you need instead of reading one long page.
 
@@ -72,7 +72,7 @@ API profiles must support the OpenAI Responses API. API keys stay in encrypted l
 
 Version 1.9.9 fixes official → API switches that rolled back to the official account. A current Codex official `auth.json` can contain an empty `OPENAI_API_KEY` field; version 1.9.8 incorrectly treated field presence as legacy API authentication and reported `api-auth-legacy`. Galaxy now treats only a non-empty key as a legacy API credential and never leaves official OAuth active in API mode. The captured official login remains encrypted in Galaxy and is restored unchanged when switching back, without requiring a manual official logout or process termination.
 
-Version 1.10.1 reorganizes the in-app guide into four stages: first account setup, daily account switching, failure recovery, and features. Open **Guide** and choose only the stage you need instead of reading one long page.
+Version 1.10.2 reorganizes the in-app guide into four stages: first account setup, daily account switching, failure recovery, and features. Open **Guide** and choose only the stage you need instead of reading one long page.
 
 During an official switch, Galaxy no longer merges the current API profile's Windows sandbox table into the official profile; a saved official profile keeps its own sandbox settings. Galaxy also never writes `[model_providers.openai]` as an override of Codex's built-in provider, and removes that stale entry from older snapshots automatically. This prevents Codex from surfacing a `config_load` error as the misleading Windows setup screen, without requiring deletion of `config.toml`. During first-time official login, if Windows setup stalls, choose **Compatibility retry** in the prompt to explicitly use the `unelevated` backend. After login reaches the normal project list, choose **Done, continue sync** and Galaxy will recapture and verify the official state.
 
