@@ -557,6 +557,22 @@ test("API profiles switch without any official account or OAuth snapshot", async
   assert.equal(result.profile.baseUrl, "https://api-b.invalid/v1");
 });
 
+test("API-to-API switching skips rollout file rewriting", async () => {
+  const item = await fixture();
+  const calls = [];
+  const result = await switchAccountTransaction({
+    profileId: item.api.id,
+    codexPaths: item.codexPaths,
+    dataPaths: item.dataPaths,
+    stopCodexDesktop: async () => ({ stopped: 0, processIds: [] }),
+    prepareRuntime: async (profile) => ({ profile: { ...profile, runtimeMode: "direct" }, forceApply: true, commit: async () => {}, rollback: async () => {} }),
+    launch: async () => ({ method: "test" }),
+  });
+  assert.equal(result.profile.id, item.api.id);
+  assert.equal(result.providerSync.changedSessionFiles, 0);
+  assert.equal(result.providerSync.scannedOfficialSessionBytes, 0);
+});
+
 test("an uncaptured official slot cannot silently capture a different official account", async () => {
   const item = await fixture();
   const officialB = await saveProfile({ id: "official-b", name: "官方 B", kind: "official", model: "gpt-other" }, item.dataPaths);

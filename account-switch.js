@@ -217,6 +217,7 @@ export async function switchAccountTransaction({
       targetProvider: targetProviderForProfile(profile),
       targetModel: profile.kind === "official" ? profile.model : null,
       messageIdScanThreadId: profile.kind === "official" ? threadId : null,
+      rewriteSessionFiles: !(currentProfile?.kind === "api" && profile.kind === "api"),
       onProgress: ({ phase, completed, total, processedBytes, totalBytes, scanFiles, cachedFiles }) => {
         let percent = 76;
         let message = "有效线程同步完成";

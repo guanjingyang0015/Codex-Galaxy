@@ -775,7 +775,7 @@ async function officialMessageScanCacheBytes(codexHome) {
   return Object.values(cache.files || {}).reduce((sum, stamp) => sum + Number(stamp?.size || 0), 0);
 }
 
-export async function syncProviderMetadata({ codexHome, targetProvider, targetModel, messageIdScanThreadId = null, onProgress = null }) {
+export async function syncProviderMetadata({ codexHome, targetProvider, targetModel, messageIdScanThreadId = null, rewriteSessionFiles = true, onProgress = null }) {
   if (!targetProvider) throw new Error("目标 provider 不能为空。");
   const normalizedTargetModel = String(targetModel || "").trim() || null;
   const lock = await acquireLock(codexHome);
@@ -784,7 +784,7 @@ export async function syncProviderMetadata({ codexHome, targetProvider, targetMo
     const inspectedFiles = [];
     const rootThreads = new Map();
     let encryptedContentFiles = 0;
-    const files = await rolloutFiles(codexHome);
+    const files = rewriteSessionFiles ? await rolloutFiles(codexHome) : [];
     const fileEntries = (await Promise.all(files.map(async (file) => ({
       file,
       stat: await fs.stat(file).catch(() => null),

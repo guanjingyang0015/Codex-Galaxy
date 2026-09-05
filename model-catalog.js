@@ -20,7 +20,7 @@ function reasoningLevels(item, id) {
       .filter((level) => ["minimal", "low", "medium", "high", "xhigh"].includes(level.effort) && level.description)
     : [];
   if (supplied.length) return supplied;
-  const reasoningModel = /(?:reason|thinking|think|r1|o1|o3|o4|gpt-5|qwq|deepseek-reasoner)/i.test(id);
+  const reasoningModel = /(?:reason|thinking|think|r1|o1|o3|o4|gpt-[3-9]|qwq|deepseek-reasoner)/i.test(id);
   const efforts = reasoningModel ? ["low", "medium", "high", "xhigh"] : ["low", "medium"];
   return efforts.map((effort) => ({
     effort,
@@ -87,7 +87,7 @@ function inferredInputModalities(id) {
   return ["text"];
 }
 
-const GPT_FAMILY_PATTERN = /(?:^|[\/:_@+.-])(?:gpt|o[1-9]|o[1-9]-mini|chatgpt|openai|gpt-[345]|gpt-5)(?:[\/:_@+.-]|$)/i;
+const GPT_FAMILY_PATTERN = /(?:^|[\/:_@+.-])(?:gpt|o[1-9]|o[1-9]-mini|chatgpt|openai|gpt-[3-9])(?:[\/:_@+.-]|$)/i;
 
 export function isGptFamily(ids) {
   const values = (Array.isArray(ids) ? ids : [ids]).map((id) => String(id || "").trim()).filter(Boolean);
