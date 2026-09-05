@@ -1,7 +1,7 @@
 const $ = (selector) => document.querySelector(selector);
 const state = {
   profiles: [],
-  version: "1.10.2",
+  version: "1.10.3",
   threads: [],
   currentId: null,
   selectedProfileId: null,
@@ -27,7 +27,7 @@ const state = {
   releases: [],
   update: {
     phase: "idle",
-    currentVersion: "1.10.2",
+    currentVersion: "1.10.3",
     latestVersion: null,
     available: false,
     action: "install",
@@ -191,6 +191,11 @@ const translations = {
     "threads.healthBlockedMissing": "没有找到可验证的真实 session_meta 或可信 Galaxy 备份。Galaxy 不会伪造元数据，请保留原文件进行人工恢复。",
     "threads.healthBlocked": "该会话无法自动安全修复。原文件不会被覆盖，请保留文件和错误截图进行人工恢复。",
     "threads.healthUnavailable": "此项目没有可直接检查的 rollout 文件；Galaxy 会继续使用 Codex 本地索引恢复。",
+    "threads.largeContextTitle": "这个聊天历史较大，直接继续可能触发上下文压缩失败",
+    "threads.largeContextText": "建议在同一项目下新建聊天，并带上当前聊天的深度链接继续；原聊天会保留，不会被删除。",
+    "threads.copyLink": "复制深度链接",
+    "threads.copyContinuationPrompt": "复制新聊天继续提示",
+    "threads.continuationPromptCopied": "已复制新聊天提示。请在同一项目下新建聊天后粘贴发送。",
     "threads.repair": "备份并修复旧会话",
     "threads.repairing": "正在备份并修复…",
     "threads.repaired": "旧会话已安全修复，原文件的字节级备份保存在 {path}。现在可以继续该任务。",
@@ -286,7 +291,7 @@ const translations = {
     "diagnostics.opened": "已打开本地日志文件。",
     "diagnostics.truncated": "日志较长，当前只显示最后一段。",
     "tutorial.title": "分阶段使用教程",
-    "tutorial.intro": "按使用阶段阅读教程：先完成一次账号配置，日常按步骤切换，出问题先看日志，最后了解本地历史和其他特色功能。当前版本为 v1.10.2。",
+    "tutorial.intro": "按使用阶段阅读教程：先完成一次账号配置，日常按步骤切换，出问题先看日志，超大聊天先复制深度链接新建聊天继续，最后了解本地历史和其他特色功能。当前版本为 v1.10.3。",
     "tutorial.stageNav": "教程阶段",
     "tutorial.stage1.tab": "首次配置",
     "tutorial.stage1.short": "添加账号和模型",
@@ -511,6 +516,11 @@ const translations = {
     "threads.healthBlockedMissing": "No verifiable real session_meta or trusted Galaxy backup was found. Galaxy will not invent metadata; keep the original file for manual recovery.",
     "threads.healthBlocked": "This session cannot be repaired automatically and safely. The original file will not be overwritten; keep it and the error screenshot for manual recovery.",
     "threads.healthUnavailable": "This project has no rollout file that Galaxy can inspect directly. Codex's local index will be used to resume it.",
+    "threads.largeContextTitle": "This chat history is large and direct resume may fail during context compaction",
+    "threads.largeContextText": "Create a new chat in the same project and include this chat's deep link. The original chat stays unchanged.",
+    "threads.copyLink": "Copy deep link",
+    "threads.copyContinuationPrompt": "Copy new-chat continuation prompt",
+    "threads.continuationPromptCopied": "Continuation prompt copied. Create a new chat in the same project and paste it.",
     "threads.repair": "Back up and repair old session",
     "threads.repairing": "Backing up and repairing…",
     "threads.repaired": "The old session was repaired safely. A byte-exact backup is stored at {path}. You can resume the task now.",
@@ -606,7 +616,7 @@ const translations = {
     "diagnostics.opened": "The local log file was opened.",
     "diagnostics.truncated": "The log is long; only its latest section is shown.",
     "tutorial.title": "Phased usage guide",
-    "tutorial.intro": "Read the guide by stage: configure accounts once, follow the daily switch steps, preserve the scene when something fails, then learn local history and other features. Current version: v1.10.2.",
+    "tutorial.intro": "Read the guide by stage: configure accounts once, follow the daily switch steps, preserve the scene when something fails, use a deep link to continue oversized chats in a new thread, then learn local history and other features. Current version: v1.10.3.",
     "tutorial.stageNav": "Tutorial stages",
     "tutorial.stage1.tab": "First setup",
     "tutorial.stage1.short": "Accounts and models",
@@ -1319,7 +1329,23 @@ async function switchAccount(profileId, threadId = null) {
 }
 
 function threadHealthBlocksResume(thread) {
-  return ["repairable", "blocked"].includes(thread?.health?.status);
+  return ["repairable", "blocked"].includes(thread?.health?.status) || threadNeedsNewContinuation(thread);
+}
+
+const LARGE_THREAD_FILE_BYTES = 20 * 1024 * 1024;
+
+function threadNeedsNewContinuation(thread) {
+  return Number(thread?.health?.fileSize || 0) >= LARGE_THREAD_FILE_BYTES;
+}
+
+function threadDeepLink(thread) {
+  return thread?.id ? `codex://threads/${encodeURIComponent(String(thread.id))}` : "";
+}
+
+function continuationPrompt(thread) {
+  const link = threadDeepLink(thread);
+  const project = thread?.cwd || "当前项目目录";
+  return `请在项目目录 ${project} 中继续这个具体聊天未完成的工作。\n\n原聊天深度链接：${link}\n\n请先打开并理解这个聊天的上下文，再读取项目文件和 .codex-project 进度；不要删除历史，不要修改代码，先说明你理解的未完成任务和下一步。`;
 }
 
 function threadHealthMessage(thread) {
@@ -1348,6 +1374,8 @@ function renderThreadDialog(thread) {
   compatibility.textContent = thread.compatibility?.encryptedContent
     ? t("threads.dialogCompatibility")
     : "";
+  const largeContext = threadNeedsNewContinuation(thread);
+  $("#dialogLargeContext").hidden = !largeContext;
   $("#dialogMessages").innerHTML = (thread.messages || []).map((message) => `<div class="message ${escapeHtml(message.role)}"><div class="message-label">${escapeHtml(message.role)} · ${formatDate(message.timestamp)}</div>${escapeHtml(message.content)}</div>`).join("") || `<div class="empty">${t("threads.messagesEmpty")}</div>`;
   const blocked = threadHealthBlocksResume(thread);
   const disabled = blocked || operationBusy() ? " disabled" : "";
@@ -1589,6 +1617,16 @@ $("#copyResumeBtn").addEventListener("click", async () => {
   const model = profile?.model ? ` --model "${profile.model}"` : "";
   unwrap(await bridge.copyText(`codex resume "${state.selectedThread.id}"${model}`));
   notice(t("resume.copied"));
+});
+$("#copyThreadLinkBtn").addEventListener("click", async () => {
+  if (!state.selectedThread) return;
+  unwrap(await bridge.copyText(threadDeepLink(state.selectedThread)));
+  notice(t("threads.copyLink"));
+});
+$("#copyContinuationPromptBtn").addEventListener("click", async () => {
+  if (!state.selectedThread) return;
+  unwrap(await bridge.copyText(continuationPrompt(state.selectedThread)));
+  notice(t("threads.continuationPromptCopied"));
 });
 $("#repairThreadBtn").addEventListener("click", repairSelectedThread);
 

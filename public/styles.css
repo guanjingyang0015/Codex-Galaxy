@@ -77,6 +77,9 @@ button:focus-visible, input:focus-visible, select:focus-visible, [tabindex]:focu
 .thread-health.repairable { border-color: #8d6d38; background: #2b2417; color: #f3d391; }
 .thread-health.blocked { border-color: #714a4a; background: #291b1b; color: #ffc1c1; }
 .thread-health.unavailable { border-color: var(--line); background: var(--surface-2); color: var(--muted); }
+.thread-large-context { margin: 12px 22px 0; padding: 12px; border: 1px solid #8d6d38; border-radius: 7px; background: #2b2417; color: #f3d391; font-size: 11px; line-height: 1.6; }
+.thread-large-context p { margin: 5px 0 10px; color: #dac79f; }
+.thread-large-context-actions { display: flex; flex-wrap: wrap; gap: 7px; }
 .refresh-progress { position: absolute; top: 8px; right: 0; z-index: 19; width: min(520px, 80vw); min-height: 64px; padding: 11px 13px; border: 1px solid var(--line); border-radius: 7px; background: var(--surface); box-shadow: 0 12px 32px rgba(0, 0, 0, 0.38); }
 .refresh-progress > div { display: flex; justify-content: space-between; gap: 12px; color: #cbd1d6; font-size: 11px; }
 .refresh-progress strong { color: var(--text); }
