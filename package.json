@@ -1,6 +1,6 @@
 {
   "name": "codex-galaxy",
-  "version": "1.10.3",
+  "version": "1.11.0",
   "private": true,
   "author": "Guan Jingyang <guanjingyang@gmail.com>",
   "description": "Codex Galaxy: local account switching and cross-model project continuity for Codex.",
@@ -49,6 +49,8 @@
       "provider-sync.js",
       "responses-gateway.js",
       "relay-connection.js",
+      "relay-audit.js",
+      "relay-ranking.js",
       "model-catalog.js",
       "account-switch.js",
       "plugin-manager.js",

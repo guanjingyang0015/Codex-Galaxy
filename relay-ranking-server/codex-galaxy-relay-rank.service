@@ -1,0 +1,23 @@
+[Unit]
+Description=Codex Galaxy Relay Ranking API
+After=network.target
+
+[Service]
+Type=simple
+User=lighthouse
+Group=lighthouse
+WorkingDirectory=/opt/codex-galaxy-relay-rank/current
+Environment=RELAY_RANK_HOST=127.0.0.1
+Environment=RELAY_RANK_PORT=18110
+Environment=RELAY_RANK_DB=/opt/codex-galaxy-relay-rank/shared/rankings.sqlite3
+ExecStart=/usr/bin/python3 /opt/codex-galaxy-relay-rank/current/server.py
+Restart=always
+RestartSec=3
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=true
+ReadWritePaths=/opt/codex-galaxy-relay-rank/shared
+
+[Install]
+WantedBy=multi-user.target

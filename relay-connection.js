@@ -1,5 +1,6 @@
 import { modelsUrl } from "./responses-gateway.js";
 import { profileForSwitch, recordProfileTest } from "./profiles.js";
+import { auditApiProfile, auditRelay } from "./relay-audit.js";
 
 function classifyHttp(status) {
   if (status === 401 || status === 403) return "auth";
@@ -55,6 +56,8 @@ export async function testApiProfile(id, paths, { fetcher = globalThis.fetch, ti
     clearTimeout(timer);
   }
 }
+
+export { auditApiProfile, auditRelay };
 
 async function persist(paths, id, result) {
   await recordProfileTest(id, result, paths);

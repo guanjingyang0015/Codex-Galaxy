@@ -21,7 +21,8 @@ import { cleanupCompletedAutomations, getAutomationSettings, previewCompletedAut
 import { cleanupInvalidProjects, previewInvalidProjects } from "../project-cleanup.js";
 import { AppUpdater } from "../app-updater.js";
 import { diagnoseThreadRollout, repairThreadRollout } from "../thread-repair.js";
-import { testApiProfile } from "../relay-connection.js";
+import { testApiProfile, auditApiProfile, auditRelay } from "../relay-connection.js";
+import { fetchRelayRankings, submitAuditForRanking } from "../relay-ranking.js";
 import { hasActiveCodexTurn, latestCodexThreadId } from "../codex-activity.js";
 import { releaseHistory } from "../release-info.js";
 import { createDiagnosticLogger, diagnosticLogPath, readDiagnosticLog } from "../diagnostics.js";
@@ -740,6 +741,21 @@ function registerHandlers() {
   ipcMain.handle("codex-galaxy:test-profile", (_, id) => result(() => testApiProfile(id, dataPaths, {
     fetcher: (url, options) => net.fetch(url, options),
   }), "test-profile"));
+  ipcMain.handle("codex-galaxy:audit-profile", (_, id) => result(() => auditApiProfile(id, dataPaths, {
+    fetcher: (url, options) => net.fetch(url, options),
+  }), "audit-profile"));
+  ipcMain.handle("codex-galaxy:audit-relay", (_, input) => result(() => auditRelay(input, {
+    fetcher: (url, options) => net.fetch(url, options),
+  }), "audit-relay"));
+  ipcMain.handle("codex-galaxy:submit-audit", (_, request) => result(() => submitAuditForRanking(request?.result, {
+    providerName: request?.providerName,
+    homepage: request?.homepage,
+    fetcher: (url, options) => net.fetch(url, options),
+  }), "submit-audit"));
+  ipcMain.handle("codex-galaxy:get-rankings", (_, sort) => result(() => fetchRelayRankings({
+    sort,
+    fetcher: (url, options) => net.fetch(url, options),
+  }), "get-rankings"));
   ipcMain.handle("codex-galaxy:capture-profile", (_, id) => result(async () => {
     const captured = await captureCurrent(codexPaths, await profileForSwitch(id, dataPaths), dataPaths.vault);
     await setCurrent(id, dataPaths);

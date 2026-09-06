@@ -96,11 +96,17 @@ export async function saveProfile(input, paths = runtimePaths()) {
   const name = String(input.name || "").trim();
   const model = String(input.model || "").trim();
   const baseUrl = String(input.baseUrl ?? previous?.baseUrl ?? "").trim();
+  const homepage = String(input.homepage ?? previous?.homepage ?? "").trim();
   if (input.kind === "api") {
     let parsed;
     try { parsed = new URL(baseUrl); } catch { throw new Error("Base URL 格式不正确，请填写 http:// 或 https:// 地址。"); }
     if (!['http:', 'https:'].includes(parsed.protocol)) throw new Error("Base URL 只能使用 http:// 或 https:// 地址。");
     if (parsed.username || parsed.password) throw new Error("Base URL 不能包含用户名或密码，请使用 API Key 字段。");
+    if (homepage) {
+      let homepageUrl;
+      try { homepageUrl = new URL(homepage); } catch { throw new Error("平台主页格式不正确，请填写 http:// 或 https:// 地址。"); }
+      if (!["http:", "https:"].includes(homepageUrl.protocol) || homepageUrl.username || homepageUrl.password) throw new Error("平台主页只能使用 http:// 或 https:// 地址。");
+    }
   }
   const runtimeMode = input.kind === "api"
     ? (input.runtimeMode === "gateway" || input.runtimeMode === "direct"
@@ -117,6 +123,7 @@ export async function saveProfile(input, paths = runtimePaths()) {
     name: name.slice(0, 80),
     kind: input.kind,
     baseUrl,
+    homepage,
     // Direct API slots use a stable provider key; the compatibility gateway
     // intentionally uses the shared local provider name.
     providerKey: input.kind === "api"
@@ -139,6 +146,9 @@ export async function saveProfile(input, paths = runtimePaths()) {
       : [],
     lastTest: input.kind === "api" && previous?.kind === "api" && previous.baseUrl === baseUrl && !providedApiKey
       ? previous.lastTest || null
+      : null,
+    lastAudit: input.kind === "api" && previous?.kind === "api" && previous.baseUrl === baseUrl && previous.model === model && !providedApiKey
+      ? previous.lastAudit || null
       : null,
     wireApi: "responses",
     updatedAt: new Date().toISOString(),
@@ -202,6 +212,19 @@ export async function recordProfileTest(id, result, paths = runtimePaths()) {
     httpStatus: Number.isInteger(result?.httpStatus) ? result.httpStatus : null,
     testedAt: String(result?.testedAt || new Date().toISOString()),
   };
+  if (result?.score && typeof result.score === "object") {
+    profile.lastAudit = {
+      score: Math.max(0, Math.min(100, Number(result.score.total) || 0)),
+      assessment: ["conforming", "inconclusive", "suspicious"].includes(result.assessment) ? result.assessment : "inconclusive",
+      testedAt: profile.lastTest.testedAt,
+      baseHost: String(result.baseHost || "").slice(0, 255),
+      model: String(result.model || "").slice(0, 160),
+      modelsCount: Math.max(0, Number(result.modelsCount) || 0),
+      modelListed: result.modelListed === true,
+    };
+  } else {
+    profile.lastAudit = null;
+  }
   profile.updatedAt = new Date().toISOString();
   await writeJson(paths.profiles, data);
   return true;

@@ -29,7 +29,7 @@ test("release identity stays compatible with 0.1.0 upgrades and preserves user d
   const modelCatalog = await fs.readFile(path.join(root, "model-catalog.js"), "utf8");
   const relayTest = await fs.readFile(path.join(root, "relay-connection.js"), "utf8");
   const releaseNotes = await fs.readFile(path.join(root, "release-notes", `v${packageJson.version}.md`), "utf8");
-  assert.equal(packageJson.version, "1.10.3");
+  assert.equal(packageJson.version, "1.11.0");
   assert.equal(packageJson.author, "Guan Jingyang <guanjingyang@gmail.com>");
   assert.equal(packageJson.license, "MIT");
   assert.equal(packageJson.build.appId, "io.github.codex-galaxy.app");
@@ -44,6 +44,8 @@ test("release identity stays compatible with 0.1.0 upgrades and preserves user d
   assert.ok(packageJson.build.files.includes("thread-repair.js"));
   assert.ok(packageJson.build.files.includes("app-updater.js"));
   assert.ok(packageJson.build.files.includes("relay-connection.js"));
+  assert.ok(packageJson.build.files.includes("relay-audit.js"));
+  assert.ok(packageJson.build.files.includes("relay-ranking.js"));
   assert.ok(packageJson.build.files.includes("codex-activity.js"));
   assert.ok(packageJson.build.files.includes("diagnostics.js"));
   assert.ok(packageJson.build.files.includes("release-info.js"));
@@ -108,11 +110,11 @@ test("release identity stays compatible with 0.1.0 upgrades and preserves user d
   assert.match(releaseInfo, /c7e0034525e895bbd0f855cc5edd229098e1f938/);
   assert.match(releaseInfo, /33521136697/);
   assert.deepEqual(releaseHistory(packageJson.version)[0], {
-    version: "1.10.3",
-    tag: "v1.10.3",
+    version: "1.11.0",
+    tag: "v1.11.0",
     commit: null,
     actionsRun: null,
-    url: "https://github.com/guanjingyang0015/Codex-Galaxy/releases/tag/v1.10.3",
+    url: "https://github.com/guanjingyang0015/Codex-Galaxy/releases/tag/v1.11.0",
   });
   assert.match(profilesJs, /PROFILE_SCHEMA_VERSION = 6/);
   assert.match(relayTest, /\/models/);
@@ -144,9 +146,7 @@ test("release identity stays compatible with 0.1.0 upgrades and preserves user d
   assert.match(overlayHelper, /QueryFullProcessImageNameW/);
   assert.match(overlayHelper, /SetWindowPos/);
   assert.match(html, new RegExp(`v(?:<span[^>]*>)?${packageJson.version.replaceAll(".", "\\.")}(?:</span>)?`));
-  assert.match(html, /https:\/\/www\.rightapi\.ai\/register\?aff=d910c1b8/);
-  assert.equal(html.match(/https:\/\/www\.rightapi\.ai\/register\?aff=d910c1b8/g)?.length, 1);
-  assert.doesNotMatch(html, />RightAPI|>ZYG Token|aria-label="[^"]*(?:RightAPI|ZYG Token)/);
+  assert.doesNotMatch(html, /api-guide|relay-copy|rightapi\.ai\/register|zygtoken\.com\/register/);
   assert.doesNotMatch(html, /id="appVersionBadge"|class="app-version-badge"|id="appVersion"/);
   assert.match(html, /id="appVersionInline"/);
   assert.match(html, /id="updateBtn"/);
@@ -156,29 +156,27 @@ test("release identity stays compatible with 0.1.0 upgrades and preserves user d
   assert.match(html, /日常切换/);
   assert.match(html, /data-i18n="tutorial.switch.apiToApi1"/);
   assert.match(html, /id="releaseRecordVersion"/);
-  assert.match(html, /id="releaseRecordVersion">v1\.10\.3</);
+  assert.match(html, /id="releaseRecordVersion">v1\.11\.0</);
   assert.match(renderer, /state\.releases/);
   assert.doesNotMatch(renderer, /thread\.messages \|\| \[\]\)\.slice\(-80\)/);
   assert.match(renderer, /state\.version = String\(snapshot\.version \|\| state\.version\)/);
   assert.match(renderer, /\$\("#appVersionInline"\)\.textContent = state\.version/);
   assert.doesNotMatch(renderer, /\$\("#appVersion"\)/);
-  assert.match(html, /https:\/\/api\.zygtoken\.com\/register\?aff=Z3xM/);
-  assert.equal(html.match(/https:\/\/api\.zygtoken\.com\/register\?aff=Z3xM/g)?.length, 1);
-  assert.match(html, /data-name="中转站 A"/);
-  assert.match(html, /data-name="中转站 B"/);
-  assert.match(html, /点击获取中转站链接/);
-  assert.match(html, /按服务商提示完成开通/);
-  assert.match(renderer, /Get relay A link/);
-  assert.match(renderer, /Get relay B link/);
-  assert.doesNotMatch(html, /点击复制注册链接|注册链接/);
-  assert.doesNotMatch(renderer, /registration link|registration URL|注册链接|注册地址/);
+  assert.match(html, /id="relayAuditDialog"/);
+  assert.match(html, /id="rankingsDialog"/);
+  assert.match(renderer, /auditProfile/);
+  assert.match(renderer, /submitAudit/);
+  assert.match(renderer, /getRankings/);
   assert.match(renderer, /expandPluginMarketplace/);
+  assert.match(electronMain, /codex-galaxy:audit-profile/);
+  assert.match(electronMain, /codex-galaxy:get-rankings/);
+  assert.match(renderer, /relayAuditDialog/);
+  assert.match(renderer, /loadRankings/);
+  assert.match(renderer, /auditProfile/);
   assert.match(electronMain, /codex-galaxy:expand-plugin-marketplace/);
   assert.match(preload, /expandPluginMarketplace/);
-  assert.match(renderer, /bridge\.copyText\(button\.dataset\.copy\)/);
-  assert.match(renderer, /查看详情/);
-  assert.match(renderer, /在 Codex 中继续/);
-  assert.doesNotMatch(html, /LOCAL CONTINUITY/);
+  assert.doesNotMatch(html, /api-guide|relay-copy|threads-panel|PROJECT THREADS|项目继续入口/);
+  assert.doesNotMatch(renderer, /bridge\.copyText\(button\.dataset\.copy\)/);
   assert.match(html, /id="languageSelect"/);
   assert.match(html, /guanjingyang@gmail\.com/);
   assert.match(renderer, /codexGalaxyLanguage/);
@@ -190,11 +188,8 @@ test("release identity stays compatible with 0.1.0 upgrades and preserves user d
   assert.match(renderer, /navigator\.language/);
   assert.match(styles, /html,\s*body\s*\{[^}]*overflow:\s*hidden/);
   assert.match(styles, /\.profile-list\s*\{[^}]*overflow:\s*auto/);
-  assert.match(styles, /\.thread-list\s*\{[^}]*overflow:\s*auto/);
-  assert.match(styles, /\.api-guide-head\s*\{[^}]*font-size:\s*13px/);
-  assert.match(styles, /\.api-guide p\s*\{[^}]*font-size:\s*11px/);
-  assert.match(styles, /\.relay-copy\s*\{[^}]*font-size:\s*12px/);
-  assert.match(styles, /\.relay-url\s*\{[^}]*font-size:\s*10px/);
+  assert.match(styles, /\.audit-dialog/);
+  assert.match(styles, /\.rankings-dialog/);
   assert.match(styles, /\.diagnostics-log\s*\{/);
   assert.doesNotMatch(styles, /\.message\.api/);
   assert.doesNotMatch(renderer, /thread\.provider\s*\?\s*"api"/);

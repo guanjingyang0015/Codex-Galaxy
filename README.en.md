@@ -6,7 +6,7 @@
 
 Codex Galaxy is a local desktop utility for switching between Codex accounts and compatible APIs while continuing project tasks saved on the same computer.
 
-**Current version: Codex Galaxy 1.10.3**
+**Current version: Codex Galaxy 1.11.0**
 
 The in-app guide is now organized by stage: **first account setup → daily account switching → failure recovery → features**. Open **Guide** and choose only the stage you need instead of reading one long page.
 
@@ -34,6 +34,14 @@ The in-app guide is now organized by stage: **first account setup → daily acco
 7. If switching fails, open **Log** at the top to inspect or copy the redacted reason; never delete configuration or chat data.
 
 API profiles must support the OpenAI Responses API. API keys stay in encrypted local settings and are not written to project documents or logs.
+
+## API relay audit and ranking
+
+- **API audit** can test a saved API profile or temporarily accept a Base URL, API Key, and model. A temporary key is used only in local memory and is not saved.
+- The audit checks `/models`, Responses output, model listing, reasoning efforts, latency, and usage shape, then gives a 100-point compatibility reference score.
+- Results are uploaded only when **Submit redacted result to public ranking** is checked. The server receives no API key, request body, full output, or chat history.
+- **API ranking** sorts by overall score or most recent test. The homepage icon opens the provider homepage. Ranking reflects public test behavior and cannot prove official upstream origin.
+- The public ranking endpoint is `https://api.vx314490015.cn`, connected to the isolated service through a dedicated Cloudflare Tunnel rather than another project's tunnel or port.
 
 ## History and switching protection since 1.9.5
 
@@ -72,7 +80,7 @@ API profiles must support the OpenAI Responses API. API keys stay in encrypted l
 
 Version 1.9.9 fixes official → API switches that rolled back to the official account. A current Codex official `auth.json` can contain an empty `OPENAI_API_KEY` field; version 1.9.8 incorrectly treated field presence as legacy API authentication and reported `api-auth-legacy`. Galaxy now treats only a non-empty key as a legacy API credential and never leaves official OAuth active in API mode. The captured official login remains encrypted in Galaxy and is restored unchanged when switching back, without requiring a manual official logout or process termination.
 
-Version 1.10.3 reorganizes the in-app guide into four stages: first account setup, daily account switching, failure recovery, and features. Open **Guide** and choose only the stage you need instead of reading one long page.
+Version 1.11.0 adds API relay compatibility audits, a redacted 100-point public ranking, and provider homepage links. It also removes the legacy relay recommendation and project-continuation panels from the main page while preserving account management, local history, and safe large-chat continuation.
 
 When a chat history is large, Galaxy warns before direct resume. Click **Copy new-chat continuation prompt**, create a new chat in the same project, and paste it. The prompt includes the original `codex://threads/...` deep link, so Codex knows exactly which chat to continue.
 

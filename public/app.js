@@ -1,7 +1,7 @@
 const $ = (selector) => document.querySelector(selector);
 const state = {
   profiles: [],
-  version: "1.10.3",
+  version: "1.11.0",
   threads: [],
   currentId: null,
   selectedProfileId: null,
@@ -13,6 +13,7 @@ const state = {
   switchConfirmation: null,
   switching: false,
   testingProfileId: null,
+  auditing: false,
   refreshing: false,
   cleaning: false,
   repairing: false,
@@ -27,7 +28,7 @@ const state = {
   releases: [],
   update: {
     phase: "idle",
-    currentVersion: "1.10.3",
+    currentVersion: "1.11.0",
     latestVersion: null,
     available: false,
     action: "install",
@@ -84,6 +85,8 @@ const translations = {
     "actions.diagnostics": "日志",
     "actions.refresh": "刷新项目",
     "actions.refreshTitle": "重新扫描本机 Codex 项目记录",
+    "actions.audit": "API 检测",
+    "actions.rankings": "API 排名",
     "update.check": "检查更新",
     "update.checking": "检查中…",
     "update.current": "已是最新版",
@@ -96,7 +99,7 @@ const translations = {
     "update.currentNotice": "当前 {version} 已是 GitHub 最新正式版本。",
     "update.cancelled": "已取消更新，当前任务不会受影响。",
     "update.macOpened": "已打开 GitHub 最新版页面。请按 Mac 芯片选择 x64 或 arm64 DMG；当前包未签名，请遵循 macOS 系统提示。",
-    "page.title": "账号与项目",
+    "page.title": "账号与 API",
     "status.boardLabel": "当前使用状态",
     "status.account": "当前账号",
     "status.loginMode": "登录模式",
@@ -104,7 +107,7 @@ const translations = {
     "status.gateway": "本地网关",
     "status.codex": "Codex 状态",
     "status.codexSummary": "{running} · {provider}",
-    "profiles.title": "账号与中转站",
+    "profiles.title": "账号管理",
     "profiles.add": "添加账号",
     "profile.modelAuto": "自动发现",
     "profile.modelAutoPrefix": "自动",
@@ -126,6 +129,7 @@ const translations = {
     "profile.testUnsupported": "接口不兼容",
     "profile.baseUrl": "地址",
     "profile.recentTest": "最近测试",
+    "profile.recentAudit": "最近检测 · {score}/100 · {assessment} · {time}",
     "profile.testNever": "未测试",
     "profile.switchMissingKey": "这个中转站还没有保存 API Key，请先编辑配置并填写 Key。",
     "profile.currentCannotDelete": "当前配置不能删除，请先切换到其他配置。",
@@ -153,15 +157,11 @@ const translations = {
     "profileForm.optional": "（可选）",
     "profileForm.modelPlaceholder": "留空自动发现，或填 gpt-5.6、provider/model",
     "profileForm.protocol": "API 账号始终使用独立纯 API 登录，不需要官方账号。模型 ID 可留空，由中转站模型列表自动选择；接口必须兼容 OpenAI Responses API。",
+    "profileForm.homepage": "平台主页（可选）",
+    "profileForm.homepagePlaceholder": "https://example.com",
     "profileForm.runtimeMode": "运行方式",
     "profileForm.direct": "API 直连（推荐）",
     "profileForm.gateway": "兼容网关（Galaxy 需运行）",
-    "apiGuide.badge": "纯 API",
-    "apiGuide.title": "无官方账号也能用：手机号/邮箱注册中转站即可",
-    "apiGuide.description": "点击中转站即可复制链接。打开后按服务商提示完成开通，再将 <code>Base URL</code> 和 <code>API Key</code> 填入“添加账号”即可使用。",
-    "apiGuide.copyRight": "获取中转站 A 链接",
-    "apiGuide.copyZyg": "获取中转站 B 链接",
-    "apiGuide.copyHint": "点击获取中转站链接",
     "switch.target": "准备切换到",
     "switch.open": "切换并打开 Codex",
     "threads.empty": "还没有本地线程。点击“刷新项目”重新扫描。",
@@ -196,6 +196,42 @@ const translations = {
     "threads.copyLink": "复制深度链接",
     "threads.copyContinuationPrompt": "复制新聊天继续提示",
     "threads.continuationPromptCopied": "已复制新聊天提示。请在同一项目下新建聊天后粘贴发送。",
+    "audit.panelTitle": "API 检测与排名",
+    "audit.intro": "检测已添加的 API，或临时填写地址和 Key。测试只在本机使用密钥，公开排名只保存脱敏指标。",
+    "audit.rankings": "查看排名",
+    "audit.rankingsTitle": "API 中转站测试排名",
+    "audit.rankingsNote": "排名代表社区测试表现，不等于官方上游认证。",
+    "audit.refreshRankings": "刷新排名",
+    "audit.sortOverall": "综合排名",
+    "audit.sortRecent": "最近测试",
+    "audit.adHoc": "测试新 API",
+    "audit.summaryTitle": "最近排名参考",
+    "audit.rankingsLoading": "正在读取排名…",
+    "audit.rankingsUnavailable": "排名服务暂时不可用",
+    "audit.savedProfile": "测试已添加 API",
+    "audit.providerName": "平台名称",
+    "audit.providerNamePlaceholder": "例如：我的 API 平台",
+    "audit.homepage": "平台主页（可选）",
+    "audit.homepagePlaceholder": "https://example.com",
+    "audit.baseUrl": "Base URL",
+    "audit.apiKey": "API Key",
+    "audit.apiKeyPlaceholder": "只用于本次本机测试",
+    "audit.model": "模型 ID（可选）",
+    "audit.modelPlaceholder": "留空则使用 /models 第一个模型",
+    "audit.securityNote": "API Key 不会保存、上传到排名服务或写入日志；排名只接收脱敏测试指标。",
+    "audit.start": "开始检测",
+    "audit.running": "正在检测 API…",
+    "audit.done": "检测完成：{score}/100 · {assessment}",
+    "audit.submit": "将脱敏结果提交到公共排名",
+    "audit.submitted": "脱敏结果已提交到公共排名",
+    "audit.submitFailed": "检测完成，但公共排名提交失败：{message}",
+    "audit.assessment.conforming": "基本符合声明",
+    "audit.assessment.inconclusive": "证据不足",
+    "audit.assessment.suspicious": "存在可疑点",
+    "audit.rank": "第 {rank} 名",
+    "audit.tests": "{count} 次测试",
+    "audit.latest": "最近：{time}",
+    "audit.noHomepage": "未提供主页",
     "threads.repair": "备份并修复旧会话",
     "threads.repairing": "正在备份并修复…",
     "threads.repaired": "旧会话已安全修复，原文件的字节级备份保存在 {path}。现在可以继续该任务。",
@@ -291,7 +327,7 @@ const translations = {
     "diagnostics.opened": "已打开本地日志文件。",
     "diagnostics.truncated": "日志较长，当前只显示最后一段。",
     "tutorial.title": "分阶段使用教程",
-    "tutorial.intro": "按使用阶段阅读教程：先完成一次账号配置，日常按步骤切换，出问题先看日志，超大聊天先复制深度链接新建聊天继续，最后了解本地历史和其他特色功能。当前版本为 v1.10.3。",
+    "tutorial.intro": "按使用阶段阅读教程：先完成一次账号配置，日常按步骤切换，出问题先看日志，超大聊天先复制深度链接新建聊天继续，最后了解本地历史和其他特色功能。当前版本为 v1.11.0。",
     "tutorial.stageNav": "教程阶段",
     "tutorial.stage1.tab": "首次配置",
     "tutorial.stage1.short": "添加账号和模型",
@@ -409,6 +445,8 @@ const translations = {
     "actions.diagnostics": "Log",
     "actions.refresh": "Refresh projects",
     "actions.refreshTitle": "Rescan local Codex project records",
+    "actions.audit": "API audit",
+    "actions.rankings": "API ranking",
     "update.check": "Check updates",
     "update.checking": "Checking…",
     "update.current": "Up to date",
@@ -421,7 +459,7 @@ const translations = {
     "update.currentNotice": "Version {version} is the latest GitHub release.",
     "update.cancelled": "Update cancelled. The current task is unaffected.",
     "update.macOpened": "The latest GitHub release page is open. Choose the x64 or arm64 DMG for your Mac. The current build is unsigned; follow the macOS security prompts.",
-    "page.title": "Accounts and projects",
+    "page.title": "Accounts and APIs",
     "status.boardLabel": "Current usage status",
     "status.account": "Current account",
     "status.loginMode": "Login mode",
@@ -451,6 +489,7 @@ const translations = {
     "profile.testUnsupported": "Incompatible endpoint",
     "profile.baseUrl": "Endpoint",
     "profile.recentTest": "Last test",
+    "profile.recentAudit": "Last audit · {score}/100 · {assessment} · {time}",
     "profile.testNever": "Not tested",
     "profile.switchMissingKey": "This relay has no saved API key. Edit it and enter a key before switching.",
     "profile.currentCannotDelete": "The current configuration cannot be deleted. Switch first.",
@@ -478,15 +517,11 @@ const translations = {
     "profileForm.optional": "(optional)",
     "profileForm.modelPlaceholder": "Leave blank to detect, or enter gpt-5.6, provider/model",
     "profileForm.protocol": "API accounts always use an independent pure-API login and require no official account. Model ID may be left blank for relay catalog discovery. The endpoint must support the OpenAI Responses API.",
+    "profileForm.homepage": "Platform homepage (optional)",
+    "profileForm.homepagePlaceholder": "https://example.com",
     "profileForm.runtimeMode": "Runtime mode",
     "profileForm.direct": "Direct API (recommended)",
     "profileForm.gateway": "Compatibility gateway (Galaxy must run)",
-    "apiGuide.badge": "PURE API",
-    "apiGuide.title": "No official account required: register with a relay provider",
-    "apiGuide.description": "Click a relay provider to copy its link. Open it and follow the provider's instructions to activate access, then add its <code>Base URL</code> and <code>API Key</code> to a new account.",
-    "apiGuide.copyRight": "Get relay A link",
-    "apiGuide.copyZyg": "Get relay B link",
-    "apiGuide.copyHint": "Click to get the relay link",
     "switch.target": "Switch target",
     "switch.open": "Switch and open Codex",
     "threads.empty": "No local threads yet. Click “Refresh projects” to rescan.",
@@ -521,6 +556,42 @@ const translations = {
     "threads.copyLink": "Copy deep link",
     "threads.copyContinuationPrompt": "Copy new-chat continuation prompt",
     "threads.continuationPromptCopied": "Continuation prompt copied. Create a new chat in the same project and paste it.",
+    "audit.panelTitle": "API audit and ranking",
+    "audit.intro": "Test a saved API or enter an address and key temporarily. Keys are used locally; public ranking stores only redacted metrics.",
+    "audit.rankings": "View ranking",
+    "audit.rankingsTitle": "API relay test ranking",
+    "audit.rankingsNote": "Ranking reflects community test performance, not official upstream certification.",
+    "audit.refreshRankings": "Refresh ranking",
+    "audit.sortOverall": "Overall ranking",
+    "audit.sortRecent": "Most recent",
+    "audit.adHoc": "Test new API",
+    "audit.summaryTitle": "Recent ranking reference",
+    "audit.rankingsLoading": "Loading ranking…",
+    "audit.rankingsUnavailable": "Ranking service is temporarily unavailable",
+    "audit.savedProfile": "Test a saved API",
+    "audit.providerName": "Platform name",
+    "audit.providerNamePlaceholder": "e.g. My API platform",
+    "audit.homepage": "Platform homepage (optional)",
+    "audit.homepagePlaceholder": "https://example.com",
+    "audit.baseUrl": "Base URL",
+    "audit.apiKey": "API Key",
+    "audit.apiKeyPlaceholder": "Used only for this local test",
+    "audit.model": "Model ID (optional)",
+    "audit.modelPlaceholder": "Blank uses the first model from /models",
+    "audit.securityNote": "The API key is not saved, uploaded to ranking, or written to logs; ranking receives only redacted metrics.",
+    "audit.start": "Start audit",
+    "audit.running": "Testing API…",
+    "audit.done": "Audit complete: {score}/100 · {assessment}",
+    "audit.submit": "Submit redacted result to public ranking",
+    "audit.submitted": "Redacted result submitted to public ranking",
+    "audit.submitFailed": "Audit finished, but ranking submission failed: {message}",
+    "audit.assessment.conforming": "Basically conforms",
+    "audit.assessment.inconclusive": "Inconclusive",
+    "audit.assessment.suspicious": "Suspicious",
+    "audit.rank": "Rank {rank}",
+    "audit.tests": "{count} tests",
+    "audit.latest": "Latest: {time}",
+    "audit.noHomepage": "No homepage provided",
     "threads.repair": "Back up and repair old session",
     "threads.repairing": "Backing up and repairing…",
     "threads.repaired": "The old session was repaired safely. A byte-exact backup is stored at {path}. You can resume the task now.",
@@ -616,7 +687,7 @@ const translations = {
     "diagnostics.opened": "The local log file was opened.",
     "diagnostics.truncated": "The log is long; only its latest section is shown.",
     "tutorial.title": "Phased usage guide",
-    "tutorial.intro": "Read the guide by stage: configure accounts once, follow the daily switch steps, preserve the scene when something fails, use a deep link to continue oversized chats in a new thread, then learn local history and other features. Current version: v1.10.3.",
+    "tutorial.intro": "Read the guide by stage: configure accounts once, follow the daily switch steps, preserve the scene when something fails, use a deep link to continue oversized chats in a new thread, then learn local history and other features. Current version: v1.11.0.",
     "tutorial.stageNav": "Tutorial stages",
     "tutorial.stage1.tab": "First setup",
     "tutorial.stage1.short": "Accounts and models",
@@ -737,6 +808,7 @@ function applyLanguage() {
   });
   $("#languageSelect").value = currentLanguage;
   renderProfiles();
+  populateAuditProfiles();
   populateProjects();
   renderThreads();
   renderPlugins();
@@ -771,7 +843,7 @@ function openTutorial() {
 }
 
 function operationBusy() {
-  return state.switching || state.refreshing || state.cleaning || state.repairing || Boolean(state.testingProfileId) || updateOperationBusy();
+  return state.switching || state.refreshing || state.cleaning || state.repairing || state.auditing || Boolean(state.testingProfileId) || updateOperationBusy();
 }
 
 function updateOperationBusy(update = state.update) {
@@ -796,13 +868,18 @@ function updateStatusPill() {
 
 function updateOperationControls() {
   const busy = operationBusy();
-  $("#syncBtn").disabled = busy;
+  if ($("#syncBtn")) $("#syncBtn").disabled = busy;
   $("#cleanupBtn").disabled = busy;
   $("#pluginBtn").disabled = busy;
   $("#diagnosticsBtn").disabled = busy;
   $("#addProfileBtn").disabled = busy;
-  $("#search").disabled = busy;
-  $("#projectFilter").disabled = busy;
+  $("#auditBtn").disabled = busy;
+  $("#topRankingsBtn").disabled = busy;
+  $("#rankingsBtn").disabled = busy;
+  $("#adHocAuditBtn").disabled = busy;
+  $("#refreshRankingsBtn").disabled = busy;
+  if ($("#search")) $("#search").disabled = busy;
+  if ($("#projectFilter")) $("#projectFilter").disabled = busy;
   renderUpdateAction();
   $("#profileForm").querySelectorAll("button, input, select").forEach((control) => { control.disabled = busy; });
   updateStatusPill();
@@ -951,10 +1028,12 @@ function updateStatusBoard() {
     running,
     provider: state.codexProvider || t("common.providerNotConfigured"),
   });
-  $("#libraryMeta").textContent = t("threads.summary", {
-    count: state.threads.length,
-    time: state.librarySyncedAt ? formatDate(state.librarySyncedAt) : t("common.notSynced"),
-  });
+  if ($("#libraryMeta")) {
+    $("#libraryMeta").textContent = t("threads.summary", {
+      count: state.threads.length,
+      time: state.librarySyncedAt ? formatDate(state.librarySyncedAt) : t("common.notSynced"),
+    });
+  }
   updateStatusPill();
 }
 
@@ -995,6 +1074,13 @@ function profileLoginModeLabel(profile) {
 
 function profileTestLabel(profile) {
   if (profile.kind !== "api") return "";
+  if (profile.lastAudit?.testedAt) {
+    return t("profile.recentAudit", {
+      score: Math.round(Number(profile.lastAudit.score) || 0),
+      assessment: auditAssessmentLabel(profile.lastAudit.assessment),
+      time: formatDate(profile.lastAudit.testedAt),
+    });
+  }
   const test = profile.lastTest;
   if (!test?.status) return t("profile.testNever");
   const labels = {
@@ -1033,7 +1119,7 @@ function renderProfiles() {
         <div class="profile-actions">
           ${current ? `<span class="profile-status">${t("common.current")}</span>` : ""}
           <button data-action="edit" data-id="${escapeHtml(profile.id)}" title="${t("profile.editTitle")}" aria-label="${t("profile.editTitle")} ${escapeHtml(profile.name)}"${disabled}>${t("common.edit")}</button>
-          ${profile.kind === "official" ? `<button data-action="capture" data-id="${escapeHtml(profile.id)}" title="${t("profile.captureTitle")}"${disabled}>${t("common.capture")}</button>` : `<button data-action="test" data-id="${escapeHtml(profile.id)}" title="${t("profile.testTitle")}"${disabled}>${state.testingProfileId === profile.id ? t("profile.testRunning") : t("common.test")}</button><button data-action="clear-key" data-id="${escapeHtml(profile.id)}" title="${current ? t("profile.currentCannotClear") : profile.hasApiKey ? t("common.clearKey") : t("profile.actions.noKey")}"${disabled || current || !profile.hasApiKey ? " disabled" : ""}>${t("common.clearKey")}</button>`}
+          ${profile.kind === "official" ? `<button data-action="capture" data-id="${escapeHtml(profile.id)}" title="${t("profile.captureTitle")}"${disabled}>${t("common.capture")}</button>` : `<button data-action="test" data-id="${escapeHtml(profile.id)}" title="${t("profile.testTitle")}"${disabled}>${state.testingProfileId === profile.id ? t("profile.testRunning") : t("common.test")}</button><button data-action="audit" data-id="${escapeHtml(profile.id)}" title="${t("audit.adHoc")}"${disabled}>${t("actions.audit")}</button><button data-action="clear-key" data-id="${escapeHtml(profile.id)}" title="${current ? t("profile.currentCannotClear") : profile.hasApiKey ? t("common.clearKey") : t("profile.actions.noKey")}"${disabled || current || !profile.hasApiKey ? " disabled" : ""}>${t("common.clearKey")}</button>`}
           <button data-action="delete" data-id="${escapeHtml(profile.id)}" title="${current ? t("profile.currentCannotDelete") : t("profile.deleteTitle")}"${disabled || current ? " disabled" : ""}>${t("common.delete")}</button>
         </div>
       </div>`;
@@ -1050,6 +1136,7 @@ function renderProfiles() {
 }
 
 function renderThreads() {
+  if (!$("#threads") || !$("#search") || !$("#projectFilter")) return;
   const query = $("#search").value.trim().toLowerCase();
   const project = $("#projectFilter").value;
   const disabled = operationBusy() ? " disabled" : "";
@@ -1071,6 +1158,7 @@ function renderThreads() {
 }
 
 function populateProjects() {
+  if (!$("#projectFilter")) return;
   const previous = $("#projectFilter").value;
   const values = [...new Set(state.threads.map((thread) => thread.cwd).filter(Boolean))].sort();
   $("#projectFilter").innerHTML = `<option value="">${t("common.allProjects")}</option>` + values.map((value) => `<option value="${escapeHtml(value)}">${escapeHtml(value)}</option>`).join("");
@@ -1098,6 +1186,7 @@ async function refresh() {
   $("#codexHome").textContent = snapshot.codex.home;
   applyLanguage();
   renderReleaseRecord();
+  loadRankings().catch(() => {});
   if (snapshot.gateway?.error && snapshot.gateway.error !== state.gatewayError) {
     notice(t("gateway.localFailed", { error: snapshot.gateway.error }), true);
   }
@@ -1442,6 +1531,7 @@ function openProfileForm(profile = null) {
   form.elements.kind.value = profile?.kind || "official";
   form.elements.runtimeMode.value = profile?.runtimeMode || "direct";
   form.elements.baseUrl.value = profile?.baseUrl || "";
+  form.elements.homepage.value = profile?.homepage || "";
   form.elements.apiKey.value = "";
   form.elements.model.value = profile?.model || "";
   $("#profileFormTitle").textContent = profile ? t("profile.editTitle") : t("profile.addTitle");
@@ -1469,6 +1559,142 @@ async function testProfile(id) {
   } finally {
     state.testingProfileId = null;
     updateOperationControls();
+  }
+}
+
+function auditAssessmentLabel(value) {
+  return t(`audit.assessment.${value || "inconclusive"}`);
+}
+
+function renderRankingItems(items, target = $("#rankingPreview")) {
+  if (!target) return;
+  if (!Array.isArray(items) || !items.length) {
+    target.innerHTML = `<div class="empty">${t("audit.rankingsLoading")}</div>`;
+    return;
+  }
+  target.innerHTML = items.slice(0, 5).map((item, index) => `<div class="ranking-item">
+    <span class="ranking-number">${item.rank || index + 1}</span>
+    <div class="ranking-main"><strong>${escapeHtml(item.provider_name || item.base_host)}</strong><small>${escapeHtml(item.model || "")} · ${escapeHtml(t("audit.tests", { count: item.samples || 0 }))}</small></div>
+    <b class="ranking-score">${Math.round(Number(item.average_score) || Number(item.score) || 0)}</b>
+    <small class="ranking-latest">${escapeHtml(t("audit.latest", { time: formatDate(item.last_test) }))}</small>
+    ${safeHomepageForDisplay(item.homepage) ? `<a class="ranking-link" href="${escapeHtml(safeHomepageForDisplay(item.homepage))}" target="_blank" rel="noreferrer">↗</a>` : ""}
+  </div>`).join("");
+}
+
+function safeHomepageForDisplay(value) {
+  try {
+    const url = new URL(String(value || ""));
+    return ["http:", "https:"].includes(url.protocol) && !url.username && !url.password ? url.toString() : "";
+  } catch {
+    return "";
+  }
+}
+
+async function loadRankings(target = $("#rankingPreview"), sort = $("#rankingSort")?.value || "overall") {
+  try {
+    const items = unwrap(await bridge.getRankings(sort));
+    renderRankingItems(items, target);
+    return items;
+  } catch (error) {
+    if (target) target.innerHTML = `<div class="empty">${t("audit.rankingsUnavailable")}</div>`;
+    return [];
+  }
+}
+
+function populateAuditProfiles() {
+  const select = $("#auditProfileSelect");
+  if (!select) return;
+  const profiles = state.profiles.filter((profile) => profile.kind === "api");
+  select.innerHTML = `<option value="">${t("audit.adHoc")}</option>` + profiles.map((profile) => `<option value="${escapeHtml(profile.id)}">${escapeHtml(profile.name)} · ${escapeHtml(profile.baseUrl || "")}</option>`).join("");
+}
+
+function fillAuditForm(profile = null) {
+  const form = $("#relayAuditForm");
+  if (!profile) {
+    form.elements.providerName.value = "";
+    form.elements.homepage.value = "";
+    form.elements.baseUrl.value = "";
+    form.elements.model.value = "";
+    form.elements.apiKey.value = "";
+    form.elements.apiKey.required = true;
+    return;
+  }
+  form.elements.providerName.value = profile.name || "";
+  form.elements.homepage.value = profile.homepage || "";
+  form.elements.baseUrl.value = profile.baseUrl || "";
+  form.elements.model.value = profile.resolvedModel || profile.model || "";
+  form.elements.apiKey.value = "";
+  form.elements.apiKey.required = false;
+}
+
+function openRelayAudit(profile = null) {
+  populateAuditProfiles();
+  const form = $("#relayAuditForm");
+  form.reset();
+  $("#auditProfileSelect").value = profile?.id || "";
+  fillAuditForm(profile);
+  $("#auditResult").hidden = true;
+  $("#relayAuditDialog").showModal();
+}
+
+function renderAuditResult(result) {
+  const box = $("#auditResult");
+  const score = result.score?.total ?? 0;
+  const label = auditAssessmentLabel(result.assessment);
+  box.hidden = false;
+  box.className = `audit-result ${result.assessment || ""}`;
+  box.innerHTML = `<strong>${escapeHtml(t("audit.done", { score, assessment: label }))}</strong><small>${escapeHtml((result.findings || []).join("；"))}</small><button type="button" class="button secondary" data-audit-submit>${t("audit.submit")}</button>`;
+  box.querySelector("[data-audit-submit]")?.addEventListener("click", async () => {
+    try {
+      const form = $("#relayAuditForm");
+      unwrap(await bridge.submitAudit({
+        result,
+        providerName: form.elements.providerName.value,
+        homepage: form.elements.homepage.value,
+      }));
+      notice(t("audit.submitted"));
+  loadRankings().catch(() => {});
+    } catch (error) {
+      notice(t("audit.submitFailed", { message: error.message }), true);
+    }
+  });
+}
+
+async function runRelayAudit(event) {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const data = Object.fromEntries(new FormData(form));
+  const selectedId = String(data.profileId || "");
+  const selected = state.profiles.find((profile) => profile.id === selectedId);
+  const button = form.querySelector("button[type=submit]");
+  state.auditing = true;
+  updateOperationControls();
+  button.disabled = true;
+  button.textContent = t("audit.running");
+  try {
+    const result = selected && !String(data.apiKey || "").trim()
+      ? unwrap(await bridge.auditProfile(selected.id))
+      : unwrap(await bridge.auditRelay({
+        baseUrl: data.baseUrl,
+        apiKey: data.apiKey,
+        model: data.model,
+      }));
+    renderAuditResult(result);
+    if (form.elements.submitRanking.checked) {
+      unwrap(await bridge.submitAudit({ result, providerName: data.providerName, homepage: data.homepage }));
+      notice(t("audit.submitted"));
+      loadRankings().catch(() => {});
+    }
+  } catch (error) {
+    const box = $("#auditResult");
+    box.hidden = false;
+    box.className = "audit-result suspicious";
+    box.innerHTML = `<strong>${escapeHtml(error.message)}</strong>`;
+  } finally {
+    state.auditing = false;
+    updateOperationControls();
+    button.disabled = false;
+    button.textContent = t("audit.start");
   }
 }
 
@@ -1505,10 +1731,34 @@ function closeProfileForm() {
   $("#addProfileBtn").hidden = false;
 }
 
-$("#syncBtn").addEventListener("click", sync);
+if ($("#syncBtn")) $("#syncBtn").addEventListener("click", sync);
 $("#updateBtn").addEventListener("click", handleUpdateAction);
 $("#languageSelect").addEventListener("change", (event) => setLanguage(event.currentTarget.value));
 $("#tutorialBtn").addEventListener("click", openTutorial);
+$("#auditBtn").addEventListener("click", () => {
+  const profile = selectedProfile();
+  openRelayAudit(profile?.kind === "api" ? profile : null);
+});
+$("#topRankingsBtn").addEventListener("click", async () => {
+  $("#rankingsDialog").showModal();
+  await loadRankings($("#rankingsList"));
+});
+$("#rankingsBtn").addEventListener("click", async () => {
+  $("#rankingsDialog").showModal();
+  await loadRankings($("#rankingsList"));
+});
+$("#refreshRankingsBtn").addEventListener("click", () => loadRankings());
+$("#reloadRankings").addEventListener("click", () => loadRankings($("#rankingsList")));
+$("#rankingSort").addEventListener("change", () => loadRankings($("#rankingsList")));
+$("#closeRankings").addEventListener("click", () => $("#rankingsDialog").close());
+$("#adHocAuditBtn").addEventListener("click", () => openRelayAudit());
+$("#closeRelayAudit").addEventListener("click", () => $("#relayAuditDialog").close());
+$("#cancelRelayAudit").addEventListener("click", () => $("#relayAuditDialog").close());
+$("#relayAuditForm").addEventListener("submit", runRelayAudit);
+$("#auditProfileSelect").addEventListener("change", () => {
+  const profile = state.profiles.find((item) => item.id === $("#auditProfileSelect").value);
+  fillAuditForm(profile || null);
+});
 document.querySelectorAll("[data-tutorial-stage]").forEach((button) => {
   button.addEventListener("click", () => selectTutorialStage(button.dataset.tutorialStage));
   button.addEventListener("keydown", (event) => {
@@ -1594,8 +1844,6 @@ $("#addMarketplace").addEventListener("click", async () => {
     $("#marketplaceSource").value = "";
   } catch (error) { notice(error.message, true); }
 });
-$("#search").addEventListener("input", renderThreads);
-$("#projectFilter").addEventListener("change", renderThreads);
 $("#addProfileBtn").addEventListener("click", () => openProfileForm());
 $("#cancelProfileBtn").addEventListener("click", closeProfileForm);
 $("#profileForm [name=kind]").addEventListener("change", updateProfileFields);
@@ -1629,21 +1877,6 @@ $("#copyContinuationPromptBtn").addEventListener("click", async () => {
   notice(t("threads.continuationPromptCopied"));
 });
 $("#repairThreadBtn").addEventListener("click", repairSelectedThread);
-
-document.querySelectorAll(".relay-copy").forEach((button) => {
-  button.addEventListener("click", async () => {
-    try {
-      if (!bridge) throw new Error(t("bridge.notLoaded"));
-      unwrap(await bridge.copyText(button.dataset.copy));
-      button.classList.add("copied");
-      window.clearTimeout(button.copyTimer);
-      button.copyTimer = window.setTimeout(() => button.classList.remove("copied"), 1800);
-      notice(t("relay.copied", { name: button.dataset.name }));
-    } catch (error) {
-      notice(error.message, true);
-    }
-  });
-});
 
 $("#launchBtn").addEventListener("click", () => state.selectedThread && launch(state.selectedThread.id));
 $("#resumeProfiles").addEventListener("click", (event) => {
@@ -1687,6 +1920,7 @@ $("#profiles").addEventListener("click", async (event) => {
   const profile = state.profiles.find((item) => item.id === id);
   if (action.dataset.action === "edit" && profile) return openProfileForm(profile);
   if (action.dataset.action === "test") return testProfile(id);
+  if (action.dataset.action === "audit") return openRelayAudit(profile);
   if (action.dataset.action === "clear-key") return clearProfileKey(id);
   if (action.dataset.action === "delete") return deleteProfile(id);
   if (action.dataset.action === "capture") {
@@ -1700,12 +1934,6 @@ $("#profiles").addEventListener("click", async (event) => {
   }
 });
 
-$("#threads").addEventListener("click", (event) => {
-  const button = event.target.closest("button[data-action]");
-  if (!button || operationBusy()) return;
-  if (button.dataset.action === "detail") showThread(button.dataset.id).catch((error) => notice(error.message, true));
-  if (button.dataset.action === "launch") launch(button.dataset.id);
-});
 
 applyLanguage();
 
