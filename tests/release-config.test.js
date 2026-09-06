@@ -29,7 +29,7 @@ test("release identity stays compatible with 0.1.0 upgrades and preserves user d
   const modelCatalog = await fs.readFile(path.join(root, "model-catalog.js"), "utf8");
   const relayTest = await fs.readFile(path.join(root, "relay-connection.js"), "utf8");
   const releaseNotes = await fs.readFile(path.join(root, "release-notes", `v${packageJson.version}.md`), "utf8");
-  assert.equal(packageJson.version, "1.11.0");
+  assert.equal(packageJson.version, "1.11.1");
   assert.equal(packageJson.author, "Guan Jingyang <guanjingyang@gmail.com>");
   assert.equal(packageJson.license, "MIT");
   assert.equal(packageJson.build.appId, "io.github.codex-galaxy.app");
@@ -110,11 +110,11 @@ test("release identity stays compatible with 0.1.0 upgrades and preserves user d
   assert.match(releaseInfo, /c7e0034525e895bbd0f855cc5edd229098e1f938/);
   assert.match(releaseInfo, /33521136697/);
   assert.deepEqual(releaseHistory(packageJson.version)[0], {
-    version: "1.11.0",
-    tag: "v1.11.0",
+    version: "1.11.1",
+    tag: "v1.11.1",
     commit: null,
     actionsRun: null,
-    url: "https://github.com/guanjingyang0015/Codex-Galaxy/releases/tag/v1.11.0",
+    url: "https://github.com/guanjingyang0015/Codex-Galaxy/releases/tag/v1.11.1",
   });
   assert.match(profilesJs, /PROFILE_SCHEMA_VERSION = 6/);
   assert.match(relayTest, /\/models/);
@@ -156,7 +156,7 @@ test("release identity stays compatible with 0.1.0 upgrades and preserves user d
   assert.match(html, /日常切换/);
   assert.match(html, /data-i18n="tutorial.switch.apiToApi1"/);
   assert.match(html, /id="releaseRecordVersion"/);
-  assert.match(html, /id="releaseRecordVersion">v1\.11\.0</);
+  assert.match(html, /id="releaseRecordVersion">v1\.11\.1</);
   assert.match(renderer, /state\.releases/);
   assert.doesNotMatch(renderer, /thread\.messages \|\| \[\]\)\.slice\(-80\)/);
   assert.match(renderer, /state\.version = String\(snapshot\.version \|\| state\.version\)/);
@@ -164,18 +164,24 @@ test("release identity stays compatible with 0.1.0 upgrades and preserves user d
   assert.doesNotMatch(renderer, /\$\("#appVersion"\)/);
   assert.match(html, /id="relayAuditDialog"/);
   assert.match(html, /id="rankingsDialog"/);
-  assert.match(renderer, /auditProfile/);
-  assert.match(renderer, /submitAudit/);
+  assert.match(renderer, /startAudit/);
+  assert.match(renderer, /onAuditProgress/);
   assert.match(renderer, /getRankings/);
   assert.match(renderer, /expandPluginMarketplace/);
-  assert.match(electronMain, /codex-galaxy:audit-profile/);
+  assert.match(electronMain, /codex-galaxy:start-audit/);
   assert.match(electronMain, /codex-galaxy:get-rankings/);
   assert.match(renderer, /relayAuditDialog/);
   assert.match(renderer, /loadRankings/);
-  assert.match(renderer, /auditProfile/);
+  assert.match(renderer, /startSavedProfileAudit/);
+  assert.doesNotMatch(preload, /submitAudit|auditRelay|auditProfile/);
   assert.match(electronMain, /codex-galaxy:expand-plugin-marketplace/);
   assert.match(preload, /expandPluginMarketplace/);
   assert.doesNotMatch(html, /api-guide|relay-copy|threads-panel|PROJECT THREADS|项目继续入口/);
+  assert.doesNotMatch(html, /submitRanking|audit-submit-choice|将脱敏结果提交到公共排名/);
+  assert.doesNotMatch(html, /auditProfileSelect/);
+  assert.match(html, /auditProgress/);
+  assert.match(html, /auditCompleteDialog/);
+  assert.match(electronMain, /Notification/);
   assert.doesNotMatch(renderer, /bridge\.copyText\(button\.dataset\.copy\)/);
   assert.match(html, /id="languageSelect"/);
   assert.match(html, /guanjingyang@gmail\.com/);
@@ -190,6 +196,7 @@ test("release identity stays compatible with 0.1.0 upgrades and preserves user d
   assert.match(styles, /\.profile-list\s*\{[^}]*overflow:\s*auto/);
   assert.match(styles, /\.audit-dialog/);
   assert.match(styles, /\.rankings-dialog/);
+  assert.match(styles, /\.audit-progress/);
   assert.match(styles, /\.diagnostics-log\s*\{/);
   assert.doesNotMatch(styles, /\.message\.api/);
   assert.doesNotMatch(renderer, /thread\.provider\s*\?\s*"api"/);

@@ -9,7 +9,7 @@
 <body>
   <div class="shell">
     <header class="topbar">
-          <div class="brand"><span class="brand-mark">CG</span><div><div class="brand-name">Codex Galaxy</div><div class="brand-sub">v<span id="appVersionInline">1.11.0</span></div></div></div>
+          <div class="brand"><span class="brand-mark">CG</span><div><div class="brand-name">Codex Galaxy</div><div class="brand-sub">v<span id="appVersionInline">1.11.1</span></div></div></div>
       <div class="top-actions">
         <button id="updateBtn" class="button secondary update-action" data-i18n="update.check">检查更新</button>
         <label class="language-control" title="语言 / Language">
@@ -67,29 +67,33 @@
         <div class="panel audit-panel">
           <div class="panel-head"><div><p class="eyebrow">API AUDIT</p><h2 data-i18n="audit.panelTitle">API 检测与排名</h2></div><button id="rankingsBtn" class="button secondary" data-i18n="audit.rankings">查看排名</button></div>
           <div class="audit-panel-body">
-            <div class="audit-intro" data-i18n="audit.intro">检测已添加的 API，或临时填写地址和 Key。测试只在本机使用密钥，公开排名只保存脱敏指标。</div>
+            <div class="audit-intro" data-i18n="audit.intro">已保存 API 可直接检测；临时 API 才需要填写地址和 Key。检测在后台运行，完成后自动保存并提交脱敏排名。</div>
             <div class="audit-actions"><button id="adHocAuditBtn" class="button primary" data-i18n="audit.adHoc">测试新 API</button><button id="refreshRankingsBtn" class="button secondary" data-i18n="audit.refreshRankings">刷新排名</button></div>
+            <div id="auditProgress" class="audit-progress" role="status" aria-live="polite" hidden><div><span id="auditProgressMessage"></span><strong id="auditProgressPercent">0%</strong></div><progress id="auditProgressBar" max="100" value="0"></progress></div>
             <div class="audit-summary"><span class="mini-label" data-i18n="audit.summaryTitle">最近排名参考</span><div id="rankingPreview" class="ranking-preview"><div class="empty" data-i18n="audit.rankingsLoading">正在读取排名…</div></div></div>
           </div>
         </div>
       </section>
-      <section class="footer-strip"><div><span class="mini-label" data-i18n="footer.codexHome">CODEX HOME</span><code id="codexHome">检测中</code></div><div><span class="mini-label" data-i18n="footer.author">作者邮箱</span><strong>guanjingyang@gmail.com</strong></div><div><span class="mini-label" data-i18n="release.label">最近发布记录</span><strong id="releaseRecordVersion">v1.11.0</strong><a id="releaseRecordLink" href="https://github.com/guanjingyang0015/Codex-Galaxy/releases/tag/v1.11.0" target="_blank" rel="noreferrer" data-i18n="release.github">GitHub Release</a><small id="releaseRecordMeta">本地版本 · Actions 未知</small></div></section>
+      <section class="footer-strip"><div><span class="mini-label" data-i18n="footer.codexHome">CODEX HOME</span><code id="codexHome">检测中</code></div><div><span class="mini-label" data-i18n="footer.author">作者邮箱</span><strong>guanjingyang@gmail.com</strong></div><div><span class="mini-label" data-i18n="release.label">最近发布记录</span><strong id="releaseRecordVersion">v1.11.1</strong><a id="releaseRecordLink" href="https://github.com/guanjingyang0015/Codex-Galaxy/releases/tag/v1.11.1" target="_blank" rel="noreferrer" data-i18n="release.github">GitHub Release</a><small id="releaseRecordMeta">本地版本 · Actions 未知</small></div></section>
     </main>
   </div>
   <dialog id="relayAuditDialog" class="audit-dialog">
     <div class="dialog-head"><div><p class="eyebrow">API AUDIT</p><h2 data-i18n="audit.dialogTitle">测试 API 中转站</h2></div><button id="closeRelayAudit" class="icon-button" title="关闭测试" data-i18n-title="dialog.close" aria-label="关闭测试" data-i18n-aria-label="dialog.close">×</button></div>
     <form id="relayAuditForm" class="audit-form">
-      <label><span data-i18n="audit.savedProfile">测试已添加 API</span><select id="auditProfileSelect" name="profileId"></select></label>
       <label><span data-i18n="audit.providerName">平台名称</span><input name="providerName" maxlength="100" placeholder="例如：我的 API 平台" data-i18n-placeholder="audit.providerNamePlaceholder" /></label>
       <label><span data-i18n="audit.homepage">平台主页（可选）</span><input name="homepage" type="url" placeholder="https://example.com" data-i18n-placeholder="audit.homepagePlaceholder" /></label>
       <label><span data-i18n="audit.baseUrl">Base URL</span><input name="baseUrl" type="url" required placeholder="https://api.example.com/v1" /></label>
       <label><span data-i18n="audit.apiKey">API Key</span><input name="apiKey" type="password" required autocomplete="off" placeholder="只用于本次本机测试" data-i18n-placeholder="audit.apiKeyPlaceholder" /></label>
       <label><span data-i18n="audit.model">模型 ID（可选）</span><input name="model" maxlength="160" placeholder="留空则使用 /models 第一个模型" data-i18n-placeholder="audit.modelPlaceholder" /></label>
       <div class="audit-security-note" data-i18n="audit.securityNote">API Key 不会保存、上传到排名服务或写入日志；排名只接收脱敏测试指标。</div>
-      <label class="audit-submit-choice"><input name="submitRanking" type="checkbox" /> <span data-i18n="audit.submit">将脱敏结果提交到公共排名</span></label>
       <div id="auditResult" class="audit-result" hidden></div>
       <div class="dialog-actions"><button type="button" id="cancelRelayAudit" class="button secondary" data-i18n="common.cancel">取消</button><button class="button primary" data-i18n="audit.start">开始检测</button></div>
     </form>
+  </dialog>
+  <dialog id="auditCompleteDialog" class="audit-complete-dialog">
+    <div class="dialog-head"><div><p class="eyebrow">API AUDIT</p><h2 data-i18n="audit.completeTitle">API 检测完成</h2></div><button id="closeAuditComplete" class="icon-button" title="关闭检测结果" data-i18n-title="audit.completeClose" aria-label="关闭检测结果" data-i18n-aria-label="audit.completeClose">×</button></div>
+    <div class="audit-complete-body"><strong id="auditCompleteSummary"></strong><p id="auditCompleteDetails"></p></div>
+    <div class="dialog-actions"><button id="dismissAuditComplete" class="button primary" data-i18n="audit.completeClose">关闭</button></div>
   </dialog>
   <dialog id="rankingsDialog" class="rankings-dialog">
     <div class="dialog-head"><div><p class="eyebrow">COMMUNITY EVIDENCE</p><h2 data-i18n="audit.rankingsTitle">API 中转站测试排名</h2></div><button id="closeRankings" class="icon-button" title="关闭排名" data-i18n-title="dialog.close" aria-label="关闭排名" data-i18n-aria-label="dialog.close">×</button></div>
@@ -99,7 +103,7 @@
   <dialog id="threadDialog"><div class="dialog-head"><div><p class="eyebrow">THREAD DETAIL</p><h2 id="dialogTitle">线程</h2></div><button id="closeDialog" class="icon-button" title="关闭" data-i18n-title="dialog.close" aria-label="关闭" data-i18n-aria-label="dialog.close">×</button></div><div id="dialogMeta" class="dialog-meta"></div><div id="dialogHealth" class="thread-health" role="status"></div><div id="dialogLargeContext" class="thread-large-context" hidden><strong data-i18n="threads.largeContextTitle">这个聊天历史较大，直接继续可能触发上下文压缩失败</strong><p data-i18n="threads.largeContextText">建议在同一项目下新建聊天，并带上当前聊天的深度链接继续；原聊天会保留，不会被删除。</p><div class="thread-large-context-actions"><button id="copyThreadLinkBtn" class="button secondary" data-i18n="threads.copyLink">复制深度链接</button><button id="copyContinuationPromptBtn" class="button primary" data-i18n="threads.copyContinuationPrompt">复制新聊天继续提示</button></div></div><div id="dialogCompatibility" class="compatibility-note" hidden></div><div id="dialogMessages" class="messages"></div><div class="resume-zone"><span class="mini-label" data-i18n="threads.selectAccountResume">选择账号并继续</span><div id="resumeProfiles" class="resume-profiles"></div></div><div class="dialog-actions"><button id="repairThreadBtn" class="button repair" hidden data-i18n="threads.repair">备份并修复旧会话</button><button id="launchBtn" class="button primary" data-i18n="threads.launchWithCurrent">用当前账号继续</button><button id="copyResumeBtn" class="button secondary" data-i18n="threads.copyResume">复制 resume 命令</button></div></dialog>
   <dialog id="tutorialDialog" class="tutorial-dialog">
     <div class="dialog-head"><div><p class="eyebrow">PHASED USAGE GUIDE</p><h2 data-i18n="tutorial.title">分阶段使用教程</h2></div><button id="closeTutorial" class="icon-button" title="关闭教程" data-i18n-title="dialog.closeTutorial" aria-label="关闭教程" data-i18n-aria-label="dialog.closeTutorial">×</button></div>
-    <div class="tutorial-intro" data-i18n="tutorial.intro">按使用阶段阅读教程：先完成一次账号配置，日常按步骤切换，出问题先看日志，超大聊天先复制深度链接新建聊天继续，最后了解本地历史和其他特色功能。当前版本为 v1.11.0。</div>
+    <div class="tutorial-intro" data-i18n="tutorial.intro">按使用阶段阅读教程：先完成一次账号配置，日常按步骤切换，出问题先看日志，超大聊天先复制深度链接新建聊天继续，最后了解本地历史和其他特色功能。当前版本为 v1.11.1。</div>
     <nav class="tutorial-stage-tabs" role="tablist" aria-label="教程阶段" data-i18n-aria-label="tutorial.stageNav">
       <button type="button" role="tab" class="tutorial-stage-tab active" data-tutorial-stage="setup" aria-selected="true" aria-controls="tutorial-stage-setup" tabindex="0"><span class="stage-index">1</span><span><strong data-i18n="tutorial.stage1.tab">首次配置</strong><small data-i18n="tutorial.stage1.short">添加账号和模型</small></span></button>
       <button type="button" role="tab" class="tutorial-stage-tab" data-tutorial-stage="switch" aria-selected="false" aria-controls="tutorial-stage-switch" tabindex="-1"><span class="stage-index">2</span><span><strong data-i18n="tutorial.stage2.tab">日常切换</strong><small data-i18n="tutorial.stage2.short">按步骤切换账号</small></span></button>
@@ -141,6 +145,7 @@
           <article class="tutorial-feature"><strong data-i18n="tutorial.feature.historyTitle">本地历史连续</strong><p data-i18n="tutorial.feature.historyText">项目、SQLite 索引和 rollout 历史保留在同一个 Codex Home，跨不同 provider 继续项目。</p></article>
           <article class="tutorial-feature"><strong data-i18n="tutorial.feature.modelsTitle">模型目录</strong><p data-i18n="tutorial.feature.modelsText">API 模型 ID 可留空自动发现；填写具体 GPT 型号时仍会读取完整目录，并保留你的型号作为默认值。</p></article>
           <article class="tutorial-feature"><strong data-i18n="tutorial.feature.gatewayTitle">直连与兼容网关</strong><p data-i18n="tutorial.feature.gatewayText">直连模式让 Codex 直接访问 Base URL；兼容网关模式使用本机回环网关，需要 Galaxy 保持运行。</p></article>
+          <article class="tutorial-feature"><strong data-i18n="tutorial.feature.auditTitle">后台 API 检测</strong><p data-i18n="tutorial.feature.auditText">已保存 API 点击检测后会直接读取本机加密配置。检测在后台运行并显示剩余时间，成功后自动提交脱敏排名，完成时弹窗提醒。</p></article>
           <article class="tutorial-feature"><strong data-i18n="tutorial.feature.toolsTitle">插件、刷新和清理</strong><p data-i18n="tutorial.feature.toolsText">插件窗口管理本地插件市场；刷新只重建列表；清理数据会先创建备份。</p></article>
           <article class="tutorial-feature"><strong data-i18n="tutorial.feature.updateTitle">安全更新</strong><p data-i18n="tutorial.feature.updateText">Windows 更新会核对官方 Release 地址和 SHA-256；覆盖安装不会删除账号和本地记录。</p></article>
         </div>

@@ -216,20 +216,24 @@ dialog::backdrop { background: rgba(0, 0, 0, 0.72); }
 .diagnostics-toolbar code { display: block; max-width: 560px; overflow: hidden; color: #c8ced4; font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
 .diagnostics-actions { display: flex; flex-wrap: wrap; gap: 7px; }
 .diagnostics-log { min-height: 300px; max-height: 55vh; margin: 0; padding: 15px 22px; overflow: auto; background: #101316; color: #cbd3d8; font: 10px/1.6 ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace; white-space: pre-wrap; overflow-wrap: anywhere; }
-.audit-dialog, .rankings-dialog { width: min(760px, calc(100vw - 48px)); }
+.audit-dialog, .rankings-dialog, .audit-complete-dialog { width: min(760px, calc(100vw - 48px)); }
 .audit-form { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 11px 14px; padding: 16px 22px 0; }
 .audit-form label { display: block; color: var(--muted); font-size: 11px; }
-.audit-form label:first-child, .audit-form label:nth-child(2), .audit-form .audit-security-note, .audit-form .audit-submit-choice, .audit-form .audit-result, .audit-form .dialog-actions { grid-column: 1 / -1; }
+.audit-form label:first-child, .audit-form label:nth-child(2), .audit-form .audit-security-note, .audit-form .audit-result, .audit-form .dialog-actions { grid-column: 1 / -1; }
 .audit-form input, .audit-form select { display: block; width: 100%; margin-top: 5px; padding: 9px 10px; border: 1px solid var(--line); border-radius: 6px; outline: none; background: var(--surface-3); color: var(--text); }
 .audit-form input:focus, .audit-form select:focus { border-color: var(--blue); }
 .audit-security-note { padding: 10px 12px; border-left: 3px solid #4d8f75; background: #14201b; color: #b9d8c9; font-size: 10px; line-height: 1.6; }
-.audit-submit-choice { display: flex !important; align-items: center; gap: 7px; color: var(--text) !important; }
-.audit-submit-choice input { width: auto; margin: 0; accent-color: var(--accent); }
 .audit-result { display: grid; gap: 7px; padding: 12px; border: 1px solid #4d8f75; border-radius: 7px; background: #17241f; color: #ccebdc; font-size: 11px; line-height: 1.55; }
 .audit-result.inconclusive { border-color: #8d6d38; background: #2b2417; color: #f3d391; }
 .audit-result.suspicious { border-color: #714a4a; background: #291b1b; color: #ffc1c1; }
 .audit-result small { color: inherit; opacity: 0.85; }
-.audit-result .button { justify-self: start; }
+.audit-progress { display: grid; gap: 7px; padding: 10px 12px; border: 1px solid #3d6958; border-radius: 7px; background: #122019; color: #b9d8c9; font-size: 10px; }
+.audit-progress > div { display: flex; justify-content: space-between; gap: 10px; }
+.audit-progress strong { color: var(--accent); }
+.audit-progress progress { width: 100%; height: 7px; accent-color: var(--accent); }
+.audit-complete-body { display: grid; gap: 9px; padding: 18px 22px 0; color: var(--muted); font-size: 11px; line-height: 1.6; }
+.audit-complete-body strong { color: var(--text); font-size: 14px; }
+.audit-complete-body p { margin: 0; white-space: pre-wrap; }
 .rankings-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 22px; border-bottom: 1px solid var(--line-soft); color: var(--muted); font-size: 10px; line-height: 1.5; }
 .rankings-list { max-height: 62vh; overflow: auto; padding: 14px 22px 20px; }
 

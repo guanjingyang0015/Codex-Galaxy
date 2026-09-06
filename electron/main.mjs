@@ -1,4 +1,4 @@
-import { app, BrowserWindow, clipboard, dialog, ipcMain, Menu, net, safeStorage, screen, shell, Tray } from "electron";
+import { app, BrowserWindow, clipboard, dialog, ipcMain, Menu, net, Notification, safeStorage, screen, shell, Tray } from "electron";
 import fs from "node:fs/promises";
 import path from "node:path";
 import os from "node:os";
@@ -45,6 +45,9 @@ let gatewayStartupError = null;
 let gatewayHandoffCompleted = false;
 let switchConfirmationSequence = 0;
 const pendingSwitchConfirmations = new Map();
+const auditTasks = new Map();
+let auditTaskSequence = 0;
+let auditCompletionPending = false;
 let codexVersionOverlay = null;
 let codexVersionOverlayReady = false;
 let codexVersionOverlayTimer = null;
@@ -106,6 +109,7 @@ async function getState() {
     gateway: { ...responsesGateway.status, error: gatewayStartupError },
     plugins,
     automation: { settings: automation.settings, completedFiles: automation.preview.files.length, completedRuns: automation.preview.rows || 0, completedBytes: automation.preview.bytes },
+    audit: [...auditTasks.entries()].map(([taskId, task]) => ({ taskId, ...(task.progress || {}) }))[0] || null,
     releases: releaseHistory(app.getVersion()),
     update: { ...appUpdater.status },
   };
@@ -146,6 +150,10 @@ function showMainWindow() {
   if (!mainWindow || mainWindow.isDestroyed()) createWindow();
   mainWindow?.show();
   mainWindow?.focus();
+  if (auditCompletionPending) {
+    auditCompletionPending = false;
+    updateGatewayTray();
+  }
 }
 
 function hideCodexVersionOverlay() {
@@ -274,11 +282,14 @@ function startCodexVersionOverlay() {
 async function quitFromTray() {
   if (gatewayHandoffCompleted) return;
   const gatewayMode = responsesGateway.status.running && responsesGateway.status.runtimeMode === "gateway";
+  const auditRunning = auditTasks.size > 0;
   const options = {
     type: "warning",
     title: "退出 Codex Galaxy",
     message: "退出 Galaxy 后，Codex 仍会保持运行。",
-    detail: gatewayMode
+    detail: auditRunning
+      ? "API 检测仍在后台运行。现在退出会中断检测，已完成的本地账号和聊天数据不会受影响。"
+      : gatewayMode
       ? "Galaxy 会把本地 Responses 网关移交给独立后台服务。这样关闭 Galaxy 不会关闭 Codex，也不会让官方或中转 API 登录失效；请在当前回复完成后再退出。"
       : "这只会结束 Codex Galaxy 管理窗口，不会关闭 Codex 或修改登录状态。",
     buttons: ["保持运行", "仍然退出"],
@@ -316,20 +327,26 @@ async function quitFromTray() {
 function updateGatewayTray() {
   const gatewayStatus = responsesGateway.status;
   const gatewayMode = gatewayStatus.running && gatewayStatus.runtimeMode !== "direct";
-  if (!gatewayMode) {
+  const auditRunning = auditTasks.size > 0;
+  if (!gatewayMode && !auditRunning && !auditCompletionPending) {
     tray?.destroy();
     tray = null;
     return;
   }
-  if (tray) return;
-  tray = new Tray(path.join(appRoot, "build", "icon.png"));
-  tray.setToolTip("Codex Galaxy - 本地 Responses 网关运行中");
-  tray.setContextMenu(Menu.buildFromTemplate([
-    { label: "打开 Codex Galaxy", click: showMainWindow },
-    { type: "separator" },
-    { label: "退出", click: () => { quitFromTray().catch(() => {}); } },
-  ]));
-  tray.on("double-click", showMainWindow);
+  if (!tray) {
+    tray = new Tray(path.join(appRoot, "build", "icon.png"));
+    tray.setContextMenu(Menu.buildFromTemplate([
+      { label: "打开 Codex Galaxy", click: showMainWindow },
+      { type: "separator" },
+      { label: "退出", click: () => { quitFromTray().catch(() => {}); } },
+    ]));
+    tray.on("double-click", showMainWindow);
+  }
+  tray.setToolTip(auditRunning
+    ? "Codex Galaxy - API 检测在后台运行"
+    : auditCompletionPending
+      ? "Codex Galaxy - API 检测已完成"
+      : "Codex Galaxy - 本地 Responses 网关运行中");
 }
 
 async function prepareProfileRuntime(profile) {
@@ -631,6 +648,109 @@ function progressReporter(event, operationId, channel = "codex-galaxy:switch-pro
   };
 }
 
+function sendAuditProgress(sender, taskId, progress) {
+  const task = auditTasks.get(taskId);
+  if (task) task.progress = { ...progress };
+  if (!sender || sender.isDestroyed()) return;
+  sender.send("codex-galaxy:audit-progress", { taskId, ...progress });
+}
+
+function auditEstimateMs() {
+  return 5 * 12_000 + 8_000;
+}
+
+function auditNotification(title, body) {
+  if (Notification.isSupported()) {
+    const notification = new Notification({ title, body });
+    notification.on("click", showMainWindow);
+    notification.show();
+  } else if (process.platform === "win32" && tray) {
+    tray.displayBalloon({ title, content: body, iconType: "info" });
+  }
+}
+
+async function runAuditTask(sender, taskId, request) {
+  const startedAt = Date.now();
+  const report = (progress) => sendAuditProgress(sender, taskId, {
+    ...progress,
+    estimatedTotalMs: Math.max(auditEstimateMs(), Number(progress.estimatedTotalMs) || 0),
+    startedAt,
+    estimatedRemainingMs: Math.max(0, Number(progress.estimatedRemainingMs) || 0),
+  });
+  const probeReport = (progress) => report({
+    ...progress,
+    percent: Math.min(90, Math.round((Number(progress.percent) || 0) * 0.9)),
+    estimatedRemainingMs: Math.max(0, Number(progress.estimatedRemainingMs) || 0) + 8_000,
+  });
+  try {
+    const selectedProfileId = String(request?.profileId || "");
+    const result = selectedProfileId
+      ? await auditApiProfile(selectedProfileId, dataPaths, {
+        fetcher: (url, options) => net.fetch(url, options),
+        onProgress: probeReport,
+      })
+      : await auditRelay(request?.input || {}, {
+        fetcher: (url, options) => net.fetch(url, options),
+        onProgress: probeReport,
+      });
+    let ranking = { skipped: true };
+    report({
+      percent: 94,
+      stage: "ranking",
+      message: "正在保存脱敏检测结果",
+      completed: 5,
+      total: 5,
+      elapsedMs: Date.now() - startedAt,
+      estimatedRemainingMs: 8_000,
+    });
+    if (result?.status === "ok" && result?.model && result?.baseHost) {
+      ranking = await submitAuditForRanking(result, {
+        providerName: request?.providerName || result?.profile?.name || "",
+        homepage: request?.homepage || result?.profile?.homepage || "",
+        fetcher: (url, options) => net.fetch(url, options),
+      }).catch((error) => ({ error: String(error?.message || error).slice(0, 220) }));
+    }
+    const value = { result, ranking };
+    sendAuditProgress(sender, taskId, {
+      percent: 100,
+      stage: "complete",
+      message: "API 检测完成",
+      completed: 5,
+      total: 5,
+      elapsedMs: Date.now() - startedAt,
+      estimatedRemainingMs: 0,
+      done: true,
+      value,
+    });
+    const score = result?.score?.total;
+    auditCompletionPending = !mainWindow || mainWindow.isDestroyed() || !mainWindow.isVisible();
+    const english = request?.language === "en";
+    auditNotification(english ? "Codex Galaxy API audit complete" : "Codex Galaxy API 检测完成", score == null
+      ? (english ? "The audit is complete. Open Galaxy to view the result." : "检测已完成，请回到 Galaxy 查看结果。")
+      : (english ? `Audit complete. Compatibility reference score: ${score}/100.` : `检测完成，兼容性参考分 ${score}/100。`));
+    return value;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    sendAuditProgress(sender, taskId, {
+      percent: 100,
+      stage: "error",
+      message,
+      completed: 0,
+      total: 5,
+      elapsedMs: Date.now() - startedAt,
+      estimatedRemainingMs: 0,
+      done: true,
+      error: message,
+    });
+    auditCompletionPending = !mainWindow || mainWindow.isDestroyed() || !mainWindow.isVisible();
+    auditNotification(request?.language === "en" ? "Codex Galaxy API audit failed" : "Codex Galaxy API 检测失败", message);
+    throw error;
+  } finally {
+    auditTasks.delete(taskId);
+    updateGatewayTray();
+  }
+}
+
 async function confirmRunningCodexSwitch(event) {
   const running = await findCodexWriterProcesses();
   if (!running.length) return true;
@@ -741,17 +861,24 @@ function registerHandlers() {
   ipcMain.handle("codex-galaxy:test-profile", (_, id) => result(() => testApiProfile(id, dataPaths, {
     fetcher: (url, options) => net.fetch(url, options),
   }), "test-profile"));
-  ipcMain.handle("codex-galaxy:audit-profile", (_, id) => result(() => auditApiProfile(id, dataPaths, {
-    fetcher: (url, options) => net.fetch(url, options),
-  }), "audit-profile"));
-  ipcMain.handle("codex-galaxy:audit-relay", (_, input) => result(() => auditRelay(input, {
-    fetcher: (url, options) => net.fetch(url, options),
-  }), "audit-relay"));
-  ipcMain.handle("codex-galaxy:submit-audit", (_, request) => result(() => submitAuditForRanking(request?.result, {
-    providerName: request?.providerName,
-    homepage: request?.homepage,
-    fetcher: (url, options) => net.fetch(url, options),
-  }), "submit-audit"));
+  ipcMain.handle("codex-galaxy:start-audit", (event, request) => result(() => {
+    if (auditTasks.size) throw new Error("已有 API 检测正在后台运行，请等待完成。");
+    const taskId = `audit-${process.pid}-${Date.now()}-${++auditTaskSequence}`;
+    const sender = event.sender;
+    auditTasks.set(taskId, {
+      sender,
+      progress: {
+        percent: 0,
+        stage: "prepare",
+        message: "正在准备后台检测",
+        estimatedRemainingMs: auditEstimateMs(),
+      },
+    });
+    auditCompletionPending = false;
+    updateGatewayTray();
+    void runAuditTask(sender, taskId, request).catch(() => {});
+    return { taskId, estimatedTotalMs: auditEstimateMs() };
+  }, "start-audit"));
   ipcMain.handle("codex-galaxy:get-rankings", (_, sort) => result(() => fetchRelayRankings({
     sort,
     fetcher: (url, options) => net.fetch(url, options),
@@ -966,7 +1093,7 @@ function createWindow() {
   window.loadFile(path.join(appRoot, "public", "index.html"));
   window.once("ready-to-show", () => window.show());
   window.on("close", (event) => {
-    if (!quitting && responsesGateway.status.running && responsesGateway.status.runtimeMode === "gateway") {
+    if (!quitting && (auditTasks.size > 0 || (responsesGateway.status.running && responsesGateway.status.runtimeMode === "gateway"))) {
       event.preventDefault();
       window.hide();
     }
@@ -1028,6 +1155,6 @@ app.on("will-quit", () => {
 });
 
 app.on("window-all-closed", () => {
-  if (responsesGateway.status.running && responsesGateway.status.runtimeMode === "gateway") return;
+  if (auditTasks.size > 0 || (responsesGateway.status.running && responsesGateway.status.runtimeMode === "gateway")) return;
   if (process.platform !== "darwin") app.quit();
 });

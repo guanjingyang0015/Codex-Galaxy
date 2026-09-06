@@ -19,7 +19,7 @@ npm test
 npm start
 ```
 
-Keep changes focused. Add or update a regression test for authentication, provider switching, history compatibility, gateway behavior, or release metadata changes.
+Keep changes focused. Add or update a regression test for authentication, provider switching, history compatibility, gateway behavior, background audit progress, or release metadata changes. Saved-profile audit tests must prove the encrypted profile key is consumed in the main process without being exposed to renderer fields or logs.
 
 Before submitting a pull request:
 

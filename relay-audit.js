@@ -265,6 +265,7 @@ export async function auditRelay(input, {
   fetcher = globalThis.fetch,
   timeoutMs = DEFAULT_TIMEOUT_MS,
   efforts = EFFORTS,
+  onProgress = () => {},
 } = {}) {
   const baseUrl = validBaseUrl(input?.baseUrl);
   const apiKey = String(input?.apiKey || "").trim();
@@ -272,7 +273,29 @@ export async function auditRelay(input, {
   const testedAt = new Date().toISOString();
   if (!baseUrl) return { status: "invalid", testedAt, reason: "Base URL 格式不正确", findings: ["Base URL 格式不正确"] };
   if (!apiKey) return { status: "auth", testedAt, reason: "API Key 不能为空", findings: ["API Key 不能为空"] };
+  const steps = efforts.filter((item) => EFFORTS.includes(item));
+  const total = steps.length + 1;
+  const estimateMs = Math.max(1000, total * Math.max(1000, Number(timeoutMs) || DEFAULT_TIMEOUT_MS));
+  const startedAt = Date.now();
+  const report = (completed, stage, message) => {
+    const elapsedMs = Date.now() - startedAt;
+    const projectedTotalMs = completed > 0
+      ? Math.min(estimateMs, Math.max(elapsedMs + 1000, Math.round((elapsedMs / completed) * total)))
+      : estimateMs;
+    onProgress({
+      percent: Math.max(0, Math.min(100, Math.round((completed / total) * 100))),
+      stage,
+      message,
+      completed,
+      total,
+      elapsedMs,
+      estimatedTotalMs: projectedTotalMs,
+      estimatedRemainingMs: Math.max(0, projectedTotalMs - elapsedMs),
+    });
+  };
+  report(0, "models", "正在读取模型列表");
   const modelsResponse = await probeModels(baseUrl, apiKey, selectedModel, fetcher, timeoutMs);
+  report(1, "models", "模型列表读取完成");
   const modelsOk = modelsResponse.status >= 200 && modelsResponse.status < 300;
   const effectiveModel = selectedModel || modelId(modelsResponse.entries[0]);
   const selectedFound = Boolean(modelsResponse.selected && effectiveModel);
@@ -283,8 +306,10 @@ export async function auditRelay(input, {
     findings: ["没有找到可用于测试的模型"],
   };
   const results = [];
-  for (const effort of efforts.filter((item) => EFFORTS.includes(item))) {
+  for (const [index, effort] of steps.entries()) {
+    report(index + 1, effort, `正在测试 ${effort} 推理强度`);
     results.push(await probeEffort(baseUrl, apiKey, effectiveModel, effort, fetcher, timeoutMs));
+    report(index + 2, effort, `${effort} 推理强度测试完成`);
   }
   const successful = results.filter((item) => item.ok && item.canary);
   const status = modelsResponse.status === 401 || modelsResponse.status === 403
@@ -334,12 +359,14 @@ export async function auditRelay(input, {
       ? `已完成 ${results.length} 个推理强度测试，综合分 ${score}/100`
       : modelsResponse.error?.message || "中转站测试未完成",
   };
+  report(total, "complete", "API 检测完成");
   return result;
 }
 
 export async function auditApiProfile(id, paths, options = {}) {
   const profile = await profileForSwitch(id, paths);
   if (profile.kind !== "api") throw new Error("只有中转 API 配置可以测试。");
+  if (!profile.apiKey) throw new Error("这个 API 账号没有保存 Key，请先编辑账号并填写 Key。");
   const result = await auditRelay({
     baseUrl: profile.baseUrl,
     apiKey: profile.apiKey,

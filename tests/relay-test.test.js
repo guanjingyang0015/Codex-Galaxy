@@ -4,7 +4,7 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { clearApiKey, publicProfiles, saveProfile } from "../profiles.js";
-import { testApiProfile } from "../relay-connection.js";
+import { auditApiProfile, testApiProfile } from "../relay-connection.js";
 
 async function fixture() {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), "codex-galaxy-relay-test-"));
@@ -107,4 +107,30 @@ test("relay connection test rejects unsafe legacy Base URLs before fetching", as
     assert.equal(result.status, "invalid");
     assert.equal(result.message, "Base URL 格式不正确");
   }
+});
+
+test("saved API profile audit uses the encrypted profile key without renderer fields", async () => {
+  const paths = await fixture();
+  const progress = [];
+  const result = await auditApiProfile("relay-test", paths, {
+    timeoutMs: 1000,
+    onProgress: (item) => progress.push(item),
+    fetcher: async (url, options) => {
+      assert.equal(options.headers.authorization, "Bearer synthetic-api-key");
+      if (url.endsWith("/models")) {
+        return new Response(JSON.stringify({ data: [{ id: "synthetic-model" }] }), { status: 200 });
+      }
+      return new Response(JSON.stringify({
+        id: "response-id",
+        output_text: "RELAY-CANARY-OK",
+        usage: { input_tokens: 1, output_tokens: 1, total_tokens: 2 },
+      }), { status: 200 });
+    },
+  });
+  assert.equal(result.status, "ok");
+  assert.equal(result.score.total, 100);
+  assert.equal(result.profile.name, "Synthetic relay");
+  assert.equal(progress.at(0).stage, "models");
+  assert.equal(progress.at(-1).stage, "complete");
+  assert.equal((await publicProfiles(paths)).profiles[0].lastAudit.score, 100);
 });

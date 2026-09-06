@@ -9,9 +9,7 @@ contextBridge.exposeInMainWorld("codexGalaxy", {
   deleteProfile: (id) => ipcRenderer.invoke("codex-galaxy:delete-profile", id),
   clearProfileKey: (id) => ipcRenderer.invoke("codex-galaxy:clear-profile-key", id),
   testProfile: (id) => ipcRenderer.invoke("codex-galaxy:test-profile", id),
-  auditProfile: (id) => ipcRenderer.invoke("codex-galaxy:audit-profile", id),
-  auditRelay: (input) => ipcRenderer.invoke("codex-galaxy:audit-relay", input),
-  submitAudit: (request) => ipcRenderer.invoke("codex-galaxy:submit-audit", request),
+  startAudit: (request) => ipcRenderer.invoke("codex-galaxy:start-audit", request),
   getRankings: (sort) => ipcRenderer.invoke("codex-galaxy:get-rankings", sort),
   captureProfile: (id) => ipcRenderer.invoke("codex-galaxy:capture-profile", id),
   switchProfile: (profileId, operationId) => ipcRenderer.invoke("codex-galaxy:switch-profile", { profileId, operationId }),
@@ -44,6 +42,11 @@ contextBridge.exposeInMainWorld("codexGalaxy", {
     const listener = (_, progress) => callback(progress);
     ipcRenderer.on("codex-galaxy:cleanup-progress", listener);
     return () => ipcRenderer.removeListener("codex-galaxy:cleanup-progress", listener);
+  },
+  onAuditProgress: (callback) => {
+    const listener = (_, progress) => callback(progress);
+    ipcRenderer.on("codex-galaxy:audit-progress", listener);
+    return () => ipcRenderer.removeListener("codex-galaxy:audit-progress", listener);
   },
   onUpdateStatus: (callback) => {
     const listener = (_, status) => callback(status);

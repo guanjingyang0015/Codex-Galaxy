@@ -1,7 +1,7 @@
 const $ = (selector) => document.querySelector(selector);
 const state = {
   profiles: [],
-  version: "1.11.0",
+  version: "1.11.1",
   threads: [],
   currentId: null,
   selectedProfileId: null,
@@ -13,7 +13,7 @@ const state = {
   switchConfirmation: null,
   switching: false,
   testingProfileId: null,
-  auditing: false,
+  auditTask: null,
   refreshing: false,
   cleaning: false,
   repairing: false,
@@ -28,7 +28,7 @@ const state = {
   releases: [],
   update: {
     phase: "idle",
-    currentVersion: "1.11.0",
+    currentVersion: "1.11.1",
     latestVersion: null,
     available: false,
     action: "install",
@@ -37,6 +37,7 @@ const state = {
   },
 };
 const bridge = window.codexGalaxy;
+let auditCountdownTimer = null;
 
 const translations = {
   "zh-CN": {
@@ -197,7 +198,7 @@ const translations = {
     "threads.copyContinuationPrompt": "复制新聊天继续提示",
     "threads.continuationPromptCopied": "已复制新聊天提示。请在同一项目下新建聊天后粘贴发送。",
     "audit.panelTitle": "API 检测与排名",
-    "audit.intro": "检测已添加的 API，或临时填写地址和 Key。测试只在本机使用密钥，公开排名只保存脱敏指标。",
+    "audit.intro": "已保存 API 可直接检测；临时 API 才需要填写地址和 Key。检测在后台运行，完成后自动保存并提交脱敏排名。",
     "audit.rankings": "查看排名",
     "audit.rankingsTitle": "API 中转站测试排名",
     "audit.rankingsNote": "排名代表社区测试表现，不等于官方上游认证。",
@@ -218,13 +219,20 @@ const translations = {
     "audit.apiKeyPlaceholder": "只用于本次本机测试",
     "audit.model": "模型 ID（可选）",
     "audit.modelPlaceholder": "留空则使用 /models 第一个模型",
-    "audit.securityNote": "API Key 不会保存、上传到排名服务或写入日志；排名只接收脱敏测试指标。",
+    "audit.securityNote": "临时 Key 只用于本次本机检测，不会保存、上传或写入日志；检测完成后只自动提交脱敏指标。",
     "audit.start": "开始检测",
     "audit.running": "正在检测 API…",
+    "audit.dialogTitle": "测试临时 API",
+    "audit.backgroundStarted": "{name} 已在后台开始检测，预计最多约 {time}。你可以继续使用其他功能。",
+    "audit.progress": "后台检测 {percent}% · {stage} · 预计还需 {time}",
+    "audit.progressUnknown": "后台检测 {percent}% · {stage} · 正在估算剩余时间",
     "audit.done": "检测完成：{score}/100 · {assessment}",
-    "audit.submit": "将脱敏结果提交到公共排名",
-    "audit.submitted": "脱敏结果已提交到公共排名",
-    "audit.submitFailed": "检测完成，但公共排名提交失败：{message}",
+    "audit.rankingSaved": "脱敏结果已自动提交到公共排名。",
+    "audit.rankingFailed": "检测已完成，但脱敏排名提交失败：{message}",
+    "audit.rankingSkipped": "检测未成功完成，因此没有提交公共排名。",
+    "audit.completeTitle": "API 检测完成",
+    "audit.completeClose": "关闭",
+    "audit.failedTitle": "API 检测失败",
     "audit.assessment.conforming": "基本符合声明",
     "audit.assessment.inconclusive": "证据不足",
     "audit.assessment.suspicious": "存在可疑点",
@@ -327,7 +335,7 @@ const translations = {
     "diagnostics.opened": "已打开本地日志文件。",
     "diagnostics.truncated": "日志较长，当前只显示最后一段。",
     "tutorial.title": "分阶段使用教程",
-    "tutorial.intro": "按使用阶段阅读教程：先完成一次账号配置，日常按步骤切换，出问题先看日志，超大聊天先复制深度链接新建聊天继续，最后了解本地历史和其他特色功能。当前版本为 v1.11.0。",
+    "tutorial.intro": "按使用阶段阅读教程：先完成一次账号配置，日常按步骤切换，出问题先看日志，超大聊天先复制深度链接新建聊天继续，最后了解本地历史和其他特色功能。当前版本为 v1.11.1。",
     "tutorial.stageNav": "教程阶段",
     "tutorial.stage1.tab": "首次配置",
     "tutorial.stage1.short": "添加账号和模型",
@@ -394,6 +402,8 @@ const translations = {
     "tutorial.feature.modelsText": "API 模型 ID 可留空自动发现；填写具体 GPT 型号时仍会读取完整目录，并保留你的型号作为默认值。",
     "tutorial.feature.gatewayTitle": "直连与兼容网关",
     "tutorial.feature.gatewayText": "直连模式让 Codex 直接访问 Base URL；兼容网关模式使用本机回环网关，需要 Galaxy 保持运行。",
+    "tutorial.feature.auditTitle": "后台 API 检测",
+    "tutorial.feature.auditText": "已保存 API 点击检测后会直接读取本机加密配置。检测在后台运行并显示剩余时间，成功后自动提交脱敏排名，完成时弹窗提醒。",
     "tutorial.feature.toolsTitle": "插件、刷新和清理",
     "tutorial.feature.toolsText": "插件窗口管理本地插件市场；刷新只重建列表；清理数据会先创建备份。",
     "tutorial.feature.updateTitle": "安全更新",
@@ -557,7 +567,7 @@ const translations = {
     "threads.copyContinuationPrompt": "Copy new-chat continuation prompt",
     "threads.continuationPromptCopied": "Continuation prompt copied. Create a new chat in the same project and paste it.",
     "audit.panelTitle": "API audit and ranking",
-    "audit.intro": "Test a saved API or enter an address and key temporarily. Keys are used locally; public ranking stores only redacted metrics.",
+    "audit.intro": "Saved APIs can be tested directly; only temporary APIs require an address and key. Audits run in the background and automatically submit redacted results.",
     "audit.rankings": "View ranking",
     "audit.rankingsTitle": "API relay test ranking",
     "audit.rankingsNote": "Ranking reflects community test performance, not official upstream certification.",
@@ -578,13 +588,20 @@ const translations = {
     "audit.apiKeyPlaceholder": "Used only for this local test",
     "audit.model": "Model ID (optional)",
     "audit.modelPlaceholder": "Blank uses the first model from /models",
-    "audit.securityNote": "The API key is not saved, uploaded to ranking, or written to logs; ranking receives only redacted metrics.",
+    "audit.securityNote": "A temporary key is used only for this local audit and is never saved, uploaded, or logged; only redacted metrics are submitted automatically.",
     "audit.start": "Start audit",
     "audit.running": "Testing API…",
+    "audit.dialogTitle": "Test temporary API",
+    "audit.backgroundStarted": "{name} started in the background and should take no more than about {time}. You can keep using other features.",
+    "audit.progress": "Background audit {percent}% · {stage} · about {time} remaining",
+    "audit.progressUnknown": "Background audit {percent}% · {stage} · estimating remaining time",
     "audit.done": "Audit complete: {score}/100 · {assessment}",
-    "audit.submit": "Submit redacted result to public ranking",
-    "audit.submitted": "Redacted result submitted to public ranking",
-    "audit.submitFailed": "Audit finished, but ranking submission failed: {message}",
+    "audit.rankingSaved": "The redacted result was submitted to public ranking automatically.",
+    "audit.rankingFailed": "The audit completed, but redacted ranking submission failed: {message}",
+    "audit.rankingSkipped": "The audit did not complete successfully, so no public ranking was submitted.",
+    "audit.completeTitle": "API audit complete",
+    "audit.completeClose": "Close",
+    "audit.failedTitle": "API audit failed",
     "audit.assessment.conforming": "Basically conforms",
     "audit.assessment.inconclusive": "Inconclusive",
     "audit.assessment.suspicious": "Suspicious",
@@ -687,7 +704,7 @@ const translations = {
     "diagnostics.opened": "The local log file was opened.",
     "diagnostics.truncated": "The log is long; only its latest section is shown.",
     "tutorial.title": "Phased usage guide",
-    "tutorial.intro": "Read the guide by stage: configure accounts once, follow the daily switch steps, preserve the scene when something fails, use a deep link to continue oversized chats in a new thread, then learn local history and other features. Current version: v1.11.0.",
+    "tutorial.intro": "Read the guide by stage: configure accounts once, follow the daily switch steps, preserve the scene when something fails, use a deep link to continue oversized chats in a new thread, then learn local history and other features. Current version: v1.11.1.",
     "tutorial.stageNav": "Tutorial stages",
     "tutorial.stage1.tab": "First setup",
     "tutorial.stage1.short": "Accounts and models",
@@ -754,6 +771,8 @@ const translations = {
     "tutorial.feature.modelsText": "Leave the API model ID blank for discovery; an exact GPT ID still loads the full catalog and remains the default.",
     "tutorial.feature.gatewayTitle": "Direct API and gateway",
     "tutorial.feature.gatewayText": "Direct API connects Codex to the Base URL; Compatibility gateway uses a local loopback gateway and requires Galaxy to run.",
+    "tutorial.feature.auditTitle": "Background API audit",
+    "tutorial.feature.auditText": "A saved API starts directly from its encrypted local profile. The audit runs in the background with a remaining-time estimate, automatically submits redacted ranking data on success, and notifies you when finished.",
     "tutorial.feature.toolsTitle": "Plugins, refresh, and cleanup",
     "tutorial.feature.toolsText": "Plugins manage local marketplaces; Refresh rebuilds the list; Clean Data creates a backup first.",
     "tutorial.feature.updateTitle": "Safe updates",
@@ -808,7 +827,6 @@ function applyLanguage() {
   });
   $("#languageSelect").value = currentLanguage;
   renderProfiles();
-  populateAuditProfiles();
   populateProjects();
   renderThreads();
   renderPlugins();
@@ -843,7 +861,7 @@ function openTutorial() {
 }
 
 function operationBusy() {
-  return state.switching || state.refreshing || state.cleaning || state.repairing || state.auditing || Boolean(state.testingProfileId) || updateOperationBusy();
+  return state.switching || state.refreshing || state.cleaning || state.repairing || Boolean(state.testingProfileId) || updateOperationBusy();
 }
 
 function updateOperationBusy(update = state.update) {
@@ -859,6 +877,8 @@ function updateStatusPill() {
         ? t("status.cleaning")
         : state.repairing
           ? t("status.repairing")
+        : state.auditTask
+          ? t("audit.running")
         : updateOperationBusy()
           ? t("status.updating")
         : state.gatewayRunning
@@ -873,10 +893,10 @@ function updateOperationControls() {
   $("#pluginBtn").disabled = busy;
   $("#diagnosticsBtn").disabled = busy;
   $("#addProfileBtn").disabled = busy;
-  $("#auditBtn").disabled = busy;
+  $("#auditBtn").disabled = busy || Boolean(state.auditTask);
   $("#topRankingsBtn").disabled = busy;
   $("#rankingsBtn").disabled = busy;
-  $("#adHocAuditBtn").disabled = busy;
+  $("#adHocAuditBtn").disabled = busy || Boolean(state.auditTask);
   $("#refreshRankingsBtn").disabled = busy;
   if ($("#search")) $("#search").disabled = busy;
   if ($("#projectFilter")) $("#projectFilter").disabled = busy;
@@ -1099,6 +1119,7 @@ function profileTestLabel(profile) {
 function renderProfiles() {
   const root = $("#profiles");
   const disabled = operationBusy() ? " disabled" : "";
+  const auditDisabled = state.auditTask ? " disabled" : "";
   if (!state.profiles.length) {
     root.innerHTML = `<div class="empty">${t("profile.empty")}</div>`;
   } else {
@@ -1119,7 +1140,7 @@ function renderProfiles() {
         <div class="profile-actions">
           ${current ? `<span class="profile-status">${t("common.current")}</span>` : ""}
           <button data-action="edit" data-id="${escapeHtml(profile.id)}" title="${t("profile.editTitle")}" aria-label="${t("profile.editTitle")} ${escapeHtml(profile.name)}"${disabled}>${t("common.edit")}</button>
-          ${profile.kind === "official" ? `<button data-action="capture" data-id="${escapeHtml(profile.id)}" title="${t("profile.captureTitle")}"${disabled}>${t("common.capture")}</button>` : `<button data-action="test" data-id="${escapeHtml(profile.id)}" title="${t("profile.testTitle")}"${disabled}>${state.testingProfileId === profile.id ? t("profile.testRunning") : t("common.test")}</button><button data-action="audit" data-id="${escapeHtml(profile.id)}" title="${t("audit.adHoc")}"${disabled}>${t("actions.audit")}</button><button data-action="clear-key" data-id="${escapeHtml(profile.id)}" title="${current ? t("profile.currentCannotClear") : profile.hasApiKey ? t("common.clearKey") : t("profile.actions.noKey")}"${disabled || current || !profile.hasApiKey ? " disabled" : ""}>${t("common.clearKey")}</button>`}
+          ${profile.kind === "official" ? `<button data-action="capture" data-id="${escapeHtml(profile.id)}" title="${t("profile.captureTitle")}"${disabled}>${t("common.capture")}</button>` : `<button data-action="test" data-id="${escapeHtml(profile.id)}" title="${t("profile.testTitle")}"${disabled}>${state.testingProfileId === profile.id ? t("profile.testRunning") : t("common.test")}</button><button data-action="audit" data-id="${escapeHtml(profile.id)}" title="${t("audit.adHoc")}"${disabled || auditDisabled}>${t("actions.audit")}</button><button data-action="clear-key" data-id="${escapeHtml(profile.id)}" title="${current ? t("profile.currentCannotClear") : profile.hasApiKey ? t("common.clearKey") : t("profile.actions.noKey")}"${disabled || current || !profile.hasApiKey ? " disabled" : ""}>${t("common.clearKey")}</button>`}
           <button data-action="delete" data-id="${escapeHtml(profile.id)}" title="${current ? t("profile.currentCannotDelete") : t("profile.deleteTitle")}"${disabled || current ? " disabled" : ""}>${t("common.delete")}</button>
         </div>
       </div>`;
@@ -1180,6 +1201,12 @@ async function refresh() {
   state.codexRunning = Boolean(snapshot.codex.running);
   state.codexProvider = snapshot.codex.provider || null;
   state.librarySyncedAt = snapshot.library.syncedAt || null;
+  if (snapshot.audit && !snapshot.audit.done) {
+    state.auditTask = { ...snapshot.audit, progressAt: Date.now() };
+    $("#auditProgress").hidden = false;
+    renderAuditCountdown();
+    startAuditCountdown();
+  }
   if (!state.profiles.some((profile) => profile.id === state.selectedProfileId)) {
     state.selectedProfileId = state.currentId || state.profiles[0]?.id || null;
   }
@@ -1601,13 +1628,6 @@ async function loadRankings(target = $("#rankingPreview"), sort = $("#rankingSor
   }
 }
 
-function populateAuditProfiles() {
-  const select = $("#auditProfileSelect");
-  if (!select) return;
-  const profiles = state.profiles.filter((profile) => profile.kind === "api");
-  select.innerHTML = `<option value="">${t("audit.adHoc")}</option>` + profiles.map((profile) => `<option value="${escapeHtml(profile.id)}">${escapeHtml(profile.name)} · ${escapeHtml(profile.baseUrl || "")}</option>`).join("");
-}
-
 function fillAuditForm(profile = null) {
   const form = $("#relayAuditForm");
   if (!profile) {
@@ -1628,74 +1648,156 @@ function fillAuditForm(profile = null) {
 }
 
 function openRelayAudit(profile = null) {
-  populateAuditProfiles();
   const form = $("#relayAuditForm");
   form.reset();
-  $("#auditProfileSelect").value = profile?.id || "";
   fillAuditForm(profile);
   $("#auditResult").hidden = true;
   $("#relayAuditDialog").showModal();
 }
 
-function renderAuditResult(result) {
+function formatRemaining(ms) {
+  const seconds = Math.max(0, Math.ceil(Number(ms || 0) / 1000));
+  if (currentLanguage === "en") {
+    if (seconds < 60) return `${seconds}s`;
+    return `${Math.floor(seconds / 60)}m ${seconds % 60}s`;
+  }
+  if (seconds < 60) return `${seconds} 秒`;
+  return `${Math.floor(seconds / 60)} 分 ${seconds % 60} 秒`;
+}
+
+function updateAuditProgress(progress) {
+  const root = $("#auditProgress");
+  if (!root) return;
+  if (state.auditTask?.taskId && progress?.taskId && progress.taskId !== state.auditTask.taskId) return;
+  const percent = Math.max(0, Math.min(100, Number(progress?.percent) || 0));
+  if (!progress?.done && progress?.stage !== "error") {
+    state.auditTask = {
+      ...(state.auditTask || {}),
+      taskId: progress?.taskId || state.auditTask?.taskId,
+      percent,
+      stage: progress.message || t("audit.running"),
+      estimatedRemainingMs: Math.max(0, Number(progress?.estimatedRemainingMs) || 0),
+      progressAt: Date.now(),
+    };
+  }
+  root.hidden = progress?.done === true || progress?.stage === "error";
+  renderAuditCountdown();
+  if (progress?.done || progress?.stage === "error") {
+    state.auditTask = null;
+    updateOperationControls();
+    if (progress.stage === "complete" && progress.value?.result) {
+      state.lastAuditResult = progress.value.result;
+      renderAuditResult(progress.value.result, { autoSubmitted: !progress.value.ranking?.error && !progress.value.ranking?.skipped });
+      const name = progress.value.result.profile?.name || progress.value.result.baseHost || "API";
+      const score = progress.value.result.score?.total;
+      showAuditComplete(progress.value.result, progress.value.ranking);
+      notice(`${name}：${score == null
+        ? progress.value.result.message || progress.value.result.reason || t("audit.failedTitle")
+        : t("audit.done", { score, assessment: auditAssessmentLabel(progress.value.result.assessment) })}`);
+      loadRankings().catch(() => {});
+      refresh().catch(() => {});
+    } else if (progress.error) {
+      showAuditComplete(null, { error: progress.error });
+      notice(progress.error, true);
+    }
+  }
+}
+
+function renderAuditCountdown() {
+  if (!state.auditTask) return;
+  const elapsed = Math.max(0, Date.now() - Number(state.auditTask.progressAt || Date.now()));
+  const remaining = Math.max(0, Number(state.auditTask.estimatedRemainingMs || 0) - elapsed);
+  const percent = Math.max(0, Math.min(100, Number(state.auditTask.percent) || 0));
+  $("#auditProgressMessage").textContent = remaining > 0
+    ? t("audit.progress", { percent, stage: state.auditTask.stage || t("audit.running"), time: formatRemaining(remaining) })
+    : t("audit.progressUnknown", { percent, stage: state.auditTask.stage || t("audit.running") });
+  $("#auditProgressPercent").textContent = `${percent}%`;
+  $("#auditProgressBar").value = percent;
+}
+
+function startAuditCountdown() {
+  if (auditCountdownTimer) return;
+  auditCountdownTimer = window.setInterval(renderAuditCountdown, 1000);
+}
+
+function showAuditComplete(result, ranking) {
+  const dialog = $("#auditCompleteDialog");
+  if (!dialog) return;
+  const score = result?.score?.total;
+  $("#auditCompleteSummary").textContent = result
+    ? score == null
+      ? result.message || result.reason || t("audit.failedTitle")
+      : t("audit.done", { score, assessment: auditAssessmentLabel(result.assessment) })
+    : t("audit.failedTitle");
+  $("#auditCompleteDetails").textContent = result
+    ? `${(result.findings || []).join("；")}${ranking?.error
+      ? ` ${t("audit.rankingFailed", { message: ranking.error })}`
+      : ranking?.skipped
+        ? ` ${t("audit.rankingSkipped")}`
+        : ` ${t("audit.rankingSaved")}`}`
+    : String(ranking?.error || "");
+  dialog.showModal();
+}
+
+function renderAuditResult(result, { autoSubmitted = false } = {}) {
   const box = $("#auditResult");
   const score = result.score?.total ?? 0;
   const label = auditAssessmentLabel(result.assessment);
   box.hidden = false;
   box.className = `audit-result ${result.assessment || ""}`;
-  box.innerHTML = `<strong>${escapeHtml(t("audit.done", { score, assessment: label }))}</strong><small>${escapeHtml((result.findings || []).join("；"))}</small><button type="button" class="button secondary" data-audit-submit>${t("audit.submit")}</button>`;
-  box.querySelector("[data-audit-submit]")?.addEventListener("click", async () => {
-    try {
-      const form = $("#relayAuditForm");
-      unwrap(await bridge.submitAudit({
-        result,
-        providerName: form.elements.providerName.value,
-        homepage: form.elements.homepage.value,
-      }));
-      notice(t("audit.submitted"));
-  loadRankings().catch(() => {});
-    } catch (error) {
-      notice(t("audit.submitFailed", { message: error.message }), true);
-    }
-  });
+  box.innerHTML = `<strong>${escapeHtml(t("audit.done", { score, assessment: label }))}</strong><small>${escapeHtml((result.findings || []).join("；"))}</small><small>${escapeHtml(autoSubmitted ? t("audit.rankingSaved") : "")}</small>`;
 }
 
 async function runRelayAudit(event) {
   event.preventDefault();
   const form = event.currentTarget;
   const data = Object.fromEntries(new FormData(form));
-  const selectedId = String(data.profileId || "");
-  const selected = state.profiles.find((profile) => profile.id === selectedId);
-  const button = form.querySelector("button[type=submit]");
-  state.auditing = true;
-  updateOperationControls();
-  button.disabled = true;
-  button.textContent = t("audit.running");
+  if (state.auditTask) return;
   try {
-    const result = selected && !String(data.apiKey || "").trim()
-      ? unwrap(await bridge.auditProfile(selected.id))
-      : unwrap(await bridge.auditRelay({
+    const started = unwrap(await bridge.startAudit({
+      language: currentLanguage,
+      providerName: data.providerName,
+      homepage: data.homepage,
+      input: {
         baseUrl: data.baseUrl,
         apiKey: data.apiKey,
         model: data.model,
-      }));
-    renderAuditResult(result);
-    if (form.elements.submitRanking.checked) {
-      unwrap(await bridge.submitAudit({ result, providerName: data.providerName, homepage: data.homepage }));
-      notice(t("audit.submitted"));
-      loadRankings().catch(() => {});
-    }
-  } catch (error) {
-    const box = $("#auditResult");
-    box.hidden = false;
-    box.className = "audit-result suspicious";
-    box.innerHTML = `<strong>${escapeHtml(error.message)}</strong>`;
-  } finally {
-    state.auditing = false;
+      },
+    }));
+    state.auditTask = { taskId: started.taskId, estimatedTotalMs: started.estimatedTotalMs };
+    state.auditTask = { ...state.auditTask, percent: 0, stage: t("audit.running"), estimatedRemainingMs: started.estimatedTotalMs, progressAt: Date.now() };
+    $("#relayAuditDialog").close();
+    form.reset();
+    $("#auditProgress").hidden = false;
+    $("#auditProgressMessage").textContent = t("audit.progressUnknown", { percent: 0, stage: t("audit.running") });
+    $("#auditProgressPercent").textContent = "0%";
+    $("#auditProgressBar").value = 0;
     updateOperationControls();
-    button.disabled = false;
-    button.textContent = t("audit.start");
+    notice(t("audit.backgroundStarted", { name: data.providerName || "API", time: formatRemaining(started.estimatedTotalMs) }));
+  } catch (error) {
+    notice(error.message, true);
   }
+}
+
+async function startSavedProfileAudit(profile) {
+  if (!profile || profile.kind !== "api" || state.auditTask) return;
+  if (!profile.hasApiKey) return notice(t("profile.switchMissingKey"), true);
+  try {
+    const started = unwrap(await bridge.startAudit({
+      language: currentLanguage,
+      profileId: profile.id,
+      providerName: profile.name,
+      homepage: profile.homepage,
+    }));
+    state.auditTask = { taskId: started.taskId, profileId: profile.id, estimatedTotalMs: started.estimatedTotalMs };
+    state.auditTask = { ...state.auditTask, percent: 0, stage: t("audit.running"), estimatedRemainingMs: started.estimatedTotalMs, progressAt: Date.now() };
+    $("#auditProgress").hidden = false;
+    $("#auditProgressMessage").textContent = t("audit.progressUnknown", { percent: 0, stage: t("audit.running") });
+    $("#auditProgressPercent").textContent = "0%";
+    $("#auditProgressBar").value = 0;
+    updateOperationControls();
+    notice(t("audit.backgroundStarted", { name: profile.name, time: formatRemaining(started.estimatedTotalMs) }));
+  } catch (error) { notice(error.message, true); }
 }
 
 async function clearProfileKey(id) {
@@ -1737,7 +1839,8 @@ $("#languageSelect").addEventListener("change", (event) => setLanguage(event.cur
 $("#tutorialBtn").addEventListener("click", openTutorial);
 $("#auditBtn").addEventListener("click", () => {
   const profile = selectedProfile();
-  openRelayAudit(profile?.kind === "api" ? profile : null);
+  if (profile?.kind === "api") return startSavedProfileAudit(profile);
+  openRelayAudit(null);
 });
 $("#topRankingsBtn").addEventListener("click", async () => {
   $("#rankingsDialog").showModal();
@@ -1755,10 +1858,8 @@ $("#adHocAuditBtn").addEventListener("click", () => openRelayAudit());
 $("#closeRelayAudit").addEventListener("click", () => $("#relayAuditDialog").close());
 $("#cancelRelayAudit").addEventListener("click", () => $("#relayAuditDialog").close());
 $("#relayAuditForm").addEventListener("submit", runRelayAudit);
-$("#auditProfileSelect").addEventListener("change", () => {
-  const profile = state.profiles.find((item) => item.id === $("#auditProfileSelect").value);
-  fillAuditForm(profile || null);
-});
+$("#closeAuditComplete").addEventListener("click", () => $("#auditCompleteDialog").close());
+$("#dismissAuditComplete").addEventListener("click", () => $("#auditCompleteDialog").close());
 document.querySelectorAll("[data-tutorial-stage]").forEach((button) => {
   button.addEventListener("click", () => selectTutorialStage(button.dataset.tutorialStage));
   button.addEventListener("keydown", (event) => {
@@ -1920,7 +2021,7 @@ $("#profiles").addEventListener("click", async (event) => {
   const profile = state.profiles.find((item) => item.id === id);
   if (action.dataset.action === "edit" && profile) return openProfileForm(profile);
   if (action.dataset.action === "test") return testProfile(id);
-  if (action.dataset.action === "audit") return openRelayAudit(profile);
+  if (action.dataset.action === "audit") return startSavedProfileAudit(profile);
   if (action.dataset.action === "clear-key") return clearProfileKey(id);
   if (action.dataset.action === "delete") return deleteProfile(id);
   if (action.dataset.action === "capture") {
@@ -1949,6 +2050,8 @@ if (!bridge) {
   bridge.onCleanupProgress((progress) => {
     if (progress.operationId === state.cleanupOperationId) updateCleanupProgress(progress);
   });
+  bridge.onAuditProgress(updateAuditProgress);
+  startAuditCountdown();
   bridge.onUpdateStatus(applyUpdateStatus);
   bridge.onSwitchConfirmation(showSwitchConfirmation);
   refresh().catch((error) => notice(error.message, true));
