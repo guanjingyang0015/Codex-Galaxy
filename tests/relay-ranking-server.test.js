@@ -5,11 +5,13 @@ import fs from "node:fs/promises";
 import net from "node:net";
 import os from "node:os";
 import path from "node:path";
+import { DatabaseSync } from "node:sqlite";
 import { fileURLToPath } from "node:url";
 
 const root = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const server = path.join(root, "relay-ranking-server", "server.py");
 const worker = path.join(root, "relay-ranking-server", "worker.js");
+const adminLinks = path.join(root, "relay-ranking-server", "admin_links.py");
 
 async function freePort() {
   const listener = net.createServer();
@@ -57,7 +59,7 @@ test("ranking server stores only safe aggregate observations and returns scored 
       body: JSON.stringify({
         provider_name: "Relay Example",
         base_host: "relay.example",
-        homepage: "https://relay.example/",
+        homepage: "https://www.relay.example/",
         model: "gpt-6-test",
         expected_model: "gpt-6-test",
         observed_model: "gpt-6-test",
@@ -78,11 +80,69 @@ test("ranking server stores only safe aggregate observations and returns scored 
     const rankings = await (await fetch(`${url}/api/v1/rankings?sort=overall`)).json();
     assert.equal(rankings.items.length, 1);
     assert.equal(rankings.items[0].provider_name, "Relay Example");
-    assert.equal(rankings.items[0].average_score, 100);
+    assert.equal(rankings.items[0].ranking_score, 100);
     assert.equal(rankings.items[0].homepage, "https://relay.example/");
     assert.equal(rankings.items[0].expected_model, "gpt-6-test");
     assert.equal(rankings.items[0].observed_model, "gpt-6-test");
     assert.equal(JSON.stringify(rankings).includes("never-accept"), false);
+    const admin = spawn(process.platform === "win32" ? "py" : "python3", process.platform === "win32"
+      ? ["-3.14", adminLinks, "set", "relay.example", "https://owner.example/"]
+      : [adminLinks, "set", "relay.example", "https://owner.example/"], {
+      env: { ...process.env, RELAY_RANK_DB: path.join(root, "rankings.sqlite3") },
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+    assert.equal(await new Promise((resolve) => admin.once("close", resolve)), 0);
+    const overridden = await (await fetch(`${url}/api/v1/rankings`)).json();
+    assert.equal(overridden.items[0].homepage, "https://owner.example/");
+
+    const firstDatabase = new DatabaseSync(path.join(root, "rankings.sqlite3"));
+    firstDatabase.prepare("update audits set created_at = ? where base_host = ?").run(
+      new Date(Date.now() - 30 * 86400 * 1000).toISOString(),
+      "relay.example",
+    );
+    firstDatabase.close();
+    const lower = await fetch(`${url}/api/v1/audits`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        provider_name: "Relay Example",
+        base_host: "relay.example",
+        homepage: "https://relay.example/",
+        model: "gpt-6-test",
+        expected_model: "gpt-6-test",
+        observed_model: "gpt-6-test",
+        expected_model_listed: true,
+        models_status: 200,
+        model_listed: true,
+        efforts: [{ effort: "low", status: 200, elapsed_ms: 9000, ok: true, canary: true }],
+      }),
+    });
+    const lowerBody = await lower.json();
+    const sevenDay = await (await fetch(`${url}/api/v1/rankings?model=gpt-6-test`)).json();
+    assert.equal(sevenDay.items[0].ranking_score, lowerBody.score);
+    assert.equal(sevenDay.items[0].recent_7d_samples, 1);
+    assert.equal(sevenDay.items[0].history_90d_max, 100);
+    const otherModel = await fetch(`${url}/api/v1/audits`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        provider_name: "Relay Example",
+        base_host: "relay.example",
+        model: "deepseek-reasoner",
+        expected_model: "deepseek-reasoner",
+        observed_model: "deepseek-reasoner",
+        expected_model_listed: true,
+        models_status: 200,
+        model_listed: true,
+        efforts: [
+          { effort: "repeat-1", status: 200, elapsed_ms: 1000, ok: true, canary: true, has_response_id: true, usage: { total_tokens: 2 } },
+        ],
+      }),
+    });
+    assert.equal(otherModel.status, 201);
+    const allModels = await (await fetch(`${url}/api/v1/rankings`)).json();
+    assert.equal(allModels.items.filter((item) => item.base_host === "relay.example").length, 2);
+    assert.equal(allModels.items.some((item) => item.model === "deepseek-reasoner"), true);
 
     const mismatch = await fetch(`${url}/api/v1/audits`, {
       method: "POST",
@@ -112,6 +172,10 @@ test("ranking server stores only safe aggregate observations and returns scored 
     const mismatchRanking = recent.items.find((item) => item.base_host === "mismatch.example");
     assert.equal(mismatchRanking.homepage, "https://mismatch.example/");
     assert.equal(mismatchRanking.observed_model, "gpt-5.6-sol");
+    const filtered = await (await fetch(`${url}/api/v1/rankings?model=gpt-6-test`)).json();
+    assert.equal(filtered.items.length, 1);
+    assert.equal(filtered.items[0].expected_model, "gpt-6-test");
+    assert.equal(typeof filtered.history_90d_max, "number");
   } finally {
     child.kill();
     await new Promise((resolve) => child.once("close", resolve));
@@ -126,4 +190,25 @@ test("ranking Worker exposes only bounded public routes without embedding secret
   assert.match(source, /content-length/);
   assert.match(source, /65536/);
   assert.doesNotMatch(source, /152\.136\.33\.61|eyJ[a-zA-Z0-9_.-]{40,}|api[_-]?key\s*[:=]\s*["']/i);
+});
+
+test("owner-only link admin is a local SSH CLI and has no public HTTP admin route", async () => {
+  const source = await fs.readFile(adminLinks, "utf8");
+  assert.match(source, /argparse/);
+  assert.match(source, /link_overrides/);
+  assert.doesNotMatch(source, /http\.server|BaseHTTPRequestHandler|do_POST/);
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), "codex-galaxy-admin-links-"));
+  const database = path.join(root, "rankings.sqlite3");
+  const python = process.platform === "win32" ? "py" : "python3";
+  const prefix = process.platform === "win32" ? ["-3.14", adminLinks] : [adminLinks];
+  for (const args of [["set", "relay.example", "https://relay.example/"], ["list"], ["delete", "relay.example"]]) {
+    const child = spawn(python, [...prefix, ...args], {
+      env: { ...process.env, RELAY_RANK_DB: database },
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+    const output = [];
+    child.stdout.on("data", (chunk) => output.push(chunk));
+    const exitCode = await new Promise((resolve) => child.once("close", resolve));
+    assert.equal(exitCode, 0, Buffer.concat(output).toString("utf8"));
+  }
 });

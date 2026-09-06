@@ -84,6 +84,35 @@ test("relay audit hard-caps a different response-declared model below 50", async
   assert.equal(result.assessment, "suspicious");
 });
 
+test("non-GPT models use repeatable Responses probes without GPT reasoning fields", async () => {
+  const bodies = [];
+  const result = await auditRelay({
+    baseUrl: "https://relay.example/v1",
+    apiKey: "synthetic-secret",
+    model: "deepseek-reasoner",
+  }, {
+    timeoutMs: 1000,
+    fetcher: async (url, options) => {
+      if (url.endsWith("/models")) return new Response(JSON.stringify({
+        data: [{ id: "deepseek-reasoner", supported_reasoning_levels: [{ effort: "high" }] }],
+      }), { status: 200 });
+      const body = JSON.parse(options.body);
+      bodies.push(body);
+      return new Response(JSON.stringify({
+        id: "deepseek-response",
+        model: "deepseek-reasoner",
+        output_text: "RELAY-CANARY-OK",
+        usage: { input_tokens: 2, output_tokens: 1, total_tokens: 3 },
+      }), { status: 200 });
+    },
+  });
+  assert.equal(result.probeMode, "repeat");
+  assert.equal(result.efforts.length, 3);
+  assert.equal(bodies.every((body) => !Object.hasOwn(body, "reasoning")), true);
+  assert.equal(result.modelVerdict, "exact");
+  assert.equal(result.score.total, 100);
+});
+
 test("ranking payload strips credentials, response text, and unsafe homepage URLs", () => {
   const payload = sanitizeAuditForRanking({
     baseHost: "relay.example",

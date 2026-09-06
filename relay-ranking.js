@@ -107,10 +107,14 @@ export async function submitAuditForRanking(result, {
 export async function fetchRelayRankings({
   baseUrl = RELAY_RANKING_BASE_URL,
   sort = "overall",
+  model = "",
   fetcher = globalThis.fetch,
   timeoutMs = 5000,
 } = {}) {
-  const query = sort === "recent" ? "?sort=recent" : "";
+  const params = new URLSearchParams();
+  if (sort === "recent") params.set("sort", "recent");
+  if (model) params.set("model", String(model));
+  const query = params.size ? `?${params}` : "";
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   let response;
@@ -125,5 +129,11 @@ export async function fetchRelayRankings({
   }
   if (!response.ok) throw new Error(`排名服务返回 HTTP ${response.status}`);
   const body = await response.json();
-  return Array.isArray(body?.items) ? body.items : [];
+  return {
+    items: Array.isArray(body?.items) ? body.items : [],
+    models: Array.isArray(body?.models) ? body.models : [],
+    history90dMax: Math.max(0, Number(body?.history_90d_max) || 0),
+    model: String(body?.model || ""),
+    sort: String(body?.sort || sort),
+  };
 }

@@ -6,7 +6,7 @@
 
 Codex Galaxy is a local desktop utility for switching between Codex accounts and compatible APIs while continuing project tasks saved on the same computer.
 
-**Current version: Codex Galaxy 1.12.0**
+**Current version: Codex Galaxy 1.13.0**
 
 The in-app guide is now organized by stage: **first account setup → daily account switching → failure recovery → features**. Open **Guide** and choose only the stage you need instead of reading one long page.
 
@@ -38,12 +38,15 @@ API profiles must support the OpenAI Responses API. API keys stay in encrypted l
 ## API relay audit and ranking
 
 - Clicking **API audit** on a saved API profile now reads its encrypted local configuration and starts immediately, without asking for the platform, Base URL, API key, or model again. Only **Test new API** opens the temporary-input form.
-- **Audit all saved APIs** runs every saved profile with a key in parallel and reports per-profile progress, remaining time, and results.
-- The audit checks `/models`, Responses output, model listing, reasoning efforts, latency, and usage shape, then gives a 100-point compatibility reference score.
+- Every click on a saved profile's **API audit** adds another background job without waiting for the previous one. Galaxy runs up to three audits concurrently and queues the rest with separate status and progress; there is no separate bulk button.
+- The audit checks `/models`, Responses output, model listing, capability probes, latency, and usage shape, then gives a 100-point compatibility reference score. GPT/o models use reasoning-effort probes; other models use deterministic consistency probes.
 - The score is split into model identity 40, protocol 25, reasoning 15, stability 10, and latency 10. The configured Model ID is the expected model. If `gpt-6` is expected but responses declare `gpt-5.6-sol` or `gpt-5.5`, the report marks a mismatch and caps the total at 49. If responses omit the model field, Galaxy reports that identity cannot be verified instead of guessing.
 - Audits run in the background, usually taking about 20–60 seconds and up to roughly 68 seconds when probes time out. Galaxy shows a live remaining-time estimate, allows other work to continue, and displays both a system notification and result dialog when finished.
 - Successful audits automatically submit redacted results without another checkbox. The server receives no API key, request body, full output, or chat history.
-- **API ranking** sorts by overall score or most recent test. The homepage icon opens the provider homepage. Ranking reflects public test behavior and cannot prove official upstream origin.
+- **API ranking** defaults to an all-model overall board and can switch to GPT, DeepSeek, Gemini, or any other tested model. Each provider shows protocol, model, capability, stability, and latency components.
+- A site's ranking score is its highest test in the last 7 days; when the current test is the only recent one, that score is used. The UI also shows the network and per-site 90-day highs for excellent/good/usable/inconclusive/high-risk comparison.
+- Every ranking row is clickable. Only the server owner can override destinations through an SSH-only admin tool; ordinary clients and the public API cannot change them. Without an override, the tested HTTPS API host is used.
+- GPT/o-series models use reasoning-effort probes. Common models such as DeepSeek and Gemini use three deterministic Responses consistency probes without GPT reasoning parameters, so their model, protocol, stability, and latency evidence remains useful.
 - The public ranking endpoint is `https://api.vx314490015.cn`, connected to the isolated service through a dedicated Cloudflare Tunnel rather than another project's tunnel or port.
 
 ## History and switching protection since 1.9.5
@@ -83,7 +86,7 @@ API profiles must support the OpenAI Responses API. API keys stay in encrypted l
 
 Version 1.9.9 fixes official → API switches that rolled back to the official account. A current Codex official `auth.json` can contain an empty `OPENAI_API_KEY` field; version 1.9.8 incorrectly treated field presence as legacy API authentication and reported `api-auth-legacy`. Galaxy now treats only a non-empty key as a legacy API credential and never leaves official OAuth active in API mode. The captured official login remains encrypted in Galaxy and is restored unchanged when switching back, without requiring a manual official logout or process termination.
 
-Version 1.12.0 adds parallel multi-API audits, expected-versus-response-declared model checks, detailed pass/fail evidence, and hard score caps for model mismatches. Ranking scores include a points label, and every ranked provider links to its verified homepage or API host.
+Version 1.13.0 adds a continuously appendable background audit queue, fixes profile-card layout, and adds 7-day best-score ranking, 90-day history comparison, component scores, model filters, useful non-GPT probes, and an owner-only ranking-link administration tool.
 
 When a chat history is large, Galaxy warns before direct resume. Click **Copy new-chat continuation prompt**, create a new chat in the same project, and paste it. The prompt includes the original `codex://threads/...` deep link, so Codex knows exactly which chat to continue.
 

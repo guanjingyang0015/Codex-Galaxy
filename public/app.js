@@ -1,7 +1,7 @@
 const $ = (selector) => document.querySelector(selector);
 const state = {
   profiles: [],
-  version: "1.12.0",
+  version: "1.13.0",
   threads: [],
   currentId: null,
   selectedProfileId: null,
@@ -13,7 +13,7 @@ const state = {
   switchConfirmation: null,
   switching: false,
   testingProfileId: null,
-  auditTask: null,
+  auditTasks: {},
   refreshing: false,
   cleaning: false,
   repairing: false,
@@ -28,7 +28,7 @@ const state = {
   releases: [],
   update: {
     phase: "idle",
-    currentVersion: "1.12.0",
+    currentVersion: "1.13.0",
     latestVersion: null,
     available: false,
     action: "install",
@@ -199,15 +199,27 @@ const translations = {
     "threads.continuationPromptCopied": "已复制新聊天提示。请在同一项目下新建聊天后粘贴发送。",
     "audit.panelTitle": "API 检测与排名",
     "audit.intro": "已保存 API 可直接检测；临时 API 才需要填写地址和 Key。检测在后台运行，完成后自动保存并提交脱敏排名。",
-    "audit.rubric": "评分：模型核对 40 分、接口协议 25 分、推理强度 15 分、稳定性 10 分、速度 10 分。期望模型与响应声明模型不一致时，总分最高 49 分。",
+    "audit.rubric": "评分：模型核对 40 分、接口协议 25 分、能力探针 15 分、稳定性 10 分、速度 10 分。GPT/o 系列测试推理强度，其他模型测试确定性一致性；模型不匹配时总分最高 49 分。",
     "audit.rankings": "查看排名",
     "audit.rankingsTitle": "API 中转站测试排名",
     "audit.rankingsNote": "排名代表社区测试表现，不等于官方上游认证。",
     "audit.refreshRankings": "刷新排名",
     "audit.sortOverall": "综合排名",
     "audit.sortRecent": "最近测试",
-    "audit.batchSaved": "批量检测已保存 API",
     "audit.adHoc": "测试新 API",
+    "audit.queueStarted": "{name} 已加入后台检测；可以继续添加其他 API。",
+    "audit.queued": "排队等待",
+    "audit.queueStatus": "后台检测 {running} 个，排队 {queued} 个 · 预计还需 {time}",
+    "audit.modelAll": "全部模型总榜",
+    "audit.history90": "近90天全站最高：{score} 分",
+    "audit.historySite90": "本站近90天最高 {score} 分",
+    "audit.rankWindow": "排行分取同站点最近7天最高测试分；7天内只有本次测试时使用本次分数。",
+    "audit.scoreBreakdown": "协议 {protocol} · 模型 {model} · 能力 {effort} · 稳定 {stability} · 速度 {speed}",
+    "audit.level.excellent": "优秀",
+    "audit.level.good": "良好",
+    "audit.level.usable": "可用",
+    "audit.level.uncertain": "证据不足",
+    "audit.level.risky": "高风险",
     "audit.summaryTitle": "最近排名参考",
     "audit.rankingsLoading": "正在读取排名…",
     "audit.rankingsUnavailable": "排名服务暂时不可用",
@@ -235,9 +247,7 @@ const translations = {
     "audit.completeTitle": "API 检测完成",
     "audit.completeClose": "关闭",
     "audit.failedTitle": "API 检测失败",
-    "audit.batchEmpty": "没有可检测的已保存 API 账号，或账号尚未保存 Key。",
-    "audit.batchStarted": "已并行启动 {count} 个 API 检测，预计最多约 {time}。",
-    "audit.batchComplete": "批量检测完成：{success}/{total} 个成功生成报告",
+    "audit.batchComplete": "检测报告：{success}/{total} 个成功生成",
     "audit.scoreUnit": "{score} 分",
     "audit.checkScore": "{score}/{max} 分",
     "audit.expectedModel": "期望模型",
@@ -253,7 +263,7 @@ const translations = {
     "audit.check.catalog": "模型目录",
     "audit.check.responses": "Responses 协议",
     "audit.check.model": "模型核对",
-    "audit.check.reasoning": "推理强度",
+    "audit.check.reasoning": "能力探针",
     "audit.check.stability": "稳定性",
     "audit.check.performance": "响应速度",
     "audit.check.pass": "通过",
@@ -261,10 +271,10 @@ const translations = {
     "audit.check.fail": "未通过",
     "audit.check.catalogDetail": "/models HTTP {status}，返回 {count} 个模型",
     "audit.check.responsesDetail": "{success}/{total} 个请求成功，{ids} 个含 response id，{usage} 个含 usage",
-    "audit.check.reasoningDetail": "{success}/{total} 个推理强度返回固定校验词",
+    "audit.check.reasoningDetail": "{success}/{total} 个能力探针返回固定校验词",
     "audit.check.stabilityDetail": "{success}/{total} 个请求成功，超时 {timeouts} 次",
     "audit.check.performanceDetail": "成功请求平均 {time}",
-    "audit.effortTitle": "各推理强度实测",
+    "audit.effortTitle": "各次能力实测",
     "audit.effortRow": "{effort} · HTTP {status} · {time} · {result} · 模型 {model}",
     "audit.assessment.conforming": "基本符合声明",
     "audit.assessment.inconclusive": "证据不足",
@@ -368,7 +378,7 @@ const translations = {
     "diagnostics.opened": "已打开本地日志文件。",
     "diagnostics.truncated": "日志较长，当前只显示最后一段。",
     "tutorial.title": "分阶段使用教程",
-    "tutorial.intro": "按使用阶段阅读教程：先完成一次账号配置，日常按步骤切换，出问题先看日志，超大聊天先复制深度链接新建聊天继续，最后了解本地历史和其他特色功能。当前版本为 v1.12.0。",
+    "tutorial.intro": "按使用阶段阅读教程：先完成一次账号配置，日常按步骤切换，出问题先看日志，超大聊天先复制深度链接新建聊天继续，最后了解本地历史和其他特色功能。当前版本为 v1.13.0。",
     "tutorial.stageNav": "教程阶段",
     "tutorial.stage1.tab": "首次配置",
     "tutorial.stage1.short": "添加账号和模型",
@@ -601,15 +611,27 @@ const translations = {
     "threads.continuationPromptCopied": "Continuation prompt copied. Create a new chat in the same project and paste it.",
     "audit.panelTitle": "API audit and ranking",
     "audit.intro": "Saved APIs can be tested directly; only temporary APIs require an address and key. Audits run in the background and automatically submit redacted results.",
-    "audit.rubric": "Score: model identity 40, protocol 25, reasoning 15, stability 10, latency 10. If the expected and response-declared models differ, the total is capped at 49.",
+    "audit.rubric": "Score: model identity 40, protocol 25, capability probes 15, stability 10, latency 10. GPT/o models test reasoning efforts; other models test deterministic consistency. A model mismatch caps the total at 49.",
     "audit.rankings": "View ranking",
     "audit.rankingsTitle": "API relay test ranking",
     "audit.rankingsNote": "Ranking reflects community test performance, not official upstream certification.",
     "audit.refreshRankings": "Refresh ranking",
     "audit.sortOverall": "Overall ranking",
     "audit.sortRecent": "Most recent",
-    "audit.batchSaved": "Audit all saved APIs",
     "audit.adHoc": "Test new API",
+    "audit.queueStarted": "{name} was added to the background audit queue. You can add more APIs immediately.",
+    "audit.queued": "Queued",
+    "audit.queueStatus": "{running} background audits running, {queued} queued · about {time} remaining",
+    "audit.modelAll": "All-model overall ranking",
+    "audit.history90": "90-day network high: {score} pts",
+    "audit.historySite90": "Site 90-day high: {score} pts",
+    "audit.rankWindow": "Ranking uses each site's highest test in the last 7 days; if only the current test exists, that score is used.",
+    "audit.scoreBreakdown": "Protocol {protocol} · Model {model} · Capability {effort} · Stability {stability} · Latency {speed}",
+    "audit.level.excellent": "Excellent",
+    "audit.level.good": "Good",
+    "audit.level.usable": "Usable",
+    "audit.level.uncertain": "Inconclusive",
+    "audit.level.risky": "High risk",
     "audit.summaryTitle": "Recent ranking reference",
     "audit.rankingsLoading": "Loading ranking…",
     "audit.rankingsUnavailable": "Ranking service is temporarily unavailable",
@@ -637,9 +659,7 @@ const translations = {
     "audit.completeTitle": "API audit complete",
     "audit.completeClose": "Close",
     "audit.failedTitle": "API audit failed",
-    "audit.batchEmpty": "There are no saved API profiles with keys to audit.",
-    "audit.batchStarted": "Started {count} API audits in parallel; maximum estimate is about {time}.",
-    "audit.batchComplete": "Batch audit complete: {success}/{total} reports generated",
+    "audit.batchComplete": "Audit reports: {success}/{total} generated",
     "audit.scoreUnit": "{score} pts",
     "audit.checkScore": "{score}/{max} pts",
     "audit.expectedModel": "Expected model",
@@ -655,7 +675,7 @@ const translations = {
     "audit.check.catalog": "Model catalog",
     "audit.check.responses": "Responses protocol",
     "audit.check.model": "Model identity",
-    "audit.check.reasoning": "Reasoning efforts",
+    "audit.check.reasoning": "Capability probes",
     "audit.check.stability": "Stability",
     "audit.check.performance": "Latency",
     "audit.check.pass": "Pass",
@@ -663,10 +683,10 @@ const translations = {
     "audit.check.fail": "Fail",
     "audit.check.catalogDetail": "/models HTTP {status}, {count} models returned",
     "audit.check.responsesDetail": "{success}/{total} requests succeeded, {ids} with response id, {usage} with usage",
-    "audit.check.reasoningDetail": "{success}/{total} efforts returned the exact canary",
+    "audit.check.reasoningDetail": "{success}/{total} capability probes returned the exact canary",
     "audit.check.stabilityDetail": "{success}/{total} requests succeeded, {timeouts} timeouts",
     "audit.check.performanceDetail": "Successful-request average: {time}",
-    "audit.effortTitle": "Per-effort observations",
+    "audit.effortTitle": "Per-probe observations",
     "audit.effortRow": "{effort} · HTTP {status} · {time} · {result} · model {model}",
     "audit.assessment.conforming": "Basically conforms",
     "audit.assessment.inconclusive": "Inconclusive",
@@ -770,7 +790,7 @@ const translations = {
     "diagnostics.opened": "The local log file was opened.",
     "diagnostics.truncated": "The log is long; only its latest section is shown.",
     "tutorial.title": "Phased usage guide",
-    "tutorial.intro": "Read the guide by stage: configure accounts once, follow the daily switch steps, preserve the scene when something fails, use a deep link to continue oversized chats in a new thread, then learn local history and other features. Current version: v1.12.0.",
+    "tutorial.intro": "Read the guide by stage: configure accounts once, follow the daily switch steps, preserve the scene when something fails, use a deep link to continue oversized chats in a new thread, then learn local history and other features. Current version: v1.13.0.",
     "tutorial.stageNav": "Tutorial stages",
     "tutorial.stage1.tab": "First setup",
     "tutorial.stage1.short": "Accounts and models",
@@ -943,7 +963,7 @@ function updateStatusPill() {
         ? t("status.cleaning")
         : state.repairing
           ? t("status.repairing")
-        : state.auditTask
+        : Object.keys(state.auditTasks).length
           ? t("audit.running")
         : updateOperationBusy()
           ? t("status.updating")
@@ -959,11 +979,10 @@ function updateOperationControls() {
   $("#pluginBtn").disabled = busy;
   $("#diagnosticsBtn").disabled = busy;
   $("#addProfileBtn").disabled = busy;
-  $("#auditBtn").disabled = busy || Boolean(state.auditTask);
+  $("#auditBtn").disabled = busy;
   $("#topRankingsBtn").disabled = busy;
   $("#rankingsBtn").disabled = busy;
-  $("#batchAuditBtn").disabled = busy || Boolean(state.auditTask);
-  $("#adHocAuditBtn").disabled = busy || Boolean(state.auditTask);
+  $("#adHocAuditBtn").disabled = busy;
   $("#refreshRankingsBtn").disabled = busy;
   if ($("#search")) $("#search").disabled = busy;
   if ($("#projectFilter")) $("#projectFilter").disabled = busy;
@@ -1186,7 +1205,6 @@ function profileTestLabel(profile) {
 function renderProfiles() {
   const root = $("#profiles");
   const disabled = operationBusy() ? " disabled" : "";
-  const auditDisabled = state.auditTask ? " disabled" : "";
   if (!state.profiles.length) {
     root.innerHTML = `<div class="empty">${t("profile.empty")}</div>`;
   } else {
@@ -1207,7 +1225,7 @@ function renderProfiles() {
         <div class="profile-actions">
           ${current ? `<span class="profile-status">${t("common.current")}</span>` : ""}
           <button data-action="edit" data-id="${escapeHtml(profile.id)}" title="${t("profile.editTitle")}" aria-label="${t("profile.editTitle")} ${escapeHtml(profile.name)}"${disabled}>${t("common.edit")}</button>
-          ${profile.kind === "official" ? `<button data-action="capture" data-id="${escapeHtml(profile.id)}" title="${t("profile.captureTitle")}"${disabled}>${t("common.capture")}</button>` : `<button data-action="test" data-id="${escapeHtml(profile.id)}" title="${t("profile.testTitle")}"${disabled}>${state.testingProfileId === profile.id ? t("profile.testRunning") : t("common.test")}</button><button data-action="audit" data-id="${escapeHtml(profile.id)}" title="${t("audit.adHoc")}"${disabled || auditDisabled}>${t("actions.audit")}</button><button data-action="clear-key" data-id="${escapeHtml(profile.id)}" title="${current ? t("profile.currentCannotClear") : profile.hasApiKey ? t("common.clearKey") : t("profile.actions.noKey")}"${disabled || current || !profile.hasApiKey ? " disabled" : ""}>${t("common.clearKey")}</button>`}
+          ${profile.kind === "official" ? `<button data-action="capture" data-id="${escapeHtml(profile.id)}" title="${t("profile.captureTitle")}"${disabled}>${t("common.capture")}</button>` : `<button data-action="test" data-id="${escapeHtml(profile.id)}" title="${t("profile.testTitle")}"${disabled}>${state.testingProfileId === profile.id ? t("profile.testRunning") : t("common.test")}</button><button data-action="audit" data-id="${escapeHtml(profile.id)}" title="${t("audit.adHoc")}"${disabled}>${t("actions.audit")}</button><button data-action="clear-key" data-id="${escapeHtml(profile.id)}" title="${current ? t("profile.currentCannotClear") : profile.hasApiKey ? t("common.clearKey") : t("profile.actions.noKey")}"${disabled || current || !profile.hasApiKey ? " disabled" : ""}>${t("common.clearKey")}</button>`}
           <button data-action="delete" data-id="${escapeHtml(profile.id)}" title="${current ? t("profile.currentCannotDelete") : t("profile.deleteTitle")}"${disabled || current ? " disabled" : ""}>${t("common.delete")}</button>
         </div>
       </div>`;
@@ -1268,8 +1286,14 @@ async function refresh() {
   state.codexRunning = Boolean(snapshot.codex.running);
   state.codexProvider = snapshot.codex.provider || null;
   state.librarySyncedAt = snapshot.library.syncedAt || null;
-  if (snapshot.audit && !snapshot.audit.done) {
-    state.auditTask = { ...snapshot.audit, progressAt: Date.now() };
+  const activeAuditIds = new Set((snapshot.audits || []).map((audit) => audit.taskId));
+  for (const taskId of Object.keys(state.auditTasks)) {
+    if (!activeAuditIds.has(taskId)) delete state.auditTasks[taskId];
+  }
+  for (const audit of snapshot.audits || []) {
+    if (!audit.done) state.auditTasks[audit.taskId] = { ...audit, progressAt: Date.now() };
+  }
+  if (Object.keys(state.auditTasks).length) {
     $("#auditProgress").hidden = false;
     renderAuditCountdown();
     startAuditCountdown();
@@ -1660,18 +1684,22 @@ function auditAssessmentLabel(value) {
   return t(`audit.assessment.${value || "inconclusive"}`);
 }
 
-function renderRankingItems(items, target = $("#rankingPreview")) {
+function renderRankingItems(items, target = $("#rankingPreview"), ranking = {}) {
   if (!target) return;
   if (!Array.isArray(items) || !items.length) {
     target.innerHTML = `<div class="empty">${t("audit.rankingsLoading")}</div>`;
     return;
   }
-  target.innerHTML = items.slice(0, 5).map((item, index) => {
+  const detailed = target?.id === "rankingsList";
+  const visibleItems = detailed ? items : items.slice(0, 3);
+  target.innerHTML = visibleItems.map((item, index) => {
     const visitUrl = safeHomepageForDisplay(item.homepage) || safeHomepageForDisplay(`https://${item.base_host || ""}/`);
+    const rankingScore = Math.round(Number(item.ranking_score) || Number(item.score) || 0);
+    const level = rankingScore >= 90 ? "excellent" : rankingScore >= 75 ? "good" : rankingScore >= 60 ? "usable" : rankingScore >= 50 ? "uncertain" : "risky";
     const body = `
     <span class="ranking-number">${item.rank || index + 1}</span>
-    <div class="ranking-main"><strong>${escapeHtml(item.provider_name || item.base_host)}</strong><small>${escapeHtml(item.expected_model || item.model || "")}${item.observed_model ? ` → ${escapeHtml(item.observed_model)}` : ""} · ${escapeHtml(t("audit.tests", { count: item.samples || 0 }))}</small></div>
-    <b class="ranking-score">${escapeHtml(t("audit.scoreUnit", { score: Math.round(Number(item.average_score) || Number(item.score) || 0) }))}</b>
+    <div class="ranking-main"><strong>${escapeHtml(item.provider_name || item.base_host)}</strong><small>${escapeHtml(item.expected_model || item.model || "")}${item.observed_model ? ` → ${escapeHtml(item.observed_model)}` : ""} · ${escapeHtml(t("audit.tests", { count: item.samples || 0 }))}</small>${detailed ? `<small>${escapeHtml(t("audit.scoreBreakdown", { protocol: item.protocol_score || 0, model: item.model_score || 0, effort: item.effort_score || 0, stability: item.stability_score || 0, speed: item.speed_score || 0 }))}</small><small>${escapeHtml(t("audit.historySite90", { score: item.history_90d_max || item.ranking_score || item.score || 0 }))}</small>` : ""}</div>
+    <b class="ranking-score">${escapeHtml(t("audit.scoreUnit", { score: rankingScore }))}<small>${escapeHtml(t(`audit.level.${level}`))}</small></b>
     <small class="ranking-latest">${escapeHtml(t("audit.latest", { time: formatDate(item.last_test) }))}</small>
     <span class="ranking-link">↗</span>`;
     return visitUrl
@@ -1691,13 +1719,25 @@ function safeHomepageForDisplay(value) {
 
 async function loadRankings(target = $("#rankingPreview"), sort = $("#rankingSort")?.value || "overall") {
   try {
-    const items = unwrap(await bridge.getRankings(sort));
-    renderRankingItems(items, target);
-    return items;
+    const model = target?.id === "rankingsList" ? $("#rankingModel")?.value || "" : "";
+    const ranking = unwrap(await bridge.getRankings(sort, model));
+    renderRankingItems(ranking.items, target, ranking);
+    populateRankingModels(ranking.models);
+    if ($("#rankingHistory90")) $("#rankingHistory90").textContent = t("audit.history90", { score: ranking.history90dMax || 0 });
+    return ranking.items;
   } catch (error) {
     if (target) target.innerHTML = `<div class="empty">${t("audit.rankingsUnavailable")}</div>`;
     return [];
   }
+}
+
+function populateRankingModels(models = []) {
+  const select = $("#rankingModel");
+  if (!select) return;
+  const previous = select.value;
+  const values = [...new Set(models.filter(Boolean))].sort();
+  select.innerHTML = `<option value="">${t("audit.modelAll")}</option>` + values.map((model) => `<option value="${escapeHtml(model)}">${escapeHtml(model)}</option>`).join("");
+  if (values.includes(previous)) select.value = previous;
 }
 
 function fillAuditForm(profile = null) {
@@ -1740,23 +1780,28 @@ function formatRemaining(ms) {
 function updateAuditProgress(progress) {
   const root = $("#auditProgress");
   if (!root) return;
-  if (state.auditTask?.taskId && progress?.taskId && progress.taskId !== state.auditTask.taskId) return;
+  const taskId = progress?.taskId;
+  if (!taskId) return;
+  if (!state.auditTasks[taskId]) state.auditTasks[taskId] = { taskId, items: [] };
+  const task = state.auditTasks[taskId];
   const percent = Math.max(0, Math.min(100, Number(progress?.percent) || 0));
   if (!progress?.done && progress?.stage !== "error") {
-    state.auditTask = {
-      ...(state.auditTask || {}),
-      taskId: progress?.taskId || state.auditTask?.taskId,
+    state.auditTasks[taskId] = {
+      ...task,
+      taskId: progress?.taskId || task.taskId,
+      status: progress?.status || task.status || "running",
       percent,
       stage: progress.message || t("audit.running"),
       estimatedRemainingMs: Math.max(0, Number(progress?.estimatedRemainingMs) || 0),
       progressAt: Date.now(),
-      items: Array.isArray(progress?.items) ? progress.items : state.auditTask?.items || [],
+      items: Array.isArray(progress?.items) ? progress.items : task.items || [],
     };
   }
-  root.hidden = progress?.done === true || progress?.stage === "error";
+  state.auditTasks[taskId] = { ...state.auditTasks[taskId], items: progress.items || state.auditTasks[taskId].items };
   renderAuditCountdown();
   if (progress?.done || progress?.stage === "error") {
-    state.auditTask = null;
+    delete state.auditTasks[taskId];
+    root.hidden = Object.keys(state.auditTasks).length === 0;
     updateOperationControls();
     if (progress.stage === "complete" && Array.isArray(progress.value?.items)) {
       const reports = progress.value.items;
@@ -1774,21 +1819,29 @@ function updateAuditProgress(progress) {
 }
 
 function renderAuditCountdown() {
-  if (!state.auditTask) return;
-  const elapsed = Math.max(0, Date.now() - Number(state.auditTask.progressAt || Date.now()));
-  const remaining = Math.max(0, Number(state.auditTask.estimatedRemainingMs || 0) - elapsed);
-  const percent = Math.max(0, Math.min(100, Number(state.auditTask.percent) || 0));
-  $("#auditProgressMessage").textContent = remaining > 0
-    ? t("audit.progress", { percent, stage: state.auditTask.stage || t("audit.running"), time: formatRemaining(remaining) })
-    : t("audit.progressUnknown", { percent, stage: state.auditTask.stage || t("audit.running") });
-  $("#auditProgressPercent").textContent = `${percent}%`;
-  $("#auditProgressBar").value = percent;
+  const tasks = Object.values(state.auditTasks);
+  if (!tasks.length) {
+    if (auditCountdownTimer) {
+      clearInterval(auditCountdownTimer);
+      auditCountdownTimer = null;
+    }
+    if ($("#auditProgress")) $("#auditProgress").hidden = true;
+    return;
+  }
+  const running = tasks.filter((task) => task.status === "running").length;
+  const queued = tasks.filter((task) => task.status !== "running").length;
+  const now = Date.now();
+  const remaining = Math.max(...tasks.map((task) => Math.max(
+    0,
+    Number(task.estimatedRemainingMs || 0) - Math.max(0, now - Number(task.progressAt || now)),
+  )), 0);
+  $("#auditProgressMessage").textContent = t("audit.queueStatus", { running, queued, time: formatRemaining(remaining) });
+  $("#auditProgressPercent").textContent = `${Math.round(tasks.reduce((sum, task) => sum + (Number(task.percent) || 0), 0) / tasks.length)}%`;
+  $("#auditProgressBar").value = Number($("#auditProgressPercent").textContent.replace("%", "")) || 0;
   const list = $("#auditProgressList");
   if (list) {
-    list.innerHTML = (state.auditTask.items || []).map((item) => `<div class="audit-progress-item">
-      <span>${escapeHtml(item.name || "API")}</span>
-      <small>${escapeHtml(item.message || item.stage || t("audit.running"))}</small>
-      <strong>${Math.max(0, Math.min(100, Number(item.percent) || 0))}%</strong>
+    list.innerHTML = tasks.flatMap((task) => task.items || [{ name: task.taskId, percent: task.percent, message: task.stage }]).map((item) => `<div class="audit-progress-item">
+      <span>${escapeHtml(item.name || "API")}</span><small>${escapeHtml(item.message || item.stage || t("audit.running"))}</small><strong>${Math.max(0, Math.min(100, Number(item.percent) || 0))}%</strong>
     </div>`).join("");
   }
 }
@@ -1834,17 +1887,18 @@ function showAuditComplete(items) {
   const dialog = $("#auditCompleteDialog");
   if (!dialog) return;
   const reports = Array.isArray(items) ? items : [];
-  $("#auditCompleteSummary").textContent = t("audit.batchComplete", { success: reports.filter((item) => item.result).length, total: reports.length });
-  $("#auditCompleteResults").innerHTML = reports.map(renderAuditReport).join("");
-  if (dialog.open) dialog.close();
-  dialog.showModal();
+  const resultsRoot = $("#auditCompleteResults");
+  showAuditComplete.reports = dialog.open ? [...(showAuditComplete.reports || []), ...reports] : reports;
+  const allReports = showAuditComplete.reports;
+  $("#auditCompleteSummary").textContent = t("audit.batchComplete", { success: allReports.filter((item) => item.result).length, total: allReports.length });
+  resultsRoot.innerHTML = allReports.map(renderAuditReport).join("");
+  if (!dialog.open) dialog.showModal();
 }
 
 async function runRelayAudit(event) {
   event.preventDefault();
   const form = event.currentTarget;
   const data = Object.fromEntries(new FormData(form));
-  if (state.auditTask) return;
   try {
     const started = unwrap(await bridge.startAudit({
       language: currentLanguage,
@@ -1856,8 +1910,7 @@ async function runRelayAudit(event) {
         model: data.model,
       },
     }));
-    state.auditTask = { taskId: started.taskId, estimatedTotalMs: started.estimatedTotalMs };
-    state.auditTask = { ...state.auditTask, percent: 0, stage: t("audit.running"), estimatedRemainingMs: started.estimatedTotalMs, progressAt: Date.now() };
+    state.auditTasks[started.taskId] = { taskId: started.taskId, status: started.queued ? "queued" : "running", percent: 0, stage: started.queued ? t("audit.queued") : t("audit.running"), estimatedRemainingMs: started.estimatedTotalMs, progressAt: Date.now(), items: [{ name: data.providerName || "API", percent: 0, message: started.queued ? t("audit.queued") : t("audit.running") }] };
     $("#relayAuditDialog").close();
     form.reset();
     $("#auditProgress").hidden = false;
@@ -1865,14 +1918,14 @@ async function runRelayAudit(event) {
     $("#auditProgressPercent").textContent = "0%";
     $("#auditProgressBar").value = 0;
     updateOperationControls();
-    notice(t("audit.backgroundStarted", { name: data.providerName || "API", time: formatRemaining(started.estimatedTotalMs) }));
+    notice(started.queued ? t("audit.queueStarted", { name: data.providerName || "API" }) : t("audit.backgroundStarted", { name: data.providerName || "API", time: formatRemaining(started.estimatedTotalMs) }));
   } catch (error) {
     notice(error.message, true);
   }
 }
 
 async function startSavedProfileAudit(profile) {
-  if (!profile || profile.kind !== "api" || state.auditTask) return;
+  if (!profile || profile.kind !== "api") return;
   if (!profile.hasApiKey) return notice(t("profile.switchMissingKey"), true);
   try {
     const started = unwrap(await bridge.startAudit({
@@ -1881,41 +1934,16 @@ async function startSavedProfileAudit(profile) {
       providerName: profile.name,
       homepage: profile.homepage,
     }));
-    state.auditTask = { taskId: started.taskId, profileId: profile.id, estimatedTotalMs: started.estimatedTotalMs };
-    state.auditTask = { ...state.auditTask, percent: 0, stage: t("audit.running"), estimatedRemainingMs: started.estimatedTotalMs, progressAt: Date.now() };
+    state.auditTasks[started.taskId] = { taskId: started.taskId, profileId: profile.id, status: started.queued ? "queued" : "running", percent: 0, stage: started.queued ? t("audit.queued") : t("audit.running"), estimatedRemainingMs: started.estimatedTotalMs, progressAt: Date.now(), items: [{ profileId: profile.id, name: profile.name, percent: 0, message: started.queued ? t("audit.queued") : t("audit.running") }] };
     $("#auditProgress").hidden = false;
     $("#auditProgressMessage").textContent = t("audit.progressUnknown", { percent: 0, stage: t("audit.running") });
     $("#auditProgressPercent").textContent = "0%";
     $("#auditProgressBar").value = 0;
     updateOperationControls();
-    notice(t("audit.backgroundStarted", { name: profile.name, time: formatRemaining(started.estimatedTotalMs) }));
+    notice(started.queued ? t("audit.queueStarted", { name: profile.name }) : t("audit.backgroundStarted", { name: profile.name, time: formatRemaining(started.estimatedTotalMs) }));
   } catch (error) { notice(error.message, true); }
 }
 
-async function startBatchSavedAudits() {
-  if (state.auditTask) return;
-  const profiles = state.profiles.filter((profile) => profile.kind === "api" && profile.hasApiKey);
-  if (!profiles.length) return notice(t("audit.batchEmpty"), true);
-  try {
-    const started = unwrap(await bridge.startAudit({
-      language: currentLanguage,
-      profileIds: profiles.map((profile) => profile.id),
-    }));
-    state.auditTask = {
-      taskId: started.taskId,
-      estimatedTotalMs: started.estimatedTotalMs,
-      percent: 0,
-      stage: t("audit.running"),
-      estimatedRemainingMs: started.estimatedTotalMs,
-      progressAt: Date.now(),
-      items: profiles.map((profile) => ({ profileId: profile.id, name: profile.name, percent: 0, message: t("audit.running") })),
-    };
-    $("#auditProgress").hidden = false;
-    renderAuditCountdown();
-    updateOperationControls();
-    notice(t("audit.batchStarted", { count: profiles.length, time: formatRemaining(started.estimatedTotalMs) }));
-  } catch (error) { notice(error.message, true); }
-}
 
 async function clearProfileKey(id) {
   if (operationBusy()) return;
@@ -1968,9 +1996,9 @@ $("#rankingsBtn").addEventListener("click", async () => {
   await loadRankings($("#rankingsList"));
 });
 $("#refreshRankingsBtn").addEventListener("click", () => loadRankings());
-$("#batchAuditBtn").addEventListener("click", startBatchSavedAudits);
 $("#reloadRankings").addEventListener("click", () => loadRankings($("#rankingsList")));
 $("#rankingSort").addEventListener("change", () => loadRankings($("#rankingsList")));
+$("#rankingModel").addEventListener("change", () => loadRankings($("#rankingsList")));
 $("#closeRankings").addEventListener("click", () => $("#rankingsDialog").close());
 $("#adHocAuditBtn").addEventListener("click", () => openRelayAudit());
 $("#closeRelayAudit").addEventListener("click", () => $("#relayAuditDialog").close());

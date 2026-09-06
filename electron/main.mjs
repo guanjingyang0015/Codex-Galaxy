@@ -46,8 +46,12 @@ let gatewayHandoffCompleted = false;
 let switchConfirmationSequence = 0;
 const pendingSwitchConfirmations = new Map();
 const auditTasks = new Map();
+const auditQueue = [];
+const MAX_CONCURRENT_AUDITS = 3;
+let runningAuditTasks = 0;
 let auditTaskSequence = 0;
 let auditCompletionPending = false;
+let auditPersistence = Promise.resolve();
 let codexVersionOverlay = null;
 let codexVersionOverlayReady = false;
 let codexVersionOverlayTimer = null;
@@ -109,7 +113,7 @@ async function getState() {
     gateway: { ...responsesGateway.status, error: gatewayStartupError },
     plugins,
     automation: { settings: automation.settings, completedFiles: automation.preview.files.length, completedRuns: automation.preview.rows || 0, completedBytes: automation.preview.bytes },
-    audit: [...auditTasks.entries()].map(([taskId, task]) => ({ taskId, ...(task.progress || {}) }))[0] || null,
+    audits: [...auditTasks.entries()].map(([taskId, task]) => ({ taskId, status: task.status, ...(task.progress || {}) })),
     releases: releaseHistory(app.getVersion()),
     update: { ...appUpdater.status },
   };
@@ -669,47 +673,54 @@ function auditNotification(title, body) {
   }
 }
 
+function persistAuditResults(items) {
+  auditPersistence = auditPersistence.catch(() => {}).then(async () => {
+    for (const item of items) {
+      if (item.profileId && item.result) await recordProfileTest(item.profileId, item.result, dataPaths);
+    }
+  });
+  return auditPersistence;
+}
+
 async function runAuditTask(sender, taskId, request) {
   const startedAt = Date.now();
-  const safeProfiles = (await publicProfiles(dataPaths)).profiles;
-  const profileIds = [...new Set([
-    ...(Array.isArray(request?.profileIds) ? request.profileIds : []),
-    request?.profileId,
-  ].map((value) => String(value || "")).filter(Boolean))];
-  const descriptors = profileIds.length
-    ? profileIds.map((profileId) => {
-      const profile = safeProfiles.find((item) => item.id === profileId);
-      if (!profile || profile.kind !== "api") throw new Error(`找不到可检测的 API 账号：${profileId}`);
-      return { id: profile.id, name: profile.name, homepage: profile.homepage || "" };
-    })
-    : [{ id: "temporary", name: request?.providerName || "临时 API", homepage: request?.homepage || "" }];
-  const itemState = new Map(descriptors.map((item) => [item.id, {
-    profileId: item.id === "temporary" ? null : item.id,
-    name: item.name,
-    percent: 0,
-    stage: "prepare",
-    message: "等待开始",
-    estimatedRemainingMs: auditEstimateMs(),
-  }]));
-  const report = (changedId, progress) => {
-    itemState.set(changedId, { ...itemState.get(changedId), ...progress });
-    const items = [...itemState.values()];
-    const percent = Math.round(items.reduce((sum, item) => sum + (Number(item.percent) || 0), 0) / Math.max(1, items.length));
-    const remaining = Math.max(...items.map((item) => Number(item.estimatedRemainingMs) || 0), 0);
-    const completed = items.filter((item) => item.done).length;
-    sendAuditProgress(sender, taskId, {
-      percent,
-      stage: completed === items.length ? "complete" : "batch",
-      message: descriptors.length > 1 ? `并行检测 ${completed}/${descriptors.length} 个 API` : progress.message,
-      completed,
-      total: descriptors.length,
-      estimatedTotalMs: auditEstimateMs(),
-      estimatedRemainingMs: remaining,
-      startedAt,
-      items,
-    });
-  };
   try {
+    const safeProfiles = (await publicProfiles(dataPaths)).profiles;
+    const profileId = String(request?.profileId || "");
+    const descriptor = profileId
+      ? (() => {
+        const profile = safeProfiles.find((item) => item.id === profileId);
+        if (!profile || profile.kind !== "api") throw new Error(`找不到可检测的 API 账号：${profileId}`);
+        return { id: profile.id, name: profile.name, homepage: profile.homepage || "" };
+      })()
+      : { id: "temporary", name: request?.providerName || "临时 API", homepage: request?.homepage || "" };
+    const descriptors = [descriptor];
+    const itemState = new Map(descriptors.map((item) => [item.id, {
+      profileId: item.id === "temporary" ? null : item.id,
+      name: item.name,
+      percent: 0,
+      stage: "prepare",
+      message: "等待开始",
+      estimatedRemainingMs: auditEstimateMs(),
+    }]));
+    const report = (changedId, progress) => {
+      itemState.set(changedId, { ...itemState.get(changedId), ...progress });
+      const items = [...itemState.values()];
+      const percent = Math.round(items.reduce((sum, item) => sum + (Number(item.percent) || 0), 0) / Math.max(1, items.length));
+      const remaining = Math.max(...items.map((item) => Number(item.estimatedRemainingMs) || 0), 0);
+      const completed = items.filter((item) => item.done).length;
+      sendAuditProgress(sender, taskId, {
+        percent,
+        stage: completed === items.length ? "complete" : "batch",
+        message: progress.message,
+        completed,
+        total: descriptors.length,
+        estimatedTotalMs: auditEstimateMs(),
+        estimatedRemainingMs: remaining,
+        startedAt,
+        items,
+      });
+    };
     const items = await Promise.all(descriptors.map(async (descriptor) => {
       const probeReport = (progress) => report(descriptor.id, {
         ...progress,
@@ -768,9 +779,7 @@ async function runAuditTask(sender, taskId, request) {
         return { profileId: descriptor.id === "temporary" ? null : descriptor.id, name: descriptor.name, error: message };
       }
     }));
-    for (const item of items) {
-      if (item.profileId && item.result) await recordProfileTest(item.profileId, item.result, dataPaths);
-    }
+    await persistAuditResults(items);
     const value = { items, ...(items.length === 1 ? { result: items[0].result, ranking: items[0].ranking } : {}) };
     sendAuditProgress(sender, taskId, {
       percent: 100,
@@ -798,7 +807,7 @@ async function runAuditTask(sender, taskId, request) {
       stage: "error",
       message,
       completed: 0,
-      total: 5,
+      total: 1,
       elapsedMs: Date.now() - startedAt,
       estimatedRemainingMs: 0,
       done: true,
@@ -807,9 +816,25 @@ async function runAuditTask(sender, taskId, request) {
     auditCompletionPending = !mainWindow || mainWindow.isDestroyed() || !mainWindow.isVisible();
     auditNotification(request?.language === "en" ? "Codex Galaxy API audit failed" : "Codex Galaxy API 检测失败", message);
     throw error;
-  } finally {
-    auditTasks.delete(taskId);
-    updateGatewayTray();
+  }
+}
+
+function pumpAuditQueue() {
+  while (runningAuditTasks < MAX_CONCURRENT_AUDITS && auditQueue.length) {
+    const taskId = auditQueue.shift();
+    const task = auditTasks.get(taskId);
+    if (!task) continue;
+    runningAuditTasks += 1;
+    task.status = "running";
+    sendAuditProgress(task.sender, taskId, { ...task.progress, status: "running", message: "正在开始检测" });
+    void runAuditTask(task.sender, taskId, task.request)
+      .catch(() => {})
+      .finally(() => {
+        auditTasks.delete(taskId);
+        runningAuditTasks = Math.max(0, runningAuditTasks - 1);
+        updateGatewayTray();
+        pumpAuditQueue();
+      });
   }
 }
 
@@ -924,25 +949,30 @@ function registerHandlers() {
     fetcher: (url, options) => net.fetch(url, options),
   }), "test-profile"));
   ipcMain.handle("codex-galaxy:start-audit", (event, request) => result(() => {
-    if (auditTasks.size) throw new Error("已有 API 检测正在后台运行，请等待完成。");
     const taskId = `audit-${process.pid}-${Date.now()}-${++auditTaskSequence}`;
     const sender = event.sender;
+    const queuedAhead = auditQueue.length + runningAuditTasks;
+    const estimatedTotalMs = auditEstimateMs() * (Math.floor(queuedAhead / MAX_CONCURRENT_AUDITS) + 1);
     auditTasks.set(taskId, {
       sender,
+      request,
+      status: "queued",
       progress: {
         percent: 0,
-        stage: "prepare",
-        message: "正在准备后台检测",
-        estimatedRemainingMs: auditEstimateMs(),
+        stage: "queued",
+        message: queuedAhead >= MAX_CONCURRENT_AUDITS ? "已加入后台检测队列" : "正在准备后台检测",
+        estimatedRemainingMs: estimatedTotalMs,
       },
     });
+    auditQueue.push(taskId);
     auditCompletionPending = false;
     updateGatewayTray();
-    void runAuditTask(sender, taskId, request).catch(() => {});
-    return { taskId, estimatedTotalMs: auditEstimateMs() };
+    pumpAuditQueue();
+    return { taskId, estimatedTotalMs, queued: queuedAhead >= MAX_CONCURRENT_AUDITS };
   }, "start-audit"));
-  ipcMain.handle("codex-galaxy:get-rankings", (_, sort) => result(() => fetchRelayRankings({
-    sort,
+  ipcMain.handle("codex-galaxy:get-rankings", (_, request) => result(() => fetchRelayRankings({
+    sort: request?.sort,
+    model: request?.model,
     fetcher: (url, options) => net.fetch(url, options),
   }), "get-rankings"));
   ipcMain.handle("codex-galaxy:capture-profile", (_, id) => result(async () => {

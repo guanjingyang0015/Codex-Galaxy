@@ -45,6 +45,10 @@ function modelId(entry) {
   return String(entry?.id || entry?.slug || entry?.model || "").trim();
 }
 
+function usesReasoningEfforts(model) {
+  return /^(?:gpt|o\d)/i.test(normalizedModel(model));
+}
+
 function parseJson(text) {
   try { return JSON.parse(text); } catch { return null; }
 }
@@ -272,7 +276,7 @@ function assessmentFor({ modelVerdict, score, results }) {
   return "inconclusive";
 }
 
-function findingsFor({ modelsResponse, modelVerdict, results, score }) {
+function findingsFor({ modelsResponse, modelVerdict, results, score, probeMode }) {
   const findings = [];
   if (modelsResponse.status !== 200) findings.push(`模型列表返回 HTTP ${modelsResponse.status || "网络错误"}`);
   if (modelVerdict.verdict === "exact") findings.push(`响应声明的模型与期望模型一致：${modelVerdict.observedModel}`);
@@ -281,10 +285,11 @@ function findingsFor({ modelsResponse, modelVerdict, results, score }) {
   if (modelVerdict.verdict === "mismatch") findings.push(`模型不匹配：期望 ${modelVerdict.expectedModel}，响应声明 ${modelVerdict.observedModels.join("、") || "未知"}`);
   if (modelVerdict.verdict === "unverified") findings.push(`无法验证期望模型：${modelVerdict.expectedModel || "未设置"}`);
   if (modelVerdict.verdict === "unspecified") findings.push("账号未设置期望模型，因此只能检测可用性，不能判断是否为用户想要的型号");
-  if (!modelsResponse.declaredReasoningLevels.length) findings.push("模型列表没有声明推理强度，强度支持只能通过行为测试观察");
+  if (probeMode === "reasoning" && !modelsResponse.declaredReasoningLevels.length) findings.push("模型列表没有声明推理强度，强度支持只能通过行为测试观察");
+  if (probeMode === "repeat") findings.push("该模型不使用 GPT 推理强度评分，已改用 3 次确定性 Responses 一致性测试");
   const failed = results.filter((item) => !item.ok || !item.canary);
-  if (failed.length) findings.push(`未通过的推理强度：${failed.map((item) => item.effort).join("、")}`);
-  if (results.some((item) => item.status === 0 && item.error?.type === "AbortError")) findings.push("至少一个强度请求超时");
+  if (failed.length) findings.push(`未通过的能力测试：${failed.map((item) => item.effort).join("、")}`);
+  if (results.some((item) => item.status === 0 && item.error?.type === "AbortError")) findings.push("至少一个能力测试请求超时");
   if (score.cap < 100) findings.push(`模型核对结论触发总分上限：${score.cap} 分`);
   findings.push("黑盒测试只能验证接口声明与行为一致性，不能证明中转站一定连接官方上游");
   return findings;
@@ -357,7 +362,7 @@ async function probeEffort(baseUrl, apiKey, model, effort, fetcher, timeoutMs) {
       body: JSON.stringify({
         model,
         input: "Return exactly RELAY-CANARY-OK and nothing else.",
-        reasoning: { effort },
+        ...(EFFORTS.includes(effort) ? { reasoning: { effort } } : {}),
         max_output_tokens: 48,
         store: false,
       }),
@@ -406,9 +411,9 @@ export async function auditRelay(input, {
   const testedAt = new Date().toISOString();
   if (!baseUrl) return { status: "invalid", testedAt, reason: "Base URL 格式不正确", findings: ["Base URL 格式不正确"] };
   if (!apiKey) return { status: "auth", testedAt, reason: "API Key 不能为空", findings: ["API Key 不能为空"] };
-  const steps = efforts.filter((item) => EFFORTS.includes(item));
-  const total = steps.length + 1;
-  const estimateMs = Math.max(1000, total * Math.max(1000, Number(timeoutMs) || DEFAULT_TIMEOUT_MS));
+  let steps = efforts.filter((item) => EFFORTS.includes(item));
+  let total = steps.length + 1;
+  let estimateMs = Math.max(1000, total * Math.max(1000, Number(timeoutMs) || DEFAULT_TIMEOUT_MS));
   const startedAt = Date.now();
   const report = (completed, stage, message) => {
     const elapsedMs = Date.now() - startedAt;
@@ -438,11 +443,17 @@ export async function auditRelay(input, {
     reason: modelsOk ? "中转站没有返回可用模型" : modelsResponse.error?.message || "模型列表读取失败",
     findings: ["没有找到可用于测试的模型"],
   };
+  const probeMode = usesReasoningEfforts(effectiveModel) ? "reasoning" : "repeat";
+  if (probeMode === "repeat") {
+    steps = ["repeat-1", "repeat-2", "repeat-3"];
+    total = steps.length + 1;
+    estimateMs = Math.max(1000, total * Math.max(1000, Number(timeoutMs) || DEFAULT_TIMEOUT_MS));
+  }
   const results = [];
   for (const [index, effort] of steps.entries()) {
-    report(index + 1, effort, `正在测试 ${effort} 推理强度`);
+    report(index + 1, effort, probeMode === "reasoning" ? `正在测试 ${effort} 推理强度` : `正在进行第 ${index + 1} 次一致性测试`);
     results.push(await probeEffort(baseUrl, apiKey, effectiveModel, effort, fetcher, timeoutMs));
-    report(index + 2, effort, `${effort} 推理强度测试完成`);
+    report(index + 2, effort, probeMode === "reasoning" ? `${effort} 推理强度测试完成` : `第 ${index + 1} 次一致性测试完成`);
   }
   const successful = results.filter((item) => item.ok && item.canary);
   const modelIds = modelsResponse.entries.map(modelId).filter(Boolean);
@@ -470,6 +481,7 @@ export async function auditRelay(input, {
     modelVerdict: modelVerdict.verdict,
     matchesDesiredModel: modelVerdict.matchesDesired,
     expectedModelListed: modelVerdict.listed,
+    probeMode,
     modelsCount: modelsResponse.entries.length,
     modelIds: modelIds.slice(0, 50),
     modelListed: selectedFound,
@@ -489,9 +501,9 @@ export async function auditRelay(input, {
     score,
     checks,
     assessment: assessmentFor({ modelVerdict, score, results }),
-    findings: findingsFor({ modelsResponse, modelVerdict, results, score }),
+    findings: findingsFor({ modelsResponse, modelVerdict, results, score, probeMode }),
     message: modelsOk
-      ? `已完成 ${results.length} 个推理强度测试，综合分 ${score.total}/100`
+      ? `已完成 ${results.length} 个能力测试，综合分 ${score.total}/100`
       : modelsResponse.error?.message || "中转站测试未完成",
   };
   report(total, "complete", "API 检测完成");

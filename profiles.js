@@ -204,13 +204,17 @@ export async function recordProfileTest(id, result, paths = runtimePaths()) {
   const { data } = await loadProfiles(paths);
   const profile = data.profiles.find((item) => item.id === String(id || ""));
   if (!profile || profile.kind !== "api") return false;
+  const testedAt = String(result?.testedAt || new Date().toISOString());
+  const incomingTime = Date.parse(testedAt);
+  const existingTime = Date.parse(String(profile.lastTest?.testedAt || ""));
+  if (Number.isFinite(incomingTime) && Number.isFinite(existingTime) && existingTime > incomingTime) return false;
   const status = ["ok", "auth", "not-found", "unsupported", "server", "network", "invalid"].includes(result?.status)
     ? result.status
     : "network";
   profile.lastTest = {
     status,
     httpStatus: Number.isInteger(result?.httpStatus) ? result.httpStatus : null,
-    testedAt: String(result?.testedAt || new Date().toISOString()),
+    testedAt,
   };
   if (result?.score && typeof result.score === "object") {
     profile.lastAudit = {

@@ -199,3 +199,25 @@ test("profile audit metadata preserves only model verdict evidence", async () =>
   assert.equal(audit.matchesDesiredModel, false);
   assert.doesNotMatch(JSON.stringify(audit), /must not persist|synthetic-key/);
 });
+
+test("an older concurrent audit cannot overwrite a newer profile result", async () => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), "codex-galaxy-profile-audit-order-"));
+  const paths = { root, profiles: path.join(root, "profiles.json"), vault: path.join(root, "vault.json"), library: path.join(root, "library.json") };
+  await saveProfile({ id: "relay-order", name: "Relay", kind: "api", baseUrl: "https://relay.test/v1", apiKey: "synthetic-key", model: "model" }, paths);
+  await recordProfileTest("relay-order", {
+    status: "ok",
+    httpStatus: 200,
+    testedAt: "2026-09-06T12:00:02.000Z",
+    score: { total: 90 },
+    assessment: "conforming",
+  }, paths);
+  assert.equal(await recordProfileTest("relay-order", {
+    status: "network",
+    testedAt: "2026-09-06T12:00:01.000Z",
+    score: { total: 20 },
+    assessment: "suspicious",
+  }, paths), false);
+  const profile = (await publicProfiles(paths)).profiles[0];
+  assert.equal(profile.lastTest.status, "ok");
+  assert.equal(profile.lastAudit.score, 90);
+});

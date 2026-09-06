@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 import json
-import math
 import os
 import re
 import sqlite3
 import time
+import calendar
 from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from socketserver import ThreadingMixIn
@@ -51,6 +51,11 @@ def db():
       reasoning_levels text not null,
       efforts_json text not null
     )""")
+    conn.execute("""create table if not exists link_overrides (
+      base_host text primary key,
+      homepage text not null,
+      updated_at text not null
+    )""")
     for column, definition in (
         ("expected_model", "text"),
         ("observed_model", "text"),
@@ -81,17 +86,6 @@ def clean_homepage(value):
     if parsed.scheme not in ("http", "https") or not parsed.netloc or parsed.username or parsed.password:
         return ""
     return text
-
-def site_key(hostname):
-    parts = [part for part in str(hostname or "").lower().split(".") if part]
-    if len(parts) < 2:
-        return ".".join(parts)
-    suffix = ".".join(parts[-2:])
-    return ".".join(parts[-3:]) if suffix in ("com.cn", "net.cn", "org.cn", "co.uk", "com.au") and len(parts) >= 3 else suffix
-
-def homepage_matches_host(homepage, base_host):
-    parsed = urlparse(homepage)
-    return bool(parsed.hostname and base_host and site_key(parsed.hostname) == site_key(str(base_host).split(":")[0]))
 
 def normalized_model(value):
     text = clean_text(value, 160).lower()
@@ -126,6 +120,12 @@ def fallback_homepage(base_host):
     if not host:
         return ""
     return "https://" + host + "/"
+
+def timestamp(value):
+    try:
+        return calendar.timegm(time.strptime(str(value or "")[:19], "%Y-%m-%dT%H:%M:%S"))
+    except (TypeError, ValueError):
+        return 0
 
 def calculate_score(payload):
     models_ok = int(payload.get("models_status") or 0) in range(200, 300)
@@ -164,7 +164,7 @@ def validate_audit(payload):
     return {
         "base_host": host,
         "provider_name": clean_text(payload.get("provider_name") or host, 100),
-        "homepage": clean_homepage(payload.get("homepage")) if homepage_matches_host(clean_homepage(payload.get("homepage")), host) else fallback_homepage(host),
+        "homepage": fallback_homepage(host),
         "model": model,
         "expected_model": clean_text(payload.get("expected_model"), 160),
         "observed_model": clean_text(payload.get("observed_model"), 160),
@@ -219,44 +219,62 @@ class Handler(BaseHTTPRequestHandler):
         if parsed.path == "/api/v1/rankings":
             query = parse_qs(parsed.query)
             sort = clean_text((query.get("sort") or ["overall"])[0], 20)
-            order = "last_test desc, average_score desc" if sort == "recent" else "average_score desc, last_test desc"
+            model_filter = clean_text((query.get("model") or [""])[0], 160)
             conn = db()
-            rows = conn.execute("""select a.base_host,
-              (select b.provider_name from audits b where b.base_host = a.base_host
-                and coalesce(nullif(b.expected_model, ''), b.model) = coalesce(nullif(a.expected_model, ''), a.model)
-                order by b.id desc limit 1) as provider_name,
-              (select b.homepage from audits b where b.base_host = a.base_host
-                and coalesce(nullif(b.expected_model, ''), b.model) = coalesce(nullif(a.expected_model, ''), a.model)
-                order by b.id desc limit 1) as homepage,
-              coalesce(nullif(a.expected_model, ''), a.model) as model,
-              (select b.expected_model from audits b where b.base_host = a.base_host
-                and coalesce(nullif(b.expected_model, ''), b.model) = coalesce(nullif(a.expected_model, ''), a.model)
-                order by b.id desc limit 1) as expected_model,
-              (select b.observed_model from audits b where b.base_host = a.base_host
-                and coalesce(nullif(b.expected_model, ''), b.model) = coalesce(nullif(a.expected_model, ''), a.model)
-                order by b.id desc limit 1) as observed_model,
-              (select b.model_verdict from audits b where b.base_host = a.base_host
-                and coalesce(nullif(b.expected_model, ''), b.model) = coalesce(nullif(a.expected_model, ''), a.model)
-                order by b.id desc limit 1) as model_verdict,
-              (select b.matches_desired_model from audits b where b.base_host = a.base_host
-                and coalesce(nullif(b.expected_model, ''), b.model) = coalesce(nullif(a.expected_model, ''), a.model)
-                order by b.id desc limit 1) as matches_desired_model,
-              max(score) as score, count(*) as samples, max(created_at) as last_test,
-              round(avg(score), 1) as average_score,
-              sum(case when assessment = 'conforming' then 1 else 0 end) as conforming_tests,
-              sum(case when assessment = 'suspicious' then 1 else 0 end) as suspicious_tests
-              from audits a
-              group by a.base_host, coalesce(nullif(a.expected_model, ''), a.model)
-              order by %s limit 100""" % order).fetchall()
+            rows = [dict(row) for row in conn.execute("select * from audits order by id asc").fetchall()]
+            overrides = {row["base_host"]: row["homepage"] for row in conn.execute("select base_host, homepage from link_overrides").fetchall()}
             conn.close()
+            models = sorted(set(clean_text(row.get("expected_model") or row.get("model"), 160) for row in rows if row.get("expected_model") or row.get("model")))
+            if model_filter:
+                rows = [row for row in rows if normalized_model(row.get("expected_model") or row.get("model")) == normalized_model(model_filter)]
+            now = time.time()
+            cutoff_7d = now - 7 * 86400
+            cutoff_90d = now - 90 * 86400
+            grouped = {}
+            for row in rows:
+                model_key = normalized_model(row.get("expected_model") or row.get("model"))
+                grouped.setdefault((row.get("base_host"), model_key), []).append(row)
             items = []
-            for index, row in enumerate(rows):
-                item = dict(row)
-                item["rank"] = index + 1
-                item["homepage"] = clean_homepage(item.get("homepage")) or fallback_homepage(item.get("base_host"))
-                item["assessment"] = "conforming" if item["conforming_tests"] > item["suspicious_tests"] else "suspicious" if item["suspicious_tests"] > item["conforming_tests"] else "inconclusive"
+            for (base_host, _model_key), group_rows in grouped.items():
+                latest = max(group_rows, key=lambda row: (timestamp(row.get("created_at")), int(row.get("id") or 0)))
+                recent = [row for row in group_rows if timestamp(row.get("created_at")) >= cutoff_7d]
+                candidates = recent or [latest]
+                winner = max(candidates, key=lambda row: (int(row.get("score") or 0), timestamp(row.get("created_at")), int(row.get("id") or 0)))
+                history_rows = [row for row in group_rows if timestamp(row.get("created_at")) >= cutoff_90d]
+                history_90d_max = max([int(row.get("score") or 0) for row in history_rows] or [int(winner.get("score") or 0)])
+                item = {
+                    "base_host": base_host,
+                    "provider_name": latest.get("provider_name") or base_host,
+                    "homepage": clean_homepage(overrides.get(base_host)) or fallback_homepage(base_host),
+                    "model": winner.get("expected_model") or winner.get("model"),
+                    "expected_model": winner.get("expected_model"),
+                    "observed_model": winner.get("observed_model"),
+                    "model_verdict": winner.get("model_verdict"),
+                    "matches_desired_model": winner.get("matches_desired_model"),
+                    "score": int(winner.get("score") or 0),
+                    "ranking_score": int(winner.get("score") or 0),
+                    "history_90d_max": history_90d_max,
+                    "samples": len(group_rows),
+                    "recent_7d_samples": len(recent),
+                    "last_test": latest.get("created_at"),
+                    "winning_test": winner.get("created_at"),
+                    "protocol_score": int(winner.get("protocol_score") or 0),
+                    "model_score": int(winner.get("model_score") or 0),
+                    "effort_score": int(winner.get("effort_score") or 0),
+                    "stability_score": int(winner.get("stability_score") or 0),
+                    "speed_score": int(winner.get("speed_score") or 0),
+                    "assessment": winner.get("assessment") or "inconclusive",
+                }
                 items.append(item)
-            return self.json(200, {"items": items, "sort": sort})
+            if sort == "recent":
+                items.sort(key=lambda item: (timestamp(item.get("last_test")), item.get("ranking_score", 0)), reverse=True)
+            else:
+                items.sort(key=lambda item: (item.get("ranking_score", 0), timestamp(item.get("last_test"))), reverse=True)
+            for index, item in enumerate(items[:100]):
+                item["rank"] = index + 1
+            items = items[:100]
+            history_90d_max = max([int(row.get("score") or 0) for row in rows if timestamp(row.get("created_at")) >= cutoff_90d] or [0])
+            return self.json(200, {"items": items, "sort": sort, "model": model_filter, "models": models, "history_90d_max": history_90d_max})
         if parsed.path == "/":
             return self.json(200, {"service": "Codex Galaxy Relay Ranking", "endpoints": ["/health", "/api/v1/rankings", "/api/v1/audits"]})
         return self.json(404, {"error": "not found"})

@@ -10,7 +10,7 @@ contextBridge.exposeInMainWorld("codexGalaxy", {
   clearProfileKey: (id) => ipcRenderer.invoke("codex-galaxy:clear-profile-key", id),
   testProfile: (id) => ipcRenderer.invoke("codex-galaxy:test-profile", id),
   startAudit: (request) => ipcRenderer.invoke("codex-galaxy:start-audit", request),
-  getRankings: (sort) => ipcRenderer.invoke("codex-galaxy:get-rankings", sort),
+  getRankings: (sort, model) => ipcRenderer.invoke("codex-galaxy:get-rankings", { sort, model }),
   captureProfile: (id) => ipcRenderer.invoke("codex-galaxy:capture-profile", id),
   switchProfile: (profileId, operationId) => ipcRenderer.invoke("codex-galaxy:switch-profile", { profileId, operationId }),
   getThread: (id) => ipcRenderer.invoke("codex-galaxy:get-thread", id),

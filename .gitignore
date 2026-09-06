@@ -13,5 +13,7 @@ auth.json
 *.pfx
 coverage/
 *.log
+__pycache__/
+*.pyc
 .DS_Store
 .codex-project/
