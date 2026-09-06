@@ -43,9 +43,17 @@ export function sanitizeAuditForRanking(result, { providerName = "", homepage = 
     base_host: safeText(result?.baseHost, 255).toLowerCase(),
     homepage: safeHomepage,
     model: safeText(result?.model, 160),
+    expected_model: safeText(result?.expectedModel, 160),
+    observed_model: safeText(result?.observedModel, 160),
+    observed_models: Array.isArray(result?.observedModels)
+      ? result.observedModels.map((item) => safeText(item, 160)).filter(Boolean).slice(0, 8)
+      : [],
+    model_verdict: safeText(result?.modelVerdict, 24),
+    matches_desired_model: result?.matchesDesiredModel === true ? true : result?.matchesDesiredModel === false ? false : null,
+    expected_model_listed: result?.expectedModelListed === true,
     models_status: Number.isInteger(result?.httpStatus) ? result.httpStatus : 0,
     models_count: Math.max(0, Math.min(512, Number(result?.modelsCount) || 0)),
-    model_listed: result?.modelListed === true,
+    model_listed: result?.expectedModelListed === true,
     declared_reasoning_levels: Array.isArray(result?.declaredReasoningLevels)
       ? result.declaredReasoningLevels.map((item) => safeText(item, 20)).filter(Boolean).slice(0, 8)
       : [],
@@ -56,6 +64,9 @@ export function sanitizeAuditForRanking(result, { providerName = "", homepage = 
       ok: item?.ok === true,
       canary: item?.canary === true,
       has_response_id: item?.hasResponseId === true,
+      observed_models: Array.isArray(item?.observedModels)
+        ? item.observedModels.map((value) => safeText(value, 160)).filter(Boolean).slice(0, 4)
+        : [],
       usage: item?.usage ? {
         input_tokens: Math.max(0, Math.min(10_000_000, Number(item.usage.input_tokens) || 0)),
         output_tokens: Math.max(0, Math.min(10_000_000, Number(item.usage.output_tokens) || 0)),

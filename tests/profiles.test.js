@@ -171,3 +171,31 @@ test("profile connection results persist only safe status metadata", async () =>
   assert.equal(cleared.hasApiKey, false);
   assert.equal(cleared.lastTest, null);
 });
+
+test("profile audit metadata preserves only model verdict evidence", async () => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), "codex-galaxy-profile-audit-result-"));
+  const paths = { root, profiles: path.join(root, "profiles.json"), vault: path.join(root, "vault.json"), library: path.join(root, "library.json") };
+  await saveProfile({ id: "relay-audit", name: "Relay", kind: "api", baseUrl: "https://relay.test/v1", apiKey: "synthetic-key", model: "gpt-6" }, paths);
+  await recordProfileTest("relay-audit", {
+    status: "ok",
+    httpStatus: 200,
+    testedAt: "2026-09-06T08:00:00.000Z",
+    baseHost: "relay.test",
+    model: "gpt-5.6-sol",
+    expectedModel: "gpt-6",
+    observedModel: "gpt-5.6-sol",
+    modelVerdict: "mismatch",
+    matchesDesiredModel: false,
+    modelsCount: 2,
+    modelListed: true,
+    score: { total: 49 },
+    responseBody: "must not persist",
+  }, paths);
+  const audit = (await publicProfiles(paths)).profiles[0].lastAudit;
+  assert.equal(audit.score, 49);
+  assert.equal(audit.expectedModel, "gpt-6");
+  assert.equal(audit.observedModel, "gpt-5.6-sol");
+  assert.equal(audit.modelVerdict, "mismatch");
+  assert.equal(audit.matchesDesiredModel, false);
+  assert.doesNotMatch(JSON.stringify(audit), /must not persist|synthetic-key/);
+});

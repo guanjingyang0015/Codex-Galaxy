@@ -219,6 +219,12 @@ export async function recordProfileTest(id, result, paths = runtimePaths()) {
       testedAt: profile.lastTest.testedAt,
       baseHost: String(result.baseHost || "").slice(0, 255),
       model: String(result.model || "").slice(0, 160),
+      expectedModel: String(result.expectedModel || "").slice(0, 160),
+      observedModel: String(result.observedModel || "").slice(0, 160),
+      modelVerdict: ["exact", "compatible", "listed-only", "mismatch", "unverified", "unspecified"].includes(result.modelVerdict)
+        ? result.modelVerdict
+        : "unverified",
+      matchesDesiredModel: result.matchesDesiredModel === true ? true : result.matchesDesiredModel === false ? false : null,
       modelsCount: Math.max(0, Number(result.modelsCount) || 0),
       modelListed: result.modelListed === true,
     };

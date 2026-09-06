@@ -1,7 +1,7 @@
 const $ = (selector) => document.querySelector(selector);
 const state = {
   profiles: [],
-  version: "1.11.1",
+  version: "1.12.0",
   threads: [],
   currentId: null,
   selectedProfileId: null,
@@ -28,7 +28,7 @@ const state = {
   releases: [],
   update: {
     phase: "idle",
-    currentVersion: "1.11.1",
+    currentVersion: "1.12.0",
     latestVersion: null,
     available: false,
     action: "install",
@@ -130,7 +130,7 @@ const translations = {
     "profile.testUnsupported": "接口不兼容",
     "profile.baseUrl": "地址",
     "profile.recentTest": "最近测试",
-    "profile.recentAudit": "最近检测 · {score}/100 · {assessment} · {time}",
+    "profile.recentAudit": "最近检测 · {score} 分 · {assessment} · {time}",
     "profile.testNever": "未测试",
     "profile.switchMissingKey": "这个中转站还没有保存 API Key，请先编辑配置并填写 Key。",
     "profile.currentCannotDelete": "当前配置不能删除，请先切换到其他配置。",
@@ -154,7 +154,7 @@ const translations = {
     "profileForm.api": "中转 API",
     "profileForm.keyPlaceholder": "留空则保留已保存的 Key",
     "profileForm.keyNote": "留空会保留原 Key；需要更换时直接填写新 Key。",
-    "profileForm.model": "模型 ID",
+    "profileForm.model": "模型 ID（也是检测期望型号）",
     "profileForm.optional": "（可选）",
     "profileForm.modelPlaceholder": "留空自动发现，或填 gpt-5.6、provider/model",
     "profileForm.protocol": "API 账号始终使用独立纯 API 登录，不需要官方账号。模型 ID 可留空，由中转站模型列表自动选择；接口必须兼容 OpenAI Responses API。",
@@ -199,12 +199,14 @@ const translations = {
     "threads.continuationPromptCopied": "已复制新聊天提示。请在同一项目下新建聊天后粘贴发送。",
     "audit.panelTitle": "API 检测与排名",
     "audit.intro": "已保存 API 可直接检测；临时 API 才需要填写地址和 Key。检测在后台运行，完成后自动保存并提交脱敏排名。",
+    "audit.rubric": "评分：模型核对 40 分、接口协议 25 分、推理强度 15 分、稳定性 10 分、速度 10 分。期望模型与响应声明模型不一致时，总分最高 49 分。",
     "audit.rankings": "查看排名",
     "audit.rankingsTitle": "API 中转站测试排名",
     "audit.rankingsNote": "排名代表社区测试表现，不等于官方上游认证。",
     "audit.refreshRankings": "刷新排名",
     "audit.sortOverall": "综合排名",
     "audit.sortRecent": "最近测试",
+    "audit.batchSaved": "批量检测已保存 API",
     "audit.adHoc": "测试新 API",
     "audit.summaryTitle": "最近排名参考",
     "audit.rankingsLoading": "正在读取排名…",
@@ -233,6 +235,37 @@ const translations = {
     "audit.completeTitle": "API 检测完成",
     "audit.completeClose": "关闭",
     "audit.failedTitle": "API 检测失败",
+    "audit.batchEmpty": "没有可检测的已保存 API 账号，或账号尚未保存 Key。",
+    "audit.batchStarted": "已并行启动 {count} 个 API 检测，预计最多约 {time}。",
+    "audit.batchComplete": "批量检测完成：{success}/{total} 个成功生成报告",
+    "audit.scoreUnit": "{score} 分",
+    "audit.checkScore": "{score}/{max} 分",
+    "audit.expectedModel": "期望模型",
+    "audit.requestedModel": "请求模型",
+    "audit.observedModel": "响应声明模型",
+    "audit.modelUnknown": "响应未声明，无法核验",
+    "audit.model.exact": "与期望模型完全一致",
+    "audit.model.compatible": "与期望模型属于同一型号系列",
+    "audit.model.listed-only": "模型列表声明支持，但响应没有 model 字段",
+    "audit.model.mismatch": "与期望模型不一致",
+    "audit.model.unverified": "无法验证模型身份",
+    "audit.model.unspecified": "未设置期望模型",
+    "audit.check.catalog": "模型目录",
+    "audit.check.responses": "Responses 协议",
+    "audit.check.model": "模型核对",
+    "audit.check.reasoning": "推理强度",
+    "audit.check.stability": "稳定性",
+    "audit.check.performance": "响应速度",
+    "audit.check.pass": "通过",
+    "audit.check.warn": "部分通过",
+    "audit.check.fail": "未通过",
+    "audit.check.catalogDetail": "/models HTTP {status}，返回 {count} 个模型",
+    "audit.check.responsesDetail": "{success}/{total} 个请求成功，{ids} 个含 response id，{usage} 个含 usage",
+    "audit.check.reasoningDetail": "{success}/{total} 个推理强度返回固定校验词",
+    "audit.check.stabilityDetail": "{success}/{total} 个请求成功，超时 {timeouts} 次",
+    "audit.check.performanceDetail": "成功请求平均 {time}",
+    "audit.effortTitle": "各推理强度实测",
+    "audit.effortRow": "{effort} · HTTP {status} · {time} · {result} · 模型 {model}",
     "audit.assessment.conforming": "基本符合声明",
     "audit.assessment.inconclusive": "证据不足",
     "audit.assessment.suspicious": "存在可疑点",
@@ -335,7 +368,7 @@ const translations = {
     "diagnostics.opened": "已打开本地日志文件。",
     "diagnostics.truncated": "日志较长，当前只显示最后一段。",
     "tutorial.title": "分阶段使用教程",
-    "tutorial.intro": "按使用阶段阅读教程：先完成一次账号配置，日常按步骤切换，出问题先看日志，超大聊天先复制深度链接新建聊天继续，最后了解本地历史和其他特色功能。当前版本为 v1.11.1。",
+    "tutorial.intro": "按使用阶段阅读教程：先完成一次账号配置，日常按步骤切换，出问题先看日志，超大聊天先复制深度链接新建聊天继续，最后了解本地历史和其他特色功能。当前版本为 v1.12.0。",
     "tutorial.stageNav": "教程阶段",
     "tutorial.stage1.tab": "首次配置",
     "tutorial.stage1.short": "添加账号和模型",
@@ -403,7 +436,7 @@ const translations = {
     "tutorial.feature.gatewayTitle": "直连与兼容网关",
     "tutorial.feature.gatewayText": "直连模式让 Codex 直接访问 Base URL；兼容网关模式使用本机回环网关，需要 Galaxy 保持运行。",
     "tutorial.feature.auditTitle": "后台 API 检测",
-    "tutorial.feature.auditText": "已保存 API 点击检测后会直接读取本机加密配置。检测在后台运行并显示剩余时间，成功后自动提交脱敏排名，完成时弹窗提醒。",
+    "tutorial.feature.auditText": "可并行检测全部已保存 API。报告按模型核对、协议、推理、稳定性和速度逐项显示证据；期望模型不匹配时总分最高 49 分。",
     "tutorial.feature.toolsTitle": "插件、刷新和清理",
     "tutorial.feature.toolsText": "插件窗口管理本地插件市场；刷新只重建列表；清理数据会先创建备份。",
     "tutorial.feature.updateTitle": "安全更新",
@@ -499,7 +532,7 @@ const translations = {
     "profile.testUnsupported": "Incompatible endpoint",
     "profile.baseUrl": "Endpoint",
     "profile.recentTest": "Last test",
-    "profile.recentAudit": "Last audit · {score}/100 · {assessment} · {time}",
+    "profile.recentAudit": "Last audit · {score} pts · {assessment} · {time}",
     "profile.testNever": "Not tested",
     "profile.switchMissingKey": "This relay has no saved API key. Edit it and enter a key before switching.",
     "profile.currentCannotDelete": "The current configuration cannot be deleted. Switch first.",
@@ -523,7 +556,7 @@ const translations = {
     "profileForm.api": "Relay API",
     "profileForm.keyPlaceholder": "Leave blank to keep the saved key",
     "profileForm.keyNote": "Leave blank to keep the existing key; enter a new key to replace it.",
-    "profileForm.model": "Model ID",
+    "profileForm.model": "Model ID (also the expected audit model)",
     "profileForm.optional": "(optional)",
     "profileForm.modelPlaceholder": "Leave blank to detect, or enter gpt-5.6, provider/model",
     "profileForm.protocol": "API accounts always use an independent pure-API login and require no official account. Model ID may be left blank for relay catalog discovery. The endpoint must support the OpenAI Responses API.",
@@ -568,12 +601,14 @@ const translations = {
     "threads.continuationPromptCopied": "Continuation prompt copied. Create a new chat in the same project and paste it.",
     "audit.panelTitle": "API audit and ranking",
     "audit.intro": "Saved APIs can be tested directly; only temporary APIs require an address and key. Audits run in the background and automatically submit redacted results.",
+    "audit.rubric": "Score: model identity 40, protocol 25, reasoning 15, stability 10, latency 10. If the expected and response-declared models differ, the total is capped at 49.",
     "audit.rankings": "View ranking",
     "audit.rankingsTitle": "API relay test ranking",
     "audit.rankingsNote": "Ranking reflects community test performance, not official upstream certification.",
     "audit.refreshRankings": "Refresh ranking",
     "audit.sortOverall": "Overall ranking",
     "audit.sortRecent": "Most recent",
+    "audit.batchSaved": "Audit all saved APIs",
     "audit.adHoc": "Test new API",
     "audit.summaryTitle": "Recent ranking reference",
     "audit.rankingsLoading": "Loading ranking…",
@@ -602,6 +637,37 @@ const translations = {
     "audit.completeTitle": "API audit complete",
     "audit.completeClose": "Close",
     "audit.failedTitle": "API audit failed",
+    "audit.batchEmpty": "There are no saved API profiles with keys to audit.",
+    "audit.batchStarted": "Started {count} API audits in parallel; maximum estimate is about {time}.",
+    "audit.batchComplete": "Batch audit complete: {success}/{total} reports generated",
+    "audit.scoreUnit": "{score} pts",
+    "audit.checkScore": "{score}/{max} pts",
+    "audit.expectedModel": "Expected model",
+    "audit.requestedModel": "Requested model",
+    "audit.observedModel": "Response-declared model",
+    "audit.modelUnknown": "Not declared; cannot verify",
+    "audit.model.exact": "Exact expected model",
+    "audit.model.compatible": "Same expected model family",
+    "audit.model.listed-only": "Listed by /models, but responses omit model",
+    "audit.model.mismatch": "Different from the expected model",
+    "audit.model.unverified": "Model identity could not be verified",
+    "audit.model.unspecified": "No expected model configured",
+    "audit.check.catalog": "Model catalog",
+    "audit.check.responses": "Responses protocol",
+    "audit.check.model": "Model identity",
+    "audit.check.reasoning": "Reasoning efforts",
+    "audit.check.stability": "Stability",
+    "audit.check.performance": "Latency",
+    "audit.check.pass": "Pass",
+    "audit.check.warn": "Partial",
+    "audit.check.fail": "Fail",
+    "audit.check.catalogDetail": "/models HTTP {status}, {count} models returned",
+    "audit.check.responsesDetail": "{success}/{total} requests succeeded, {ids} with response id, {usage} with usage",
+    "audit.check.reasoningDetail": "{success}/{total} efforts returned the exact canary",
+    "audit.check.stabilityDetail": "{success}/{total} requests succeeded, {timeouts} timeouts",
+    "audit.check.performanceDetail": "Successful-request average: {time}",
+    "audit.effortTitle": "Per-effort observations",
+    "audit.effortRow": "{effort} · HTTP {status} · {time} · {result} · model {model}",
     "audit.assessment.conforming": "Basically conforms",
     "audit.assessment.inconclusive": "Inconclusive",
     "audit.assessment.suspicious": "Suspicious",
@@ -704,7 +770,7 @@ const translations = {
     "diagnostics.opened": "The local log file was opened.",
     "diagnostics.truncated": "The log is long; only its latest section is shown.",
     "tutorial.title": "Phased usage guide",
-    "tutorial.intro": "Read the guide by stage: configure accounts once, follow the daily switch steps, preserve the scene when something fails, use a deep link to continue oversized chats in a new thread, then learn local history and other features. Current version: v1.11.1.",
+    "tutorial.intro": "Read the guide by stage: configure accounts once, follow the daily switch steps, preserve the scene when something fails, use a deep link to continue oversized chats in a new thread, then learn local history and other features. Current version: v1.12.0.",
     "tutorial.stageNav": "Tutorial stages",
     "tutorial.stage1.tab": "First setup",
     "tutorial.stage1.short": "Accounts and models",
@@ -772,7 +838,7 @@ const translations = {
     "tutorial.feature.gatewayTitle": "Direct API and gateway",
     "tutorial.feature.gatewayText": "Direct API connects Codex to the Base URL; Compatibility gateway uses a local loopback gateway and requires Galaxy to run.",
     "tutorial.feature.auditTitle": "Background API audit",
-    "tutorial.feature.auditText": "A saved API starts directly from its encrypted local profile. The audit runs in the background with a remaining-time estimate, automatically submits redacted ranking data on success, and notifies you when finished.",
+    "tutorial.feature.auditText": "Audit all saved APIs in parallel. Reports show evidence for model identity, protocol, reasoning, stability, and latency; a model mismatch caps the total at 49.",
     "tutorial.feature.toolsTitle": "Plugins, refresh, and cleanup",
     "tutorial.feature.toolsText": "Plugins manage local marketplaces; Refresh rebuilds the list; Clean Data creates a backup first.",
     "tutorial.feature.updateTitle": "Safe updates",
@@ -896,6 +962,7 @@ function updateOperationControls() {
   $("#auditBtn").disabled = busy || Boolean(state.auditTask);
   $("#topRankingsBtn").disabled = busy;
   $("#rankingsBtn").disabled = busy;
+  $("#batchAuditBtn").disabled = busy || Boolean(state.auditTask);
   $("#adHocAuditBtn").disabled = busy || Boolean(state.auditTask);
   $("#refreshRankingsBtn").disabled = busy;
   if ($("#search")) $("#search").disabled = busy;
@@ -1599,13 +1666,18 @@ function renderRankingItems(items, target = $("#rankingPreview")) {
     target.innerHTML = `<div class="empty">${t("audit.rankingsLoading")}</div>`;
     return;
   }
-  target.innerHTML = items.slice(0, 5).map((item, index) => `<div class="ranking-item">
+  target.innerHTML = items.slice(0, 5).map((item, index) => {
+    const visitUrl = safeHomepageForDisplay(item.homepage) || safeHomepageForDisplay(`https://${item.base_host || ""}/`);
+    const body = `
     <span class="ranking-number">${item.rank || index + 1}</span>
-    <div class="ranking-main"><strong>${escapeHtml(item.provider_name || item.base_host)}</strong><small>${escapeHtml(item.model || "")} · ${escapeHtml(t("audit.tests", { count: item.samples || 0 }))}</small></div>
-    <b class="ranking-score">${Math.round(Number(item.average_score) || Number(item.score) || 0)}</b>
+    <div class="ranking-main"><strong>${escapeHtml(item.provider_name || item.base_host)}</strong><small>${escapeHtml(item.expected_model || item.model || "")}${item.observed_model ? ` → ${escapeHtml(item.observed_model)}` : ""} · ${escapeHtml(t("audit.tests", { count: item.samples || 0 }))}</small></div>
+    <b class="ranking-score">${escapeHtml(t("audit.scoreUnit", { score: Math.round(Number(item.average_score) || Number(item.score) || 0) }))}</b>
     <small class="ranking-latest">${escapeHtml(t("audit.latest", { time: formatDate(item.last_test) }))}</small>
-    ${safeHomepageForDisplay(item.homepage) ? `<a class="ranking-link" href="${escapeHtml(safeHomepageForDisplay(item.homepage))}" target="_blank" rel="noreferrer">↗</a>` : ""}
-  </div>`).join("");
+    <span class="ranking-link">↗</span>`;
+    return visitUrl
+      ? `<a class="ranking-item" href="${escapeHtml(visitUrl)}" target="_blank" rel="noreferrer">${body}</a>`
+      : `<div class="ranking-item">${body}</div>`;
+  }).join("");
 }
 
 function safeHomepageForDisplay(value) {
@@ -1678,6 +1750,7 @@ function updateAuditProgress(progress) {
       stage: progress.message || t("audit.running"),
       estimatedRemainingMs: Math.max(0, Number(progress?.estimatedRemainingMs) || 0),
       progressAt: Date.now(),
+      items: Array.isArray(progress?.items) ? progress.items : state.auditTask?.items || [],
     };
   }
   root.hidden = progress?.done === true || progress?.stage === "error";
@@ -1685,19 +1758,16 @@ function updateAuditProgress(progress) {
   if (progress?.done || progress?.stage === "error") {
     state.auditTask = null;
     updateOperationControls();
-    if (progress.stage === "complete" && progress.value?.result) {
-      state.lastAuditResult = progress.value.result;
-      renderAuditResult(progress.value.result, { autoSubmitted: !progress.value.ranking?.error && !progress.value.ranking?.skipped });
-      const name = progress.value.result.profile?.name || progress.value.result.baseHost || "API";
-      const score = progress.value.result.score?.total;
-      showAuditComplete(progress.value.result, progress.value.ranking);
-      notice(`${name}：${score == null
-        ? progress.value.result.message || progress.value.result.reason || t("audit.failedTitle")
-        : t("audit.done", { score, assessment: auditAssessmentLabel(progress.value.result.assessment) })}`);
+    if (progress.stage === "complete" && Array.isArray(progress.value?.items)) {
+      const reports = progress.value.items;
+      state.lastAuditResult = reports;
+      showAuditComplete(reports);
+      const successful = reports.filter((item) => item.result).length;
+      notice(t("audit.batchComplete", { success: successful, total: reports.length }));
       loadRankings().catch(() => {});
       refresh().catch(() => {});
     } else if (progress.error) {
-      showAuditComplete(null, { error: progress.error });
+      showAuditComplete([{ name: "API", error: progress.error }]);
       notice(progress.error, true);
     }
   }
@@ -1713,6 +1783,14 @@ function renderAuditCountdown() {
     : t("audit.progressUnknown", { percent, stage: state.auditTask.stage || t("audit.running") });
   $("#auditProgressPercent").textContent = `${percent}%`;
   $("#auditProgressBar").value = percent;
+  const list = $("#auditProgressList");
+  if (list) {
+    list.innerHTML = (state.auditTask.items || []).map((item) => `<div class="audit-progress-item">
+      <span>${escapeHtml(item.name || "API")}</span>
+      <small>${escapeHtml(item.message || item.stage || t("audit.running"))}</small>
+      <strong>${Math.max(0, Math.min(100, Number(item.percent) || 0))}%</strong>
+    </div>`).join("");
+  }
 }
 
 function startAuditCountdown() {
@@ -1720,32 +1798,46 @@ function startAuditCountdown() {
   auditCountdownTimer = window.setInterval(renderAuditCountdown, 1000);
 }
 
-function showAuditComplete(result, ranking) {
-  const dialog = $("#auditCompleteDialog");
-  if (!dialog) return;
-  const score = result?.score?.total;
-  $("#auditCompleteSummary").textContent = result
-    ? score == null
-      ? result.message || result.reason || t("audit.failedTitle")
-      : t("audit.done", { score, assessment: auditAssessmentLabel(result.assessment) })
-    : t("audit.failedTitle");
-  $("#auditCompleteDetails").textContent = result
-    ? `${(result.findings || []).join("；")}${ranking?.error
-      ? ` ${t("audit.rankingFailed", { message: ranking.error })}`
-      : ranking?.skipped
-        ? ` ${t("audit.rankingSkipped")}`
-        : ` ${t("audit.rankingSaved")}`}`
-    : String(ranking?.error || "");
-  dialog.showModal();
+function modelVerdictLabel(value) {
+  return t(`audit.model.${value || "unverified"}`);
 }
 
-function renderAuditResult(result, { autoSubmitted = false } = {}) {
-  const box = $("#auditResult");
+function checkDetail(check) {
+  if (check.key === "catalog") return t("audit.check.catalogDetail", { status: check.httpStatus || 0, count: check.modelsCount || 0 });
+  if (check.key === "model") {
+    return `${t("audit.expectedModel")}: ${check.expectedModel || t("common.none")} · ${t("audit.requestedModel")}: ${check.requestedModel || t("common.none")} · ${t("audit.observedModel")}: ${check.observedModel || t("audit.modelUnknown")}`;
+  }
+  if (check.key === "responses") return t("audit.check.responsesDetail", { success: check.successCount || 0, total: check.total || 0, ids: check.responseIdCount || 0, usage: check.usageCount || 0 });
+  if (check.key === "reasoning") return t("audit.check.reasoningDetail", { success: check.successCount || 0, total: check.total || 0 });
+  if (check.key === "stability") return t("audit.check.stabilityDetail", { success: check.successCount || 0, total: check.total || 0, timeouts: check.timeoutCount || 0 });
+  return t("audit.check.performanceDetail", { time: check.averageMs == null ? t("common.unknown") : `${check.averageMs} ms` });
+}
+
+function renderAuditReport(item) {
+  if (!item?.result) {
+    return `<article class="audit-report suspicious"><div class="audit-report-head"><strong>${escapeHtml(item?.name || "API")}</strong><b>${escapeHtml(t("audit.failedTitle"))}</b></div><p>${escapeHtml(item?.error || t("common.unknown"))}</p></article>`;
+  }
+  const result = item.result;
+  const checks = Array.isArray(result.checks) ? result.checks : [];
   const score = result.score?.total ?? 0;
-  const label = auditAssessmentLabel(result.assessment);
-  box.hidden = false;
-  box.className = `audit-result ${result.assessment || ""}`;
-  box.innerHTML = `<strong>${escapeHtml(t("audit.done", { score, assessment: label }))}</strong><small>${escapeHtml((result.findings || []).join("；"))}</small><small>${escapeHtml(autoSubmitted ? t("audit.rankingSaved") : "")}</small>`;
+  return `<article class="audit-report ${escapeHtml(result.assessment || "")}">
+    <div class="audit-report-head"><div><strong>${escapeHtml(item.name || result.profile?.name || result.baseHost || "API")}</strong><small>${escapeHtml(result.baseHost || "")}</small></div><b>${escapeHtml(t("audit.scoreUnit", { score }))}</b></div>
+    <div class="audit-model-verdict ${escapeHtml(result.modelVerdict || "unverified")}"><strong>${escapeHtml(modelVerdictLabel(result.modelVerdict))}</strong><span>${escapeHtml(`${t("audit.expectedModel")}: ${result.expectedModel || t("common.none")} · ${t("audit.observedModel")}: ${result.observedModel || t("audit.modelUnknown")}`)}</span></div>
+    <div class="audit-check-grid">${checks.map((check) => `<div class="audit-check ${escapeHtml(check.status || "warn")}"><span>${escapeHtml(t(`audit.check.${check.key}`))}</span><b>${escapeHtml(t("audit.checkScore", { score: check.score || 0, max: check.maxScore }))}</b><small>${escapeHtml(t(`audit.check.${check.status || "warn"}`))} · ${escapeHtml(checkDetail(check))}</small></div>`).join("")}</div>
+    <details><summary>${escapeHtml(t("audit.effortTitle"))}</summary><div class="audit-effort-list">${(result.efforts || []).map((effort) => `<div>${escapeHtml(t("audit.effortRow", { effort: effort.effort, status: effort.status || 0, time: `${effort.elapsedMs || 0} ms`, result: effort.ok && effort.canary ? t("audit.check.pass") : t("audit.check.fail"), model: effort.observedModels?.[0] || t("audit.modelUnknown") }))}</div>`).join("")}</div></details>
+    <p>${escapeHtml((result.findings || []).join("；"))}</p>
+    <small>${escapeHtml(item.ranking?.error ? t("audit.rankingFailed", { message: item.ranking.error }) : item.ranking?.skipped ? t("audit.rankingSkipped") : t("audit.rankingSaved"))}</small>
+  </article>`;
+}
+
+function showAuditComplete(items) {
+  const dialog = $("#auditCompleteDialog");
+  if (!dialog) return;
+  const reports = Array.isArray(items) ? items : [];
+  $("#auditCompleteSummary").textContent = t("audit.batchComplete", { success: reports.filter((item) => item.result).length, total: reports.length });
+  $("#auditCompleteResults").innerHTML = reports.map(renderAuditReport).join("");
+  if (dialog.open) dialog.close();
+  dialog.showModal();
 }
 
 async function runRelayAudit(event) {
@@ -1800,6 +1892,31 @@ async function startSavedProfileAudit(profile) {
   } catch (error) { notice(error.message, true); }
 }
 
+async function startBatchSavedAudits() {
+  if (state.auditTask) return;
+  const profiles = state.profiles.filter((profile) => profile.kind === "api" && profile.hasApiKey);
+  if (!profiles.length) return notice(t("audit.batchEmpty"), true);
+  try {
+    const started = unwrap(await bridge.startAudit({
+      language: currentLanguage,
+      profileIds: profiles.map((profile) => profile.id),
+    }));
+    state.auditTask = {
+      taskId: started.taskId,
+      estimatedTotalMs: started.estimatedTotalMs,
+      percent: 0,
+      stage: t("audit.running"),
+      estimatedRemainingMs: started.estimatedTotalMs,
+      progressAt: Date.now(),
+      items: profiles.map((profile) => ({ profileId: profile.id, name: profile.name, percent: 0, message: t("audit.running") })),
+    };
+    $("#auditProgress").hidden = false;
+    renderAuditCountdown();
+    updateOperationControls();
+    notice(t("audit.batchStarted", { count: profiles.length, time: formatRemaining(started.estimatedTotalMs) }));
+  } catch (error) { notice(error.message, true); }
+}
+
 async function clearProfileKey(id) {
   if (operationBusy()) return;
   const profile = state.profiles.find((item) => item.id === id);
@@ -1851,6 +1968,7 @@ $("#rankingsBtn").addEventListener("click", async () => {
   await loadRankings($("#rankingsList"));
 });
 $("#refreshRankingsBtn").addEventListener("click", () => loadRankings());
+$("#batchAuditBtn").addEventListener("click", startBatchSavedAudits);
 $("#reloadRankings").addEventListener("click", () => loadRankings($("#rankingsList")));
 $("#rankingSort").addEventListener("change", () => loadRankings($("#rankingsList")));
 $("#closeRankings").addEventListener("click", () => $("#rankingsDialog").close());

@@ -59,14 +59,18 @@ test("ranking server stores only safe aggregate observations and returns scored 
         base_host: "relay.example",
         homepage: "https://relay.example/",
         model: "gpt-6-test",
+        expected_model: "gpt-6-test",
+        observed_model: "gpt-6-test",
+        model_verdict: "exact",
+        matches_desired_model: true,
         models_status: 200,
         models_count: 1,
         model_listed: true,
         efforts: [
-          { effort: "low", status: 200, elapsed_ms: 1000, ok: true, canary: true, has_response_id: true },
-          { effort: "medium", status: 200, elapsed_ms: 1000, ok: true, canary: true, has_response_id: true },
-          { effort: "high", status: 200, elapsed_ms: 1000, ok: true, canary: true, has_response_id: true },
-          { effort: "xhigh", status: 200, elapsed_ms: 1000, ok: true, canary: true, has_response_id: true },
+          { effort: "low", status: 200, elapsed_ms: 1000, ok: true, canary: true, has_response_id: true, usage: { total_tokens: 2 } },
+          { effort: "medium", status: 200, elapsed_ms: 1000, ok: true, canary: true, has_response_id: true, usage: { total_tokens: 2 } },
+          { effort: "high", status: 200, elapsed_ms: 1000, ok: true, canary: true, has_response_id: true, usage: { total_tokens: 2 } },
+          { effort: "xhigh", status: 200, elapsed_ms: 1000, ok: true, canary: true, has_response_id: true, usage: { total_tokens: 2 } },
         ],
       }),
     });
@@ -76,7 +80,38 @@ test("ranking server stores only safe aggregate observations and returns scored 
     assert.equal(rankings.items[0].provider_name, "Relay Example");
     assert.equal(rankings.items[0].average_score, 100);
     assert.equal(rankings.items[0].homepage, "https://relay.example/");
+    assert.equal(rankings.items[0].expected_model, "gpt-6-test");
+    assert.equal(rankings.items[0].observed_model, "gpt-6-test");
     assert.equal(JSON.stringify(rankings).includes("never-accept"), false);
+
+    const mismatch = await fetch(`${url}/api/v1/audits`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        provider_name: "Mismatch Relay",
+        base_host: "mismatch.example",
+        model: "gpt-6",
+        expected_model: "gpt-6",
+        observed_model: "gpt-5.6-sol",
+        model_verdict: "exact",
+        models_status: 200,
+        models_count: 1,
+        model_listed: true,
+        efforts: [
+          { effort: "low", status: 200, elapsed_ms: 1000, ok: true, canary: true, has_response_id: true, usage: { total_tokens: 2 } },
+          { effort: "medium", status: 200, elapsed_ms: 1000, ok: true, canary: true, has_response_id: true, usage: { total_tokens: 2 } },
+          { effort: "high", status: 200, elapsed_ms: 1000, ok: true, canary: true, has_response_id: true, usage: { total_tokens: 2 } },
+          { effort: "xhigh", status: 200, elapsed_ms: 1000, ok: true, canary: true, has_response_id: true, usage: { total_tokens: 2 } },
+        ],
+      }),
+    });
+    const mismatchBody = await mismatch.json();
+    assert.equal(mismatchBody.score, 49);
+    assert.equal(mismatchBody.model_verdict, "mismatch");
+    const recent = await (await fetch(`${url}/api/v1/rankings?sort=recent`)).json();
+    const mismatchRanking = recent.items.find((item) => item.base_host === "mismatch.example");
+    assert.equal(mismatchRanking.homepage, "https://mismatch.example/");
+    assert.equal(mismatchRanking.observed_model, "gpt-5.6-sol");
   } finally {
     child.kill();
     await new Promise((resolve) => child.once("close", resolve));

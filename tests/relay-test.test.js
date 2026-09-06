@@ -122,6 +122,7 @@ test("saved API profile audit uses the encrypted profile key without renderer fi
       }
       return new Response(JSON.stringify({
         id: "response-id",
+        model: "synthetic-model",
         output_text: "RELAY-CANARY-OK",
         usage: { input_tokens: 1, output_tokens: 1, total_tokens: 2 },
       }), { status: 200 });
@@ -133,4 +134,39 @@ test("saved API profile audit uses the encrypted profile key without renderer fi
   assert.equal(progress.at(0).stage, "models");
   assert.equal(progress.at(-1).stage, "complete");
   assert.equal((await publicProfiles(paths)).profiles[0].lastAudit.score, 100);
+});
+
+test("multiple saved API profiles can be audited concurrently", async () => {
+  const paths = await fixture();
+  await saveProfile({
+    id: "relay-second",
+    name: "Second relay",
+    kind: "api",
+    baseUrl: "https://relay-second.test/v1",
+    apiKey: "second-api-key",
+    model: "second-model",
+  }, paths);
+  let active = 0;
+  let maxActive = 0;
+  const fetcher = async (url, options) => {
+    active += 1;
+    maxActive = Math.max(maxActive, active);
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    active -= 1;
+    const expected = url.includes("relay-second") ? "second-model" : "synthetic-model";
+    if (url.endsWith("/models")) return new Response(JSON.stringify({ data: [{ id: expected }] }), { status: 200 });
+    return new Response(JSON.stringify({
+      id: "response-id",
+      model: expected,
+      output_text: "RELAY-CANARY-OK",
+      usage: { input_tokens: 1, output_tokens: 1, total_tokens: 2 },
+    }), { status: 200 });
+  };
+  const results = await Promise.all([
+    auditApiProfile("relay-test", paths, { fetcher, timeoutMs: 1000, persist: false }),
+    auditApiProfile("relay-second", paths, { fetcher, timeoutMs: 1000, persist: false }),
+  ]);
+  assert.equal(maxActive >= 2, true);
+  assert.deepEqual(results.map((item) => item.score.total), [100, 100]);
+  assert.deepEqual(results.map((item) => item.modelVerdict), ["exact", "exact"]);
 });

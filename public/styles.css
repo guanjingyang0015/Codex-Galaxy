@@ -92,10 +92,12 @@ button:focus-visible, input:focus-visible, select:focus-visible, [tabindex]:focu
 .accounts-panel { position: relative; }
 .audit-panel-body { display: flex; min-height: 0; flex: 1 1 auto; flex-direction: column; gap: 14px; padding: 16px; overflow: auto; }
 .audit-intro { color: #c0c9c4; font-size: 11px; line-height: 1.65; }
+.audit-rubric { padding: 9px 10px; border-left: 3px solid #8d6d38; background: #211c13; color: #e3c98e; font-size: 10px; line-height: 1.55; }
 .audit-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 .audit-summary { min-height: 0; }
 .ranking-preview, .rankings-list { display: grid; gap: 7px; }
-.ranking-item { display: flex; min-width: 0; align-items: center; gap: 9px; padding: 10px; border: 1px solid var(--line-soft); border-radius: 7px; background: #141719; }
+.ranking-item { display: flex; min-width: 0; align-items: center; gap: 9px; padding: 10px; border: 1px solid var(--line-soft); border-radius: 7px; background: #141719; color: inherit; text-decoration: none; }
+.ranking-item:hover { border-color: #4d8f75; background: #17201c; }
 .ranking-number { display: grid; width: 24px; height: 24px; flex: 0 0 auto; place-items: center; border-radius: 50%; background: #24332d; color: var(--accent); font-size: 10px; font-weight: 800; }
 .ranking-main { display: grid; min-width: 0; flex: 1; gap: 3px; }
 .ranking-main strong, .ranking-main small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -231,9 +233,30 @@ dialog::backdrop { background: rgba(0, 0, 0, 0.72); }
 .audit-progress > div { display: flex; justify-content: space-between; gap: 10px; }
 .audit-progress strong { color: var(--accent); }
 .audit-progress progress { width: 100%; height: 7px; accent-color: var(--accent); }
+.audit-progress-list { display: grid; gap: 4px; }
+.audit-progress-item { display: grid; grid-template-columns: minmax(80px, 0.8fr) minmax(120px, 1.5fr) auto; gap: 8px; align-items: center; padding-top: 5px; border-top: 1px solid rgba(255, 255, 255, 0.06); }
+.audit-progress-item span, .audit-progress-item small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.audit-progress-item small { color: var(--muted); }
 .audit-complete-body { display: grid; gap: 9px; padding: 18px 22px 0; color: var(--muted); font-size: 11px; line-height: 1.6; }
 .audit-complete-body strong { color: var(--text); font-size: 14px; }
 .audit-complete-body p { margin: 0; white-space: pre-wrap; }
+.audit-complete-results { display: grid; max-height: 62vh; gap: 12px; overflow: auto; padding-right: 4px; }
+.audit-report { display: grid; gap: 10px; padding: 13px; border: 1px solid var(--line); border-radius: 8px; background: #121619; }
+.audit-report.conforming { border-color: #3d6958; }
+.audit-report.inconclusive { border-color: #8d6d38; }
+.audit-report.suspicious { border-color: #714a4a; }
+.audit-report-head { display: flex; justify-content: space-between; gap: 12px; align-items: flex-start; }
+.audit-report-head > div { display: grid; gap: 2px; }
+.audit-report-head b { color: var(--accent); font-size: 18px; }
+.audit-model-verdict { display: grid; gap: 3px; padding: 9px 10px; border-radius: 6px; background: #1a2024; }
+.audit-model-verdict.exact, .audit-model-verdict.compatible { background: #15251e; color: #bde5d1; }
+.audit-model-verdict.mismatch { background: #2b1919; color: #ffc1c1; }
+.audit-check-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 7px; }
+.audit-check { display: grid; grid-template-columns: 1fr auto; gap: 3px 8px; padding: 9px; border-left: 3px solid #8d6d38; border-radius: 5px; background: #171b1e; }
+.audit-check.pass { border-left-color: #4d8f75; }
+.audit-check.fail { border-left-color: #8b5050; }
+.audit-check small { grid-column: 1 / -1; color: var(--muted); }
+.audit-effort-list { display: grid; gap: 5px; padding: 8px 0 0 12px; color: #c5ccd1; }
 .rankings-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 22px; border-bottom: 1px solid var(--line-soft); color: var(--muted); font-size: 10px; line-height: 1.5; }
 .rankings-list { max-height: 62vh; overflow: auto; padding: 14px 22px 20px; }
 

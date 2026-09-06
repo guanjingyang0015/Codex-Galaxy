@@ -5,7 +5,7 @@ import os from "node:os";
 import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { defaultPaths, inspectCodex, captureCurrent, liveProfileMatch, setOfficialWindowsSandboxFallback, switchProfile as applyProfile } from "../codex.js";
-import { runtimePaths, loadProfiles, publicProfiles, saveProfile, profileForSwitch, setCurrent, setResolvedModel, setModelCatalog, deleteProfile, clearApiKey } from "../profiles.js";
+import { runtimePaths, loadProfiles, publicProfiles, saveProfile, profileForSwitch, recordProfileTest, setCurrent, setResolvedModel, setModelCatalog, deleteProfile, clearApiKey } from "../profiles.js";
 import { syncConversations, readLibrary, readThreadDetail } from "../sync.js";
 import { setPlatformSecretProvider } from "../vault.js";
 import { buildMacTerminalArgs, buildResumeArgs, formatResumeCommand, waitForSpawn } from "../launcher.js";
@@ -671,63 +671,125 @@ function auditNotification(title, body) {
 
 async function runAuditTask(sender, taskId, request) {
   const startedAt = Date.now();
-  const report = (progress) => sendAuditProgress(sender, taskId, {
-    ...progress,
-    estimatedTotalMs: Math.max(auditEstimateMs(), Number(progress.estimatedTotalMs) || 0),
-    startedAt,
-    estimatedRemainingMs: Math.max(0, Number(progress.estimatedRemainingMs) || 0),
-  });
-  const probeReport = (progress) => report({
-    ...progress,
-    percent: Math.min(90, Math.round((Number(progress.percent) || 0) * 0.9)),
-    estimatedRemainingMs: Math.max(0, Number(progress.estimatedRemainingMs) || 0) + 8_000,
-  });
-  try {
-    const selectedProfileId = String(request?.profileId || "");
-    const result = selectedProfileId
-      ? await auditApiProfile(selectedProfileId, dataPaths, {
-        fetcher: (url, options) => net.fetch(url, options),
-        onProgress: probeReport,
-      })
-      : await auditRelay(request?.input || {}, {
-        fetcher: (url, options) => net.fetch(url, options),
-        onProgress: probeReport,
-      });
-    let ranking = { skipped: true };
-    report({
-      percent: 94,
-      stage: "ranking",
-      message: "正在保存脱敏检测结果",
-      completed: 5,
-      total: 5,
-      elapsedMs: Date.now() - startedAt,
-      estimatedRemainingMs: 8_000,
+  const safeProfiles = (await publicProfiles(dataPaths)).profiles;
+  const profileIds = [...new Set([
+    ...(Array.isArray(request?.profileIds) ? request.profileIds : []),
+    request?.profileId,
+  ].map((value) => String(value || "")).filter(Boolean))];
+  const descriptors = profileIds.length
+    ? profileIds.map((profileId) => {
+      const profile = safeProfiles.find((item) => item.id === profileId);
+      if (!profile || profile.kind !== "api") throw new Error(`找不到可检测的 API 账号：${profileId}`);
+      return { id: profile.id, name: profile.name, homepage: profile.homepage || "" };
+    })
+    : [{ id: "temporary", name: request?.providerName || "临时 API", homepage: request?.homepage || "" }];
+  const itemState = new Map(descriptors.map((item) => [item.id, {
+    profileId: item.id === "temporary" ? null : item.id,
+    name: item.name,
+    percent: 0,
+    stage: "prepare",
+    message: "等待开始",
+    estimatedRemainingMs: auditEstimateMs(),
+  }]));
+  const report = (changedId, progress) => {
+    itemState.set(changedId, { ...itemState.get(changedId), ...progress });
+    const items = [...itemState.values()];
+    const percent = Math.round(items.reduce((sum, item) => sum + (Number(item.percent) || 0), 0) / Math.max(1, items.length));
+    const remaining = Math.max(...items.map((item) => Number(item.estimatedRemainingMs) || 0), 0);
+    const completed = items.filter((item) => item.done).length;
+    sendAuditProgress(sender, taskId, {
+      percent,
+      stage: completed === items.length ? "complete" : "batch",
+      message: descriptors.length > 1 ? `并行检测 ${completed}/${descriptors.length} 个 API` : progress.message,
+      completed,
+      total: descriptors.length,
+      estimatedTotalMs: auditEstimateMs(),
+      estimatedRemainingMs: remaining,
+      startedAt,
+      items,
     });
-    if (result?.status === "ok" && result?.model && result?.baseHost) {
-      ranking = await submitAuditForRanking(result, {
-        providerName: request?.providerName || result?.profile?.name || "",
-        homepage: request?.homepage || result?.profile?.homepage || "",
-        fetcher: (url, options) => net.fetch(url, options),
-      }).catch((error) => ({ error: String(error?.message || error).slice(0, 220) }));
+  };
+  try {
+    const items = await Promise.all(descriptors.map(async (descriptor) => {
+      const probeReport = (progress) => report(descriptor.id, {
+        ...progress,
+        percent: Math.min(90, Math.round((Number(progress.percent) || 0) * 0.9)),
+        estimatedRemainingMs: Math.max(0, Number(progress.estimatedRemainingMs) || 0) + 8_000,
+      });
+      try {
+        const result = descriptor.id === "temporary"
+          ? await auditRelay(request?.input || {}, {
+            fetcher: (url, options) => net.fetch(url, options),
+            onProgress: probeReport,
+          })
+          : await auditApiProfile(descriptor.id, dataPaths, {
+            fetcher: (url, options) => net.fetch(url, options),
+            onProgress: probeReport,
+            persist: false,
+          });
+        report(descriptor.id, {
+          percent: 94,
+          stage: "ranking",
+          message: "正在保存脱敏检测结果",
+          estimatedRemainingMs: 8_000,
+        });
+        let ranking = { skipped: true };
+        if (result?.status === "ok" && result?.model && result?.baseHost) {
+          ranking = await submitAuditForRanking(result, {
+            providerName: descriptor.name || result?.profile?.name || "",
+            homepage: descriptor.homepage || result?.profile?.homepage || "",
+            fetcher: (url, options) => net.fetch(url, options),
+          }).catch((error) => ({ error: String(error?.message || error).slice(0, 220) }));
+        }
+        const item = { profileId: descriptor.id === "temporary" ? null : descriptor.id, name: descriptor.name, result, ranking };
+        report(descriptor.id, {
+          percent: 100,
+          stage: "complete",
+          message: "检测完成",
+          estimatedRemainingMs: 0,
+          done: true,
+          resultSummary: {
+            score: result?.score?.total ?? null,
+            assessment: result?.assessment || null,
+            modelVerdict: result?.modelVerdict || null,
+          },
+        });
+        return item;
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        report(descriptor.id, {
+          percent: 100,
+          stage: "error",
+          message,
+          estimatedRemainingMs: 0,
+          done: true,
+          error: message,
+        });
+        return { profileId: descriptor.id === "temporary" ? null : descriptor.id, name: descriptor.name, error: message };
+      }
+    }));
+    for (const item of items) {
+      if (item.profileId && item.result) await recordProfileTest(item.profileId, item.result, dataPaths);
     }
-    const value = { result, ranking };
+    const value = { items, ...(items.length === 1 ? { result: items[0].result, ranking: items[0].ranking } : {}) };
     sendAuditProgress(sender, taskId, {
       percent: 100,
       stage: "complete",
-      message: "API 检测完成",
-      completed: 5,
-      total: 5,
+      message: `${items.filter((item) => item.result).length}/${items.length} 个 API 检测完成`,
+      completed: items.length,
+      total: items.length,
       elapsedMs: Date.now() - startedAt,
       estimatedRemainingMs: 0,
       done: true,
       value,
     });
-    const score = result?.score?.total;
+    const successes = items.filter((item) => item.result).length;
     auditCompletionPending = !mainWindow || mainWindow.isDestroyed() || !mainWindow.isVisible();
     const english = request?.language === "en";
-    auditNotification(english ? "Codex Galaxy API audit complete" : "Codex Galaxy API 检测完成", score == null
-      ? (english ? "The audit is complete. Open Galaxy to view the result." : "检测已完成，请回到 Galaxy 查看结果。")
-      : (english ? `Audit complete. Compatibility reference score: ${score}/100.` : `检测完成，兼容性参考分 ${score}/100。`));
+    auditNotification(
+      english ? "Codex Galaxy API audit complete" : "Codex Galaxy API 检测完成",
+      english ? `${successes}/${items.length} API audits completed.` : `${successes}/${items.length} 个 API 检测已完成。`,
+    );
     return value;
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
