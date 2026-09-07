@@ -9,6 +9,7 @@ from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from socketserver import ThreadingMixIn
 from urllib.parse import parse_qs, urlparse
+import admin_web
 
 HOST = os.environ.get("RELAY_RANK_HOST", "127.0.0.1")
 PORT = int(os.environ.get("RELAY_RANK_PORT", "18110"))
@@ -213,6 +214,8 @@ class Handler(BaseHTTPRequestHandler):
         self.end_headers()
 
     def do_GET(self):
+        if admin_web.handle_get(self):
+            return
         parsed = urlparse(self.path)
         if parsed.path == "/health":
             return self.json(200, {"ok": True, "service": "codex-galaxy-relay-rank"})
@@ -280,6 +283,8 @@ class Handler(BaseHTTPRequestHandler):
         return self.json(404, {"error": "not found"})
 
     def do_POST(self):
+        if admin_web.handle_post(self):
+            return
         if urlparse(self.path).path != "/api/v1/audits":
             return self.json(404, {"error": "not found"})
         if not self.allowed():

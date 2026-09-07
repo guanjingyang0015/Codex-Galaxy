@@ -1,0 +1,319 @@
+#!/usr/bin/env python3
+import html
+import http.cookies
+import os
+import re
+import secrets
+import sqlite3
+import time
+from datetime import datetime, timezone
+from http.server import BaseHTTPRequestHandler, HTTPServer
+from urllib.parse import parse_qs, urlparse
+from socketserver import ThreadingMixIn
+
+from admin_auth import load_record, verify_password
+
+DB_PATH = os.environ.get("RELAY_RANK_DB", "/var/lib/codex-galaxy-relay-rank/rankings.sqlite3")
+AUTH_PATH = os.environ.get("RELAY_RANK_ADMIN_AUTH", "/opt/codex-galaxy-relay-rank/shared/admin_auth.json")
+SESSION_TTL = 8 * 60 * 60
+LOGIN_WINDOW = 15 * 60
+LOGIN_LIMIT = 8
+SESSION_COOKIE = "__Host-cg_admin"
+SESSIONS = {}
+LOGIN_ATTEMPTS = {}
+ADMIN_PATHS = {"/admin", "/admin/", "/admin/login", "/admin/set", "/admin/delete", "/admin/logout"}
+
+def esc(value):
+    return html.escape(str(value or ""), quote=True)
+
+def clean_host(value):
+    text = str(value or "").strip().lower()
+    if not text or len(text) > 255:
+        return ""
+    if any(char not in "abcdefghijklmnopqrstuvwxyz0123456789.-:" for char in text):
+        return ""
+    return text
+
+def clean_url(value):
+    text = str(value or "").strip()
+    parsed = urlparse(text)
+    if len(text) > 500 or parsed.scheme not in ("http", "https") or not parsed.netloc:
+        return ""
+    if parsed.username or parsed.password:
+        return ""
+    return text
+
+def db():
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    conn.execute("""create table if not exists link_overrides (
+      base_host text primary key,
+      homepage text not null,
+      updated_at text not null
+    )""")
+    conn.commit()
+    return conn
+
+def now_iso():
+    return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+
+def page(csrf="", message="", error=""):
+    try:
+        conn = db()
+        rows = conn.execute(
+            "select base_host, homepage, updated_at from link_overrides order by base_host"
+        ).fetchall()
+        conn.close()
+    except sqlite3.Error:
+        rows = []
+        error = "数据库暂时不可用"
+    rows_html = "".join(
+        f"<tr><td><code>{esc(row['base_host'])}</code></td>"
+        f"<td><a href='{esc(row['homepage'])}' target='_blank' rel='noreferrer'>{esc(row['homepage'])}</a></td>"
+        f"<td>{esc(row['updated_at'])}</td>"
+        f"<td><form method='post' action='/admin/delete'>"
+        f"<input type='hidden' name='csrf' value='{esc(csrf)}'>"
+        f"<input type='hidden' name='base_host' value='{esc(row['base_host'])}'>"
+        "<button>恢复默认</button></form></td></tr>"
+        for row in rows
+    )
+    return f"""<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Codex Galaxy 排行榜后台</title>
+<style>
+body{{font:15px system-ui,-apple-system,Segoe UI,sans-serif;background:#0b1015;color:#e8edf2;margin:0;padding:32px}}
+main{{max-width:980px;margin:auto}}h1{{font-size:24px}}
+.card{{background:#141b22;border:1px solid #2b3742;border-radius:12px;padding:20px;margin:18px 0}}
+label{{display:block;margin:10px 0 5px;color:#aebbc7}}
+input{{box-sizing:border-box;width:100%;padding:10px;border:1px solid #3a4855;border-radius:7px;background:#0d1319;color:#fff}}
+button{{padding:9px 13px;border:0;border-radius:7px;background:#67d39b;color:#07120d;font-weight:700;cursor:pointer}}
+table{{width:100%;border-collapse:collapse}}th,td{{text-align:left;padding:11px 8px;border-bottom:1px solid #2b3742;vertical-align:top}}
+a{{color:#79b7ff;overflow-wrap:anywhere}}code{{color:#d9e2ea}}.ok{{color:#67d39b}}.err{{color:#ff8e8e}}small{{color:#9ba8b4}}
+</style></head><body><main>
+<h1>Codex Galaxy API 排行榜后台</h1>
+<p><small>只用于修改排行榜跳转链接。公开 API 和普通用户不能修改。</small></p>
+<div class="card"><h2>新增或修改链接</h2>
+<form method="post" action="/admin/set">
+<input type="hidden" name="csrf" value="{esc(csrf)}">
+<label>Base host</label><input name="base_host" placeholder="例如 api.example.com" required>
+<label>跳转网址</label><input name="homepage" type="url" placeholder="https://example.com/" required>
+<p><button>保存链接</button></p></form></div>
+<div class="card"><h2>当前自定义链接</h2>
+{f'<p class="ok">{esc(message)}</p>' if message else ''}
+{f'<p class="err">{esc(error)}</p>' if error else ''}
+<table><thead><tr><th>Base host</th><th>跳转网址</th><th>更新时间</th><th>操作</th></tr></thead>
+<tbody>{rows_html or '<tr><td colspan="4"><small>暂无自定义链接，系统将跳转到 API 域名。</small></td></tr>'}</tbody>
+</table></div>
+<form method="post" action="/admin/logout">
+<input type="hidden" name="csrf" value="{esc(csrf)}"><button>退出登录</button>
+</form></main></body></html>"""
+
+def login_page(error=""):
+    return f"""<!doctype html><html lang="zh-CN"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Codex Galaxy 后台登录</title>
+<style>body{{font:15px system-ui;background:#0b1015;color:#e8edf2;margin:0;padding:32px}}
+main{{max-width:420px;margin:10vh auto;background:#141b22;border:1px solid #2b3742;border-radius:12px;padding:24px}}
+label{{display:block;margin:12px 0 5px;color:#aebbc7}}
+input{{box-sizing:border-box;width:100%;padding:10px;background:#0d1319;color:#fff;border:1px solid #3a4855;border-radius:7px}}
+button{{margin-top:16px;padding:10px 14px;border:0;border-radius:7px;background:#67d39b;font-weight:700}}
+.err{{color:#ff8e8e}}</style></head><body><main>
+<h1>排行榜后台登录</h1>{f'<p class="err">{esc(error)}</p>' if error else ''}
+<form method="post" action="/admin/login">
+<label>用户名</label><input name="username" autocomplete="username" required>
+<label>密码</label><input name="password" type="password" autocomplete="current-password" required>
+<button>登录</button></form></main></body></html>"""
+
+def send_html(handler, body, status=200, cookie=None, clear_cookie=False):
+    encoded = body.encode("utf-8")
+    handler.send_response(status)
+    handler.send_header("Content-Type", "text/html; charset=utf-8")
+    handler.send_header("Content-Length", str(len(encoded)))
+    handler.send_header("Cache-Control", "no-store")
+    handler.send_header("Pragma", "no-cache")
+    handler.send_header("X-Content-Type-Options", "nosniff")
+    handler.send_header("X-Frame-Options", "DENY")
+    handler.send_header("Referrer-Policy", "no-referrer")
+    handler.send_header("Strict-Transport-Security", "max-age=31536000")
+    handler.send_header(
+        "Content-Security-Policy",
+        "default-src 'self'; style-src 'unsafe-inline'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'",
+    )
+    if cookie:
+        handler.send_header(
+            "Set-Cookie",
+            f"{SESSION_COOKIE}={cookie}; Path=/; Max-Age={SESSION_TTL}; HttpOnly; Secure; SameSite=Strict",
+        )
+    if clear_cookie:
+        handler.send_header(
+            "Set-Cookie",
+            f"{SESSION_COOKIE}=; Path=/; Max-Age=0; HttpOnly; Secure; SameSite=Strict",
+        )
+    handler.end_headers()
+    handler.wfile.write(encoded)
+
+def redirect(handler, location, cookie=None, clear_cookie=False):
+    handler.send_response(303)
+    if cookie:
+        handler.send_header(
+            "Set-Cookie",
+            f"{SESSION_COOKIE}={cookie}; Path=/; Max-Age={SESSION_TTL}; HttpOnly; Secure; SameSite=Strict",
+        )
+    if clear_cookie:
+        handler.send_header(
+            "Set-Cookie",
+            f"{SESSION_COOKIE}=; Path=/; Max-Age=0; HttpOnly; Secure; SameSite=Strict",
+        )
+    handler.send_header("Location", location)
+    handler.send_header("Cache-Control", "no-store")
+    handler.end_headers()
+
+def read_form(handler):
+    try:
+        length = int(handler.headers.get("Content-Length", "0"))
+    except ValueError:
+        length = 0
+    if length <= 0 or length > 8192:
+        raise ValueError("请求无效")
+    return {
+        key: values[0]
+        for key, values in parse_qs(
+            handler.rfile.read(length).decode("utf-8"), keep_blank_values=True
+        ).items()
+    }
+
+def client_ip(handler):
+    forwarded = str(handler.headers.get("CF-Connecting-IP") or "").strip()
+    if re.fullmatch(r"[0-9a-fA-F:.]{3,64}", forwarded):
+        return forwarded
+    return handler.client_address[0]
+
+def session_for(handler):
+    now = time.time()
+    for token, session in list(SESSIONS.items()):
+        if session["expires"] <= now:
+            SESSIONS.pop(token, None)
+    cookies = http.cookies.SimpleCookie()
+    cookies.load(handler.headers.get("Cookie", ""))
+    token = cookies.get(SESSION_COOKIE)
+    if not token or token.value not in SESSIONS:
+        return None
+    session = SESSIONS[token.value]
+    session["expires"] = now + SESSION_TTL
+    return session
+
+def csrf_ok(form, session):
+    return secrets.compare_digest(str(form.get("csrf") or ""), session["csrf"])
+
+def handle_get(handler):
+    if urlparse(handler.path).path not in ("/admin", "/admin/"):
+        return False
+    session = session_for(handler)
+    send_html(handler, page(csrf=session["csrf"]) if session else login_page())
+    return True
+
+def handle_post(handler):
+    path = urlparse(handler.path).path
+    if path not in ADMIN_PATHS:
+        return False
+    if path == "/admin/login":
+        try:
+            form = read_form(handler)
+        except ValueError as error:
+            send_html(handler, login_page(str(error)), 400)
+            return True
+        ip = client_ip(handler)
+        now = time.time()
+        attempts = [stamp for stamp in LOGIN_ATTEMPTS.get(ip, []) if now - stamp < LOGIN_WINDOW]
+        if len(attempts) >= LOGIN_LIMIT:
+            send_html(handler, login_page("登录尝试过多，请稍后再试"), 429)
+            return True
+        try:
+            record = load_record(AUTH_PATH)
+            username_valid = secrets.compare_digest(
+                str(form.get("username") or ""), record["username"]
+            )
+            password_valid = verify_password(record, form.get("password"))
+            valid = username_valid and password_valid
+        except Exception:
+            valid = False
+        if not valid:
+            attempts.append(now)
+            LOGIN_ATTEMPTS[ip] = attempts
+            send_html(handler, login_page("用户名或密码错误"), 401)
+            return True
+        LOGIN_ATTEMPTS.pop(ip, None)
+        token = secrets.token_urlsafe(32)
+        SESSIONS[token] = {"csrf": secrets.token_urlsafe(24), "expires": now + SESSION_TTL}
+        redirect(handler, "/admin/", cookie=token)
+        return True
+
+    session = session_for(handler)
+    if not session:
+        send_html(handler, login_page("登录已失效，请重新登录"), 401)
+        return True
+    try:
+        form = read_form(handler)
+        if not csrf_ok(form, session):
+            raise ValueError("会话校验失败")
+        if path == "/admin/set":
+            host = clean_host(form.get("base_host"))
+            homepage = clean_url(form.get("homepage"))
+            if not host or not homepage:
+                raise ValueError("Base host 或网址格式不正确")
+            conn = db()
+            conn.execute(
+                "insert or replace into link_overrides (base_host, homepage, updated_at) values (?,?,?)",
+                (host, homepage, now_iso()),
+            )
+            conn.commit()
+            conn.close()
+            send_html(handler, page(csrf=session["csrf"], message="链接已保存"))
+            return True
+        if path == "/admin/delete":
+            host = clean_host(form.get("base_host"))
+            if not host:
+                raise ValueError("Base host 格式不正确")
+            conn = db()
+            conn.execute("delete from link_overrides where base_host = ?", (host,))
+            conn.commit()
+            conn.close()
+            send_html(handler, page(csrf=session["csrf"], message="已恢复默认链接"))
+            return True
+        if path == "/admin/logout":
+            cookies = http.cookies.SimpleCookie()
+            cookies.load(handler.headers.get("Cookie", ""))
+            token = cookies.get(SESSION_COOKIE)
+            if token:
+                SESSIONS.pop(token.value, None)
+            redirect(handler, "/admin/", clear_cookie=True)
+            return True
+        send_html(handler, "not found", 404)
+        return True
+    except ValueError as error:
+        send_html(handler, page(csrf=session["csrf"], error=str(error)), 400)
+        return True
+    except Exception:
+        send_html(handler, page(csrf=session["csrf"], error="操作失败"), 500)
+        return True
+
+class ThreadingHTTPServer(ThreadingMixIn, HTTPServer):
+    daemon_threads = True
+
+class Handler(BaseHTTPRequestHandler):
+    def log_message(self, *_):
+        return
+
+    def do_GET(self):
+        if not handle_get(self):
+            send_html(self, "not found", 404)
+
+    def do_POST(self):
+        if not handle_post(self):
+            send_html(self, "not found", 404)
+
+if __name__ == "__main__":
+    host = os.environ.get("RELAY_RANK_ADMIN_HOST", "127.0.0.1")
+    port = int(os.environ.get("RELAY_RANK_ADMIN_PORT", "18111"))
+    ThreadingHTTPServer((host, port), Handler).serve_forever()

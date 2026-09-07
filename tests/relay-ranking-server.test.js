@@ -12,6 +12,9 @@ const root = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const server = path.join(root, "relay-ranking-server", "server.py");
 const worker = path.join(root, "relay-ranking-server", "worker.js");
 const adminLinks = path.join(root, "relay-ranking-server", "admin_links.py");
+const adminAuth = path.join(root, "relay-ranking-server", "admin_auth.py");
+const adminAuthSetup = path.join(root, "relay-ranking-server", "admin_auth_setup.py");
+const adminWeb = path.join(root, "relay-ranking-server", "admin_web.py");
 
 async function freePort() {
   const listener = net.createServer();
@@ -192,7 +195,7 @@ test("ranking Worker exposes only bounded public routes without embedding secret
   assert.doesNotMatch(source, /152\.136\.33\.61|eyJ[a-zA-Z0-9_.-]{40,}|api[_-]?key\s*[:=]\s*["']/i);
 });
 
-test("owner-only link admin is a local SSH CLI and has no public HTTP admin route", async () => {
+test("owner-only link SSH CLI remains local and contains no HTTP server", async () => {
   const source = await fs.readFile(adminLinks, "utf8");
   assert.match(source, /argparse/);
   assert.match(source, /link_overrides/);
@@ -211,4 +214,128 @@ test("owner-only link admin is a local SSH CLI and has no public HTTP admin rout
     const exitCode = await new Promise((resolve) => child.once("close", resolve));
     assert.equal(exitCode, 0, Buffer.concat(output).toString("utf8"));
   }
+});
+
+test("web admin requires login and CSRF before changing ranking links", async () => {
+  const fixtureRoot = await fs.mkdtemp(path.join(os.tmpdir(), "codex-galaxy-web-admin-"));
+  const database = path.join(fixtureRoot, "rankings.sqlite3");
+  const authFile = path.join(fixtureRoot, "admin_auth.json");
+  const python = process.platform === "win32" ? "py" : "python3";
+  const setupArgs = process.platform === "win32"
+    ? ["-3.14", adminAuthSetup, "--path", authFile, "--username", "synthetic-owner", "--password-stdin"]
+    : [adminAuthSetup, "--path", authFile, "--username", "synthetic-owner", "--password-stdin"];
+  const setup = spawn(python, setupArgs, { stdio: ["pipe", "pipe", "pipe"] });
+  setup.stdin.end("synthetic-password\nsynthetic-password\n");
+  assert.equal(await new Promise((resolve) => setup.once("close", resolve)), 0);
+  const storedAuth = await fs.readFile(authFile, "utf8");
+  assert.doesNotMatch(storedAuth, /synthetic-password/);
+
+  const port = await freePort();
+  const serverArgs = process.platform === "win32" ? ["-3.14", server] : [server];
+  const child = spawn(python, serverArgs, {
+    env: {
+      ...process.env,
+      RELAY_RANK_HOST: "127.0.0.1",
+      RELAY_RANK_PORT: String(port),
+      RELAY_RANK_DB: database,
+      RELAY_RANK_ADMIN_AUTH: authFile,
+    },
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+  try {
+    const url = `http://127.0.0.1:${port}`;
+    await waitForHealth(url, child);
+    const audit = await fetch(`${url}/api/v1/audits`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        provider_name: "Admin Test",
+        base_host: "admin.example",
+        model: "test-model",
+        expected_model: "test-model",
+        observed_model: "test-model",
+        expected_model_listed: true,
+        models_status: 200,
+        efforts: [{ effort: "repeat-1", status: 200, elapsed_ms: 1000, ok: true, canary: true }],
+      }),
+    });
+    assert.equal(audit.status, 201);
+
+    const loginPage = await fetch(`${url}/admin/`);
+    assert.equal(loginPage.status, 200);
+    assert.match(await loginPage.text(), /排行榜后台登录/);
+    assert.match(loginPage.headers.get("content-security-policy") || "", /frame-ancestors 'none'/);
+
+    const denied = await fetch(`${url}/admin/login`, {
+      method: "POST",
+      headers: { "content-type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({ username: "synthetic-owner", password: "wrong" }),
+      redirect: "manual",
+    });
+    assert.equal(denied.status, 401);
+
+    const login = await fetch(`${url}/admin/login`, {
+      method: "POST",
+      headers: { "content-type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({ username: "synthetic-owner", password: "synthetic-password" }),
+      redirect: "manual",
+    });
+    assert.equal(login.status, 303);
+    const setCookie = login.headers.get("set-cookie") || "";
+    assert.match(setCookie, /__Host-cg_admin=/);
+    assert.match(setCookie, /HttpOnly/i);
+    assert.match(setCookie, /Secure/i);
+    assert.match(setCookie, /SameSite=Strict/i);
+    const cookie = setCookie.split(";")[0];
+
+    const dashboard = await fetch(`${url}/admin/`, { headers: { cookie } });
+    const dashboardBody = await dashboard.text();
+    assert.match(dashboardBody, /新增或修改链接/);
+    const csrf = dashboardBody.match(/name="csrf" value="([^"]+)"/)?.[1];
+    assert.ok(csrf);
+
+    const rejectedCsrf = await fetch(`${url}/admin/set`, {
+      method: "POST",
+      headers: { cookie, "content-type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({ base_host: "admin.example", homepage: "https://owner.example/" }),
+    });
+    assert.equal(rejectedCsrf.status, 400);
+
+    const saved = await fetch(`${url}/admin/set`, {
+      method: "POST",
+      headers: { cookie, "content-type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({ csrf, base_host: "admin.example", homepage: "https://owner.example/" }),
+    });
+    assert.equal(saved.status, 200);
+    assert.match(await saved.text(), /链接已保存/);
+    const overridden = await (await fetch(`${url}/api/v1/rankings`)).json();
+    assert.equal(overridden.items[0].homepage, "https://owner.example/");
+
+    const removed = await fetch(`${url}/admin/delete`, {
+      method: "POST",
+      headers: { cookie, "content-type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({ csrf, base_host: "admin.example" }),
+    });
+    assert.equal(removed.status, 200);
+    const restored = await (await fetch(`${url}/api/v1/rankings`)).json();
+    assert.equal(restored.items[0].homepage, "https://admin.example/");
+
+    const logout = await fetch(`${url}/admin/logout`, {
+      method: "POST",
+      headers: { cookie, "content-type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({ csrf }),
+      redirect: "manual",
+    });
+    assert.equal(logout.status, 303);
+    assert.match(logout.headers.get("set-cookie") || "", /Max-Age=0/);
+  } finally {
+    child.kill();
+    await new Promise((resolve) => child.once("close", resolve));
+  }
+});
+
+test("web admin sources contain no embedded credential values", async () => {
+  const source = await Promise.all([adminAuth, adminAuthSetup, adminWeb].map((file) => fs.readFile(file, "utf8")));
+  assert.match(source.join("\n"), /pbkdf2_hmac/);
+  assert.doesNotMatch(source.join("\n"), /g15611110015|15611110015/);
 });

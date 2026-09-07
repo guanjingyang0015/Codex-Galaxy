@@ -11,6 +11,7 @@ auth.json
 *.pem
 *.p12
 *.pfx
+admin_auth.json
 coverage/
 *.log
 __pycache__/

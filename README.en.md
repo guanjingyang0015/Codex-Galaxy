@@ -46,6 +46,7 @@ API profiles must support the OpenAI Responses API. API keys stay in encrypted l
 - **API ranking** defaults to an all-model overall board and can switch to GPT, DeepSeek, Gemini, or any other tested model. Each provider shows protocol, model, capability, stability, and latency components.
 - A site's ranking score is its highest test in the last 7 days; when the current test is the only recent one, that score is used. The UI also shows the network and per-site 90-day highs for excellent/good/usable/inconclusive/high-risk comparison.
 - Every ranking row is clickable. Only the server owner can override destinations through an SSH-only admin tool; ordinary clients and the public API cannot change them. Without an override, the tested HTTPS API host is used.
+- The service owner can also open `https://api.vx314490015.cn/admin/` from any computer and sign in to add, replace, inspect, or restore ranking destinations. The admin password is stored only as a non-reversible hash; changing it remains a root-only interactive server operation.
 - GPT/o-series models use reasoning-effort probes. Common models such as DeepSeek and Gemini use three deterministic Responses consistency probes without GPT reasoning parameters, so their model, protocol, stability, and latency evidence remains useful.
 - The public ranking endpoint is `https://api.vx314490015.cn`, connected to the isolated service through a dedicated Cloudflare Tunnel rather than another project's tunnel or port.
 
