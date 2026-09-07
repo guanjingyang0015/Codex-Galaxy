@@ -12,7 +12,7 @@ const sqliteSidecarSuffixes = ["", "-wal", "-shm", "-journal"];
 // backup. A bounded tail keeps discovery fast while the full history remains
 // untouched.
 const metadataTailBytes = 128 * 1024;
-const officialMessageScanCacheVersion = 1;
+const officialMessageScanCacheVersion = 2;
 const officialMessageScanCacheName = "codex-galaxy-official-message-id-cache.json";
 
 export function targetProviderForProfile(profile) {
@@ -168,21 +168,35 @@ function removeExactJsonProperty(line, property, value, expectedRecord) {
 }
 
 function officialMessageLineWithoutInvalidId(line) {
-  if (!line.includes('"response_item"') || !line.includes('"id"')) return null;
+  if ((!line.includes('"response_item"') && !line.includes('"compacted"')) || !line.includes('"id"')) return null;
   let record;
   try { record = JSON.parse(line); } catch { return null; }
+  if (record?.type === "compacted" && Array.isArray(record.payload?.replacement_history)) {
+    let changed = false;
+    for (const item of record.payload.replacement_history) {
+      const repaired = officialMessageLineWithoutInvalidId(JSON.stringify({ type: "response_item", payload: item }));
+      if (repaired !== null) {
+        delete item.id;
+        changed = true;
+      }
+    }
+    return changed ? JSON.stringify(record) : null;
+  }
   if (record?.type !== "response_item" || !record.payload || typeof record.payload !== "object" || !Object.hasOwn(record.payload, "id")) return null;
   const itemType = record.payload.type;
   const idPrefix = itemType === "message"
     ? "msg"
     : itemType === "function_call"
       ? "fc"
-      : null;
+      : itemType === "reasoning"
+        ? "rs"
+        : null;
   // Relay function-call items commonly use `call_...` for both `id` and
   // `call_id`.  The official Responses API accepts the call_id value but
   // requires the item id to use the `fc...` namespace.  Remove only the
   // incompatible item id when returning to the official provider; API-to-API
-  // switches never call this function.
+  // switches never call this function. Reasoning IDs are optional too, but
+  // relay `item_...` IDs are rejected by official inference and compaction.
   if (!idPrefix) return null;
   const id = record.payload.id;
   if (typeof id === "string" && id.startsWith(idPrefix)) return null;

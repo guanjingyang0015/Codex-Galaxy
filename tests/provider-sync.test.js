@@ -507,3 +507,36 @@ test("provider metadata changes patch the session header in place when it fits",
   assert.equal(after.size, before.size);
   assert.equal(JSON.parse((await fs.readFile(file, "utf8")).split("\n")[0]).payload.model_provider, "x");
 });
+
+test("official sync repairs reasoning IDs in history and compaction despite a v1 cache, with exact rollback", async () => {
+  const home = await fs.mkdtemp(path.join(os.tmpdir(), "galaxy-reasoning-id-"));
+  await fs.mkdir(path.join(home, "sessions"), { recursive: true });
+  const file = path.join(home, "sessions/root.jsonl");
+  const bad = { type: "reasoning", id: "item_186549e1df4ae0b82634d0d0", summary: [{ type: "summary_text", text: "保留摘要" }], encrypted_content: null };
+  const valid = { ...bad, id: "rs_valid", encrypted_content: "opaque-preserve-exactly" };
+  const original = [
+    { type: "session_meta", payload: { id: "root-thread", model_provider: "openai" } },
+    { type: "response_item", payload: bad },
+    { type: "response_item", payload: valid },
+    { type: "compacted", payload: { message: "keep compaction", replacement_history: [bad, valid] } },
+  ].map(JSON.stringify).join("\r\n") + "\r\n";
+  await fs.writeFile(file, original);
+  const stat = await fs.stat(file);
+  await fs.mkdir(path.join(home, "backups_state"), { recursive: true });
+  await fs.writeFile(path.join(home, "backups_state/codex-galaxy-official-message-id-cache.json"), JSON.stringify({ version: 1, files: { "sessions/root.jsonl": { size: stat.size, mtimeMs: Math.round(stat.mtimeMs) } } }));
+  const result = await syncProviderMetadata({ codexHome: home, targetProvider: "openai" });
+  const repaired = (await fs.readFile(file, "utf8")).trim().split("\n").map(JSON.parse);
+  const { id, ...expected } = bad;
+  assert.deepEqual(repaired[1].payload, expected);
+  assert.deepEqual(repaired[2].payload, valid);
+  assert.deepEqual(repaired[3].payload.replacement_history, [expected, valid]);
+  assert.equal(result.sanitizedMessageIds, 2);
+  const again = await syncProviderMetadata({ codexHome: home, targetProvider: "openai" });
+  assert.equal(again.changedSessionFiles, 0);
+  await restoreProviderMetadata({ codexHome: home, backupDir: result.backupDir });
+  assert.equal(await fs.readFile(file, "utf8"), original);
+  await syncProviderMetadata({ codexHome: home, targetProvider: "relay-b" });
+  const api = (await fs.readFile(file, "utf8")).trim().split("\n").map(JSON.parse);
+  assert.deepEqual(api[1].payload, bad);
+  assert.deepEqual(api[3].payload.replacement_history, [bad, valid]);
+});

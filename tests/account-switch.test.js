@@ -587,3 +587,20 @@ test("an uncaptured official slot cannot silently capture a different official a
   assert.equal(data.currentId, item.official.id);
   assert.equal(vault.profiles[officialB.id]?.auth, undefined);
 });
+
+test("two captured official accounts round-trip independently with refreshed credentials", async () => {
+  const item = await fixture();
+  const b = await saveProfile({ id: "official-b", name: "官方 B", kind: "official", model: "gpt-official" }, item.dataPaths);
+  const auth = (id, token) => JSON.stringify({ auth_mode: "chatgpt", OPENAI_API_KEY: null, tokens: { account_id: id, access_token: token, refresh_token: `refresh-${token}` } });
+  await fs.writeFile(item.codexPaths.auth, auth("official-b", "b-original"));
+  await captureCurrent(item.codexPaths, await profileForSwitch(b.id, item.dataPaths), item.dataPaths.vault);
+  await fs.writeFile(item.codexPaths.auth, auth("official-a", "a-refreshed"));
+  const common = { codexPaths: item.codexPaths, dataPaths: item.dataPaths, stopCodexDesktop: async () => ({ stopped: 0, processIds: [] }), launch: async () => ({ method: "test" }) };
+  await switchAccountTransaction({ ...common, profileId: b.id });
+  assert.equal(await fs.readFile(item.codexPaths.auth, "utf8"), auth("official-b", "b-original"));
+  await fs.writeFile(item.codexPaths.auth, auth("official-b", "b-refreshed"));
+  await switchAccountTransaction({ ...common, profileId: item.official.id });
+  assert.equal(await fs.readFile(item.codexPaths.auth, "utf8"), auth("official-a", "a-refreshed"));
+  await switchAccountTransaction({ ...common, profileId: b.id });
+  assert.equal(await fs.readFile(item.codexPaths.auth, "utf8"), auth("official-b", "b-refreshed"));
+});

@@ -6,7 +6,7 @@
 
 Codex Galaxy is a local desktop utility for switching between Codex accounts and compatible APIs while continuing project tasks saved on the same computer.
 
-**Current version: Codex Galaxy 1.13.0**
+**Current version: Codex Galaxy 1.13.1**
 
 The in-app guide is now organized by stage: **first account setup → daily account switching → failure recovery → features**. Open **Guide** and choose only the stage you need instead of reading one long page.
 
@@ -143,3 +143,5 @@ Author: Guan Jingyang
 Email: `guanjingyang@gmail.com`
 
 MIT License. Codex Galaxy is an independent local utility and is not an official OpenAI product.
+
+1.13.1 repairs invalid_id_prefix (expected rs) after API-to-official switching by removing incompatible reasoning item IDs from original and compacted history and invalidating the old scan cache. After upgrading, wait for replies to finish, switch to the official profile in Galaxy, then reopen the task. Capture each official account after its own login; saved accounts can then switch independently. Expired login requires reauthentication; plans and quotas remain separate.
