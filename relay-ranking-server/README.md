@@ -11,5 +11,6 @@
 - 每条排名优先使用已验证为同站点的平台主页；没有主页时回退到被测 API 的 HTTPS 域名，因此排名中的所有站点均可点击。
 - 跳转链接覆盖只允许服务器所有者通过 SSH/sudo 执行：`sudo python3 /opt/codex-galaxy-relay-rank/current/admin_links.py set api.example.com https://example.com/`。脚本为 root-only 权限；公共 API 和普通客户端没有修改链接的接口。
 - 所有者也可从任意电脑访问 `https://api.vx314490015.cn/admin/` 登录后管理跳转链接：新增/覆盖、查看当前覆盖、恢复默认链接和退出登录均在该页面完成。
+- 后台会列出全部排行榜“站点 + 模型”条目，而不只列出已经设置过覆盖的网址；每行以绿色“已自定义”或灰色“使用默认链接”标明当前状态。同一 Base host 的多个模型共用一个跳转链接，修改其中任意一行会同步该网站的所有模型条目。
 - 网页后台使用 PBKDF2 密码哈希、限流、HttpOnly/Secure/SameSite Cookie、CSRF 校验和无缓存响应。认证哈希位于服务端 `shared/admin_auth.json`，不提交到 Git。
 - 如需更换网页登录密码，通过 SSH 使用 root 权限交互式执行：`sudo python3 /opt/codex-galaxy-relay-rank/current/admin_auth_setup.py --username <新用户名>`，然后按提示输入两次新密码；不要把密码写入 shell 历史或项目文件。

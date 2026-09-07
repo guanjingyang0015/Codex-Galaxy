@@ -57,26 +57,85 @@ def db():
 def now_iso():
     return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
 
+def ranking_sites():
+    conn = db()
+    audits = conn.execute(
+        """select a.base_host, a.provider_name, a.model, a.expected_model, a.created_at,
+                  count(distinct coalesce(nullif(b.expected_model, ''), b.model)) as model_count
+           from audits a
+           inner join (
+             select base_host, coalesce(nullif(expected_model, ''), model) as model_key, max(id) as id
+             from audits
+             group by base_host, coalesce(nullif(expected_model, ''), model)
+           ) latest on latest.id = a.id
+           left join audits b on b.base_host = a.base_host
+           group by a.base_host, a.provider_name, a.model, a.expected_model, a.created_at
+           order by lower(coalesce(a.provider_name, a.base_host)), a.base_host"""
+    ).fetchall()
+    overrides = {
+        row["base_host"]: row["homepage"]
+        for row in conn.execute("select base_host, homepage from link_overrides").fetchall()
+    }
+    conn.close()
+    hosts = {row["base_host"] for row in audits}
+    for host in overrides:
+        if host not in hosts:
+            audits.append({
+                "base_host": host,
+                "provider_name": host,
+                "model": "",
+                "expected_model": "",
+                "created_at": "",
+                "model_count": 0,
+            })
+    return [
+        {
+            "base_host": row["base_host"],
+            "provider_name": row["provider_name"] or row["base_host"],
+            "model": row["expected_model"] or row["model"] or "",
+            "model_count": int(row["model_count"] or 0),
+            "created_at": row["created_at"] or "",
+            "customized": row["base_host"] in overrides,
+            "homepage": overrides.get(row["base_host"]) or "https://" + row["base_host"] + "/",
+        }
+        for row in audits
+    ]
+
+def site_row(row, csrf):
+    status_class = "custom" if row["customized"] else "default"
+    status_text = "已自定义" if row["customized"] else "使用默认链接"
+    model_text = ""
+    if row["model_count"] > 1:
+        model_text = f"<br><small>本站共 {row['model_count']} 个模型，链接共用</small>"
+    elif row["model"]:
+        model_text = f"<br><small>{esc(row['model'])}</small>"
+    restore = "<small>尚未自定义</small>"
+    if row["customized"]:
+        restore = (
+            "<form method='post' action='/admin/delete'>"
+            f"<input type='hidden' name='csrf' value='{esc(csrf)}'>"
+            f"<input type='hidden' name='base_host' value='{esc(row['base_host'])}'>"
+            "<button>恢复默认</button></form>"
+        )
+    return (
+        f"<tr><td><strong>{esc(row['provider_name'])}</strong><br><code>{esc(row['base_host'])}</code>{model_text}</td>"
+        f"<td><span class='status {status_class}'>{status_text}</span>"
+        "<form method='post' action='/admin/set'>"
+        f"<input type='hidden' name='csrf' value='{esc(csrf)}'>"
+        f"<input type='hidden' name='base_host' value='{esc(row['base_host'])}'>"
+        f"<input name='homepage' type='url' value='{esc(row['homepage'])}' required>"
+        "<button>保存</button></form></td>"
+        f"<td><a href='{esc(row['homepage'])}' target='_blank' rel='noreferrer'>{esc(row['homepage'])}</a></td>"
+        f"<td>{restore}</td></tr>"
+    )
+
 def page(csrf="", message="", error=""):
     try:
-        conn = db()
-        rows = conn.execute(
-            "select base_host, homepage, updated_at from link_overrides order by base_host"
-        ).fetchall()
-        conn.close()
+        rows = ranking_sites()
     except sqlite3.Error:
         rows = []
         error = "数据库暂时不可用"
-    rows_html = "".join(
-        f"<tr><td><code>{esc(row['base_host'])}</code></td>"
-        f"<td><a href='{esc(row['homepage'])}' target='_blank' rel='noreferrer'>{esc(row['homepage'])}</a></td>"
-        f"<td>{esc(row['updated_at'])}</td>"
-        f"<td><form method='post' action='/admin/delete'>"
-        f"<input type='hidden' name='csrf' value='{esc(csrf)}'>"
-        f"<input type='hidden' name='base_host' value='{esc(row['base_host'])}'>"
-        "<button>恢复默认</button></form></td></tr>"
-        for row in rows
-    )
+    rows_html = "".join(site_row(row, csrf) for row in rows)
     return f"""<!doctype html>
 <html lang="zh-CN"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
@@ -89,6 +148,9 @@ label{{display:block;margin:10px 0 5px;color:#aebbc7}}
 input{{box-sizing:border-box;width:100%;padding:10px;border:1px solid #3a4855;border-radius:7px;background:#0d1319;color:#fff}}
 button{{padding:9px 13px;border:0;border-radius:7px;background:#67d39b;color:#07120d;font-weight:700;cursor:pointer}}
 table{{width:100%;border-collapse:collapse}}th,td{{text-align:left;padding:11px 8px;border-bottom:1px solid #2b3742;vertical-align:top}}
+td form{{display:flex;gap:7px;margin-top:8px}}td form input{{min-width:0;flex:1}}td form button{{white-space:nowrap}}
+.status{{display:inline-block;padding:3px 7px;border-radius:99px;font-size:12px;font-weight:700}}
+.status.custom{{background:#264b3b;color:#8ef0b5}}.status.default{{background:#303b47;color:#c4d0da}}
 a{{color:#79b7ff;overflow-wrap:anywhere}}code{{color:#d9e2ea}}.ok{{color:#67d39b}}.err{{color:#ff8e8e}}small{{color:#9ba8b4}}
 </style></head><body><main>
 <h1>Codex Galaxy API 排行榜后台</h1>
@@ -99,11 +161,12 @@ a{{color:#79b7ff;overflow-wrap:anywhere}}code{{color:#d9e2ea}}.ok{{color:#67d39b
 <label>Base host</label><input name="base_host" placeholder="例如 api.example.com" required>
 <label>跳转网址</label><input name="homepage" type="url" placeholder="https://example.com/" required>
 <p><button>保存链接</button></p></form></div>
-<div class="card"><h2>当前自定义链接</h2>
+<div class="card"><h2>排行榜网站链接</h2>
 {f'<p class="ok">{esc(message)}</p>' if message else ''}
 {f'<p class="err">{esc(error)}</p>' if error else ''}
-<table><thead><tr><th>Base host</th><th>跳转网址</th><th>更新时间</th><th>操作</th></tr></thead>
-<tbody>{rows_html or '<tr><td colspan="4"><small>暂无自定义链接，系统将跳转到 API 域名。</small></td></tr>'}</tbody>
+<p><small>这里会显示所有已经出现在排行榜中的站点和模型条目。绿色“已自定义”表示当前使用的是你设置的链接；灰色表示仍使用默认 API 域名。同一网站的多个模型共用同一个跳转链接。</small></p>
+<table><thead><tr><th>网站 / 模型</th><th>状态与编辑</th><th>当前生效链接</th><th>恢复</th></tr></thead>
+<tbody>{rows_html or '<tr><td colspan="4"><small>排行榜暂时没有网站记录。</small></td></tr>'}</tbody>
 </table></div>
 <form method="post" action="/admin/logout">
 <input type="hidden" name="csrf" value="{esc(csrf)}"><button>退出登录</button>

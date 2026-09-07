@@ -260,6 +260,21 @@ test("web admin requires login and CSRF before changing ranking links", async ()
       }),
     });
     assert.equal(audit.status, 201);
+    const secondModelAudit = await fetch(`${url}/api/v1/audits`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        provider_name: "Admin Test",
+        base_host: "admin.example",
+        model: "admin-other-model",
+        expected_model: "admin-other-model",
+        observed_model: "admin-other-model",
+        expected_model_listed: true,
+        models_status: 200,
+        efforts: [{ effort: "repeat-1", status: 200, elapsed_ms: 1000, ok: true, canary: true }],
+      }),
+    });
+    assert.equal(secondModelAudit.status, 201);
 
     const loginPage = await fetch(`${url}/admin/`);
     assert.equal(loginPage.status, 200);
@@ -291,6 +306,10 @@ test("web admin requires login and CSRF before changing ranking links", async ()
     const dashboard = await fetch(`${url}/admin/`, { headers: { cookie } });
     const dashboardBody = await dashboard.text();
     assert.match(dashboardBody, /新增或修改链接/);
+    assert.match(dashboardBody, /使用默认链接/);
+    assert.match(dashboardBody, /已自定义/);
+    assert.match(dashboardBody, /排行榜网站链接/);
+    assert.match(dashboardBody, /本站共 2 个模型，链接共用/);
     const csrf = dashboardBody.match(/name="csrf" value="([^"]+)"/)?.[1];
     assert.ok(csrf);
 
