@@ -15,6 +15,8 @@ const adminLinks = path.join(root, "relay-ranking-server", "admin_links.py");
 const adminAuth = path.join(root, "relay-ranking-server", "admin_auth.py");
 const adminAuthSetup = path.join(root, "relay-ranking-server", "admin_auth_setup.py");
 const adminWeb = path.join(root, "relay-ranking-server", "admin_web.py");
+const topupPage = path.join(root, "relay-ranking-server", "topup_page.py");
+const topupQr = path.join(root, "relay-ranking-server", "topup-qr.svg");
 const pythonCommand = process.env.GALAXY_TEST_PYTHON || (process.platform === "win32" ? "py" : "python3");
 
 function pythonArgs(script, ...args) {
@@ -193,6 +195,7 @@ test("ranking Worker exposes only bounded public routes without embedding secret
   assert.match(source, /https:\/\/api\.vx314490015\.cn/);
   assert.match(source, /\/api\/v1\/rankings/);
   assert.match(source, /\/api\/v1\/audits/);
+  assert.match(source, /\/topup\/qr\.svg/);
   assert.match(source, /content-length/);
   assert.match(source, /65536/);
   assert.doesNotMatch(source, /152\.136\.33\.61|eyJ[a-zA-Z0-9_.-]{40,}|api[_-]?key\s*[:=]\s*["']/i);
@@ -272,9 +275,21 @@ test("web admin requires login and CSRF before changing ranking links", async ()
     });
     assert.equal(secondModelAudit.status, 201);
 
+    const publicTopup = await fetch(`${url}/topup/`);
+    const publicTopupBody = await publicTopup.text();
+    assert.equal(publicTopup.status, 200);
+    assert.match(publicTopupBody, /Codex Galaxy/);
+    assert.match(publicTopupBody, /GPT Pro 20x/);
+    assert.match(publicTopupBody, /¥1250/);
+    assert.doesNotMatch(publicTopupBody, /章鱼哥|登录|购物车|立即购买|查单/);
+    const qr = await fetch(`${url}/topup/qr.svg`);
+    assert.equal(qr.status, 200);
+    assert.match(qr.headers.get("content-type") || "", /image\/svg\+xml/);
+    assert.match(await qr.text(), /data:image\/png;base64/);
+
     const loginPage = await fetch(`${url}/admin/`);
     assert.equal(loginPage.status, 200);
-    assert.match(await loginPage.text(), /排行榜后台登录/);
+    assert.match(await loginPage.text(), /Codex Galaxy 管理后台登录/);
     assert.match(loginPage.headers.get("content-security-policy") || "", /frame-ancestors 'none'/);
 
     const denied = await fetch(`${url}/admin/login`, {
@@ -306,6 +321,8 @@ test("web admin requires login and CSRF before changing ranking links", async ()
     assert.match(dashboardBody, /已自定义/);
     assert.match(dashboardBody, /排行榜网站链接/);
     assert.match(dashboardBody, /本站共 2 个模型，链接共用/);
+    assert.match(dashboardBody, /GPT 代充展示页/);
+    assert.match(dashboardBody, /name="topup_products"/);
     const csrf = dashboardBody.match(/name="csrf" value="([^"]+)"/)?.[1];
     assert.ok(csrf);
 
@@ -325,6 +342,33 @@ test("web admin requires login and CSRF before changing ranking links", async ()
     assert.match(await saved.text(), /链接已保存/);
     const overridden = await (await fetch(`${url}/api/v1/rankings`)).json();
     assert.equal(overridden.items[0].homepage, "https://owner.example/");
+
+    const topupSaved = await fetch(`${url}/admin/topup/save`, {
+      method: "POST",
+      headers: { cookie, "content-type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({
+        csrf,
+        topup_badge: "CODEX GALAXY · TEST",
+        topup_title: "测试代充标题",
+        topup_subtitle: "测试副标题",
+        topup_notice: "测试提示",
+        topup_qr_title: "测试二维码标题",
+        topup_qr_caption: "测试二维码说明",
+        topup_step_0: "选择",
+        topup_step_1: "扫码",
+        topup_step_2: "确认",
+        topup_footer_note: "测试页尾",
+        topup_products: "测试套餐|¥199|/月|<script>alert(1)</script>|可咨询",
+      }),
+    });
+    assert.equal(topupSaved.status, 200);
+    assert.match(await topupSaved.text(), /代充展示页已保存/);
+    const customizedTopup = await (await fetch(`${url}/topup/`)).text();
+    assert.match(customizedTopup, /测试代充标题/);
+    assert.match(customizedTopup, /测试套餐/);
+    assert.match(customizedTopup, /¥199/);
+    assert.match(customizedTopup, /&lt;script&gt;alert\(1\)&lt;\/script&gt;/);
+    assert.doesNotMatch(customizedTopup, /<script>alert\(1\)<\/script>/);
 
     const removed = await fetch(`${url}/admin/delete`, {
       method: "POST",
@@ -350,7 +394,7 @@ test("web admin requires login and CSRF before changing ranking links", async ()
 });
 
 test("web admin sources contain no embedded credential values", async () => {
-  const source = await Promise.all([adminAuth, adminAuthSetup, adminWeb].map((file) => fs.readFile(file, "utf8")));
+  const source = await Promise.all([adminAuth, adminAuthSetup, adminWeb, topupPage, topupQr].map((file) => fs.readFile(file, "utf8")));
   assert.match(source.join("\n"), /pbkdf2_hmac/);
   assert.doesNotMatch(source.join("\n"), /g15611110015|15611110015/);
 });

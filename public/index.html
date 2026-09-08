@@ -9,7 +9,10 @@
 <body>
   <div class="shell">
     <header class="topbar">
-          <div class="brand"><span class="brand-mark">CG</span><div><div class="brand-name">Codex Galaxy</div><div class="brand-sub">v<span id="appVersionInline">2.1.1</span></div></div></div>
+          <div class="brand"><span class="brand-mark">CG</span><div><div class="brand-name">Codex Galaxy</div><div class="brand-sub">v<span id="appVersionInline">2.2.0</span></div></div></div>
+      <a id="topupBtn" class="topup-action" href="https://api.vx314490015.cn/topup/" target="_blank" rel="noreferrer" data-i18n-aria-label="actions.topupLabel" aria-label="打开 GPT 代充套餐与价格">
+        <span class="topup-spark" aria-hidden="true">✦</span><span data-i18n="actions.topup">GPT 代充</span><small data-i18n="actions.topupHint">套餐与价格</small>
+      </a>
       <div class="top-actions">
         <button id="updateBtn" class="button secondary update-action" data-i18n="update.check">检查更新</button>
         <label class="language-control" title="语言 / Language">
@@ -76,7 +79,7 @@
           </div>
         </div>
       </section>
-      <section class="footer-strip"><div><span class="mini-label" data-i18n="footer.codexHome">CODEX HOME</span><code id="codexHome">检测中</code></div><div><span class="mini-label" data-i18n="footer.author">作者邮箱</span><strong>guanjingyang@gmail.com</strong></div><div><span class="mini-label" data-i18n="release.label">最近发布记录</span><strong id="releaseRecordVersion">v2.1.1</strong><a id="releaseRecordLink" href="https://github.com/guanjingyang0015/Codex-Galaxy/releases/tag/v2.1.1" target="_blank" rel="noreferrer" data-i18n="release.github">GitHub Release</a><small id="releaseRecordMeta">本地版本 · Actions 未知</small></div></section>
+      <section class="footer-strip"><div><span class="mini-label" data-i18n="footer.codexHome">CODEX HOME</span><code id="codexHome">检测中</code></div><div><span class="mini-label" data-i18n="footer.author">作者邮箱</span><strong>guanjingyang@gmail.com</strong></div><div><span class="mini-label" data-i18n="release.label">最近发布记录</span><strong id="releaseRecordVersion">v2.2.0</strong><a id="releaseRecordLink" href="https://github.com/guanjingyang0015/Codex-Galaxy/releases/tag/v2.2.0" target="_blank" rel="noreferrer" data-i18n="release.github">GitHub Release</a><small id="releaseRecordMeta">本地版本 · Actions 未知</small></div></section>
     </main>
   </div>
   <dialog id="relayAuditDialog" class="audit-dialog">
@@ -101,7 +104,7 @@
   <dialog id="threadDialog"><div class="dialog-head"><div><p class="eyebrow">THREAD DETAIL</p><h2 id="dialogTitle">线程</h2></div><button id="closeDialog" class="icon-button" title="关闭" data-i18n-title="dialog.close" aria-label="关闭" data-i18n-aria-label="dialog.close">×</button></div><div id="dialogMeta" class="dialog-meta"></div><div id="dialogHealth" class="thread-health" role="status"></div><div id="dialogLargeContext" class="thread-large-context" hidden><strong data-i18n="threads.largeContextTitle">这个聊天历史较大，直接继续可能触发上下文压缩失败</strong><p data-i18n="threads.largeContextText">建议在同一项目下新建聊天，并带上当前聊天的深度链接继续；原聊天会保留，不会被删除。</p><div class="thread-large-context-actions"><button id="copyThreadLinkBtn" class="button secondary" data-i18n="threads.copyLink">复制深度链接</button><button id="copyContinuationPromptBtn" class="button primary" data-i18n="threads.copyContinuationPrompt">复制新聊天继续提示</button></div></div><div id="dialogCompatibility" class="compatibility-note" hidden></div><div id="dialogMessages" class="messages"></div><div class="resume-zone"><span class="mini-label" data-i18n="threads.selectAccountResume">选择账号并继续</span><div id="resumeProfiles" class="resume-profiles"></div></div><div class="dialog-actions"><button id="repairThreadBtn" class="button repair" hidden data-i18n="threads.repair">备份并修复旧会话</button><button id="launchBtn" class="button primary" data-i18n="threads.launchWithCurrent">用当前账号继续</button><button id="copyResumeBtn" class="button secondary" data-i18n="threads.copyResume">复制 resume 命令</button></div></dialog>
   <dialog id="tutorialDialog" class="tutorial-dialog">
     <div class="dialog-head"><div><p class="eyebrow">PHASED USAGE GUIDE</p><h2 data-i18n="tutorial.title">分阶段使用教程</h2></div><button id="closeTutorial" class="icon-button" title="关闭教程" data-i18n-title="dialog.closeTutorial" aria-label="关闭教程" data-i18n-aria-label="dialog.closeTutorial">×</button></div>
-    <div class="tutorial-intro" data-i18n="tutorial.intro">按使用阶段阅读教程：先完成一次账号配置，日常按步骤切换，出问题先看日志，超大聊天先复制深度链接新建聊天继续，最后了解本地历史和其他特色功能。当前版本为 v2.1.1。</div>
+    <div class="tutorial-intro" data-i18n="tutorial.intro">按使用阶段阅读教程：先完成一次账号配置，日常按步骤切换，出问题先看日志，超大聊天先复制深度链接新建聊天继续，最后了解本地历史和其他特色功能。当前版本为 v2.2.0。</div>
     <nav class="tutorial-stage-tabs" role="tablist" aria-label="教程阶段" data-i18n-aria-label="tutorial.stageNav">
       <button type="button" role="tab" class="tutorial-stage-tab active" data-tutorial-stage="setup" aria-selected="true" aria-controls="tutorial-stage-setup" tabindex="0"><span class="stage-index">1</span><span><strong data-i18n="tutorial.stage1.tab">首次配置</strong><small data-i18n="tutorial.stage1.short">添加账号和模型</small></span></button>
       <button type="button" role="tab" class="tutorial-stage-tab" data-tutorial-stage="switch" aria-selected="false" aria-controls="tutorial-stage-switch" tabindex="-1"><span class="stage-index">2</span><span><strong data-i18n="tutorial.stage2.tab">日常切换</strong><small data-i18n="tutorial.stage2.short">按步骤切换账号</small></span></button>
@@ -144,6 +147,7 @@
           <article class="tutorial-feature"><strong data-i18n="tutorial.feature.modelsTitle">模型目录</strong><p data-i18n="tutorial.feature.modelsText">API 模型 ID 可留空自动发现；填写具体 GPT 型号时仍会读取完整目录，并保留你的型号作为默认值。</p></article>
           <article class="tutorial-feature"><strong data-i18n="tutorial.feature.gatewayTitle">直连与兼容网关</strong><p data-i18n="tutorial.feature.gatewayText">直连模式让 Codex 直接访问 Base URL；兼容网关模式使用本机回环网关，需要 Galaxy 保持运行。</p></article>
           <article class="tutorial-feature"><strong data-i18n="tutorial.feature.auditTitle">后台 API 检测</strong><p data-i18n="tutorial.feature.auditText">可并行检测全部已保存 API。报告按模型核对、协议、推理、稳定性和速度逐项显示证据；期望模型不匹配时总分最高 49 分。</p></article>
+          <article class="tutorial-feature"><strong data-i18n="tutorial.feature.topupTitle">GPT 代充套餐</strong><p data-i18n="tutorial.feature.topupText">顶部发光按钮打开 Codex Galaxy 套餐展示页，可查看价格、状态和二维码；页面不需要登录，也没有在线购买。</p></article>
           <article class="tutorial-feature"><strong data-i18n="tutorial.feature.toolsTitle">插件、刷新和清理</strong><p data-i18n="tutorial.feature.toolsText">插件窗口管理本地插件市场；刷新只重建列表；清理数据会先创建备份。</p></article>
           <article class="tutorial-feature"><strong data-i18n="tutorial.feature.updateTitle">安全更新</strong><p data-i18n="tutorial.feature.updateText">Windows 更新会核对官方 Release 地址和 SHA-256；覆盖安装不会删除账号和本地记录。</p></article>
         </div>

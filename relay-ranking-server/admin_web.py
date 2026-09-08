@@ -12,6 +12,7 @@ from urllib.parse import parse_qs, urlparse
 from socketserver import ThreadingMixIn
 
 from admin_auth import load_record, verify_password
+import topup_page
 
 DB_PATH = os.environ.get("RELAY_RANK_DB", "/var/lib/codex-galaxy-relay-rank/rankings.sqlite3")
 AUTH_PATH = os.environ.get("RELAY_RANK_ADMIN_AUTH", "/opt/codex-galaxy-relay-rank/shared/admin_auth.json")
@@ -21,7 +22,7 @@ LOGIN_LIMIT = 8
 SESSION_COOKIE = "__Host-cg_admin"
 SESSIONS = {}
 LOGIN_ATTEMPTS = {}
-ADMIN_PATHS = {"/admin", "/admin/", "/admin/login", "/admin/set", "/admin/delete", "/admin/logout"}
+ADMIN_PATHS = {"/admin", "/admin/", "/admin/login", "/admin/set", "/admin/delete", "/admin/topup/save", "/admin/logout"}
 
 def esc(value):
     return html.escape(str(value or ""), quote=True)
@@ -136,25 +137,31 @@ def page(csrf="", message="", error=""):
         rows = []
         error = "数据库暂时不可用"
     rows_html = "".join(site_row(row, csrf) for row in rows)
+    try:
+        topup_editor = topup_page.admin_editor(topup_page.load_settings(DB_PATH), csrf)
+    except sqlite3.Error:
+        topup_editor = '<div class="card"><h2>GPT 代充展示页</h2><p class="err">展示页配置暂时不可用</p></div>'
     return f"""<!doctype html>
 <html lang="zh-CN"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Codex Galaxy 排行榜后台</title>
+<title>Codex Galaxy 管理后台</title>
 <style>
 body{{font:15px system-ui,-apple-system,Segoe UI,sans-serif;background:#0b1015;color:#e8edf2;margin:0;padding:32px}}
 main{{max-width:980px;margin:auto}}h1{{font-size:24px}}
 .card{{background:#141b22;border:1px solid #2b3742;border-radius:12px;padding:20px;margin:18px 0}}
 label{{display:block;margin:10px 0 5px;color:#aebbc7}}
-input{{box-sizing:border-box;width:100%;padding:10px;border:1px solid #3a4855;border-radius:7px;background:#0d1319;color:#fff}}
+input,textarea{{box-sizing:border-box;width:100%;padding:10px;border:1px solid #3a4855;border-radius:7px;background:#0d1319;color:#fff;font:inherit}}
+textarea{{min-height:84px;resize:vertical}}.products-editor{{min-height:180px;font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:12px}}
 button{{padding:9px 13px;border:0;border-radius:7px;background:#67d39b;color:#07120d;font-weight:700;cursor:pointer}}
 table{{width:100%;border-collapse:collapse}}th,td{{text-align:left;padding:11px 8px;border-bottom:1px solid #2b3742;vertical-align:top}}
 td form{{display:flex;gap:7px;margin-top:8px}}td form input{{min-width:0;flex:1}}td form button{{white-space:nowrap}}
+.editor-grid{{display:grid;grid-template-columns:1fr 1fr;gap:10px 14px}}.editor-grid .wide{{grid-column:1/-1}}
 .status{{display:inline-block;padding:3px 7px;border-radius:99px;font-size:12px;font-weight:700}}
 .status.custom{{background:#264b3b;color:#8ef0b5}}.status.default{{background:#303b47;color:#c4d0da}}
 a{{color:#79b7ff;overflow-wrap:anywhere}}code{{color:#d9e2ea}}.ok{{color:#67d39b}}.err{{color:#ff8e8e}}small{{color:#9ba8b4}}
 </style></head><body><main>
-<h1>Codex Galaxy API 排行榜后台</h1>
-<p><small>只用于修改排行榜跳转链接。公开 API 和普通用户不能修改。</small></p>
+<h1>Codex Galaxy 管理后台</h1>
+<p><small>管理排行榜链接和代充展示页内容。</small></p>
 <div class="card"><h2>新增或修改链接</h2>
 <form method="post" action="/admin/set">
 <input type="hidden" name="csrf" value="{esc(csrf)}">
@@ -167,7 +174,7 @@ a{{color:#79b7ff;overflow-wrap:anywhere}}code{{color:#d9e2ea}}.ok{{color:#67d39b
 <p><small>这里会显示所有已经出现在排行榜中的站点和模型条目。绿色“已自定义”表示当前使用的是你设置的链接；灰色表示仍使用默认 API 域名。同一网站的多个模型共用同一个跳转链接。</small></p>
 <table><thead><tr><th>网站 / 模型</th><th>状态与编辑</th><th>当前生效链接</th><th>恢复</th></tr></thead>
 <tbody>{rows_html or '<tr><td colspan="4"><small>排行榜暂时没有网站记录。</small></td></tr>'}</tbody>
-</table></div>
+</table></div>{topup_editor}
 <form method="post" action="/admin/logout">
 <input type="hidden" name="csrf" value="{esc(csrf)}"><button>退出登录</button>
 </form></main></body></html>"""
@@ -175,14 +182,14 @@ a{{color:#79b7ff;overflow-wrap:anywhere}}code{{color:#d9e2ea}}.ok{{color:#67d39b
 def login_page(error=""):
     return f"""<!doctype html><html lang="zh-CN"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Codex Galaxy 后台登录</title>
+<title>Codex Galaxy 管理后台登录</title>
 <style>body{{font:15px system-ui;background:#0b1015;color:#e8edf2;margin:0;padding:32px}}
 main{{max-width:420px;margin:10vh auto;background:#141b22;border:1px solid #2b3742;border-radius:12px;padding:24px}}
 label{{display:block;margin:12px 0 5px;color:#aebbc7}}
 input{{box-sizing:border-box;width:100%;padding:10px;background:#0d1319;color:#fff;border:1px solid #3a4855;border-radius:7px}}
 button{{margin-top:16px;padding:10px 14px;border:0;border-radius:7px;background:#67d39b;font-weight:700}}
 .err{{color:#ff8e8e}}</style></head><body><main>
-<h1>排行榜后台登录</h1>{f'<p class="err">{esc(error)}</p>' if error else ''}
+<h1>Codex Galaxy 管理后台登录</h1>{f'<p class="err">{esc(error)}</p>' if error else ''}
 <form method="post" action="/admin/login">
 <label>用户名</label><input name="username" autocomplete="username" required>
 <label>密码</label><input name="password" type="password" autocomplete="current-password" required>
@@ -237,7 +244,7 @@ def read_form(handler):
         length = int(handler.headers.get("Content-Length", "0"))
     except ValueError:
         length = 0
-    if length <= 0 or length > 8192:
+    if length <= 0 or length > 65536:
         raise ValueError("请求无效")
     return {
         key: values[0]
@@ -270,7 +277,27 @@ def csrf_ok(form, session):
     return secrets.compare_digest(str(form.get("csrf") or ""), session["csrf"])
 
 def handle_get(handler):
-    if urlparse(handler.path).path not in ("/admin", "/admin/"):
+    path = urlparse(handler.path).path
+    if path in ("/topup", "/topup/"):
+        send_html(handler, topup_page.public_page(topup_page.load_settings(DB_PATH)))
+        return True
+    if path == "/topup/qr.svg":
+        asset_path = os.path.join(os.path.dirname(__file__), "topup-qr.svg")
+        try:
+            body = open(asset_path, "rb").read()
+        except OSError:
+            send_html(handler, "not found", 404)
+            return True
+        handler.send_response(200)
+        handler.send_header("Content-Type", "image/svg+xml")
+        handler.send_header("Content-Length", str(len(body)))
+        handler.send_header("Cache-Control", "public, max-age=3600")
+        handler.send_header("X-Content-Type-Options", "nosniff")
+        handler.send_header("Content-Security-Policy", "default-src 'none'; img-src data:")
+        handler.end_headers()
+        handler.wfile.write(body)
+        return True
+    if path not in ("/admin", "/admin/"):
         return False
     session = session_for(handler)
     send_html(handler, page(csrf=session["csrf"]) if session else login_page())
@@ -343,6 +370,10 @@ def handle_post(handler):
             conn.commit()
             conn.close()
             send_html(handler, page(csrf=session["csrf"], message="已恢复默认链接"))
+            return True
+        if path == "/admin/topup/save":
+            topup_page.save_settings(DB_PATH, form)
+            send_html(handler, page(csrf=session["csrf"], message="代充展示页已保存"))
             return True
         if path == "/admin/logout":
             cookies = http.cookies.SimpleCookie()

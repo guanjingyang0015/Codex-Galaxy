@@ -112,6 +112,12 @@ export async function checkDocumentationConsistency() {
   mustMatch(documents.html, /tutorial\.switch\.officialToOfficialTitle/, "public/index.html");
   mustMatch(documents.html, /id="activeTasks"/, "public/index.html");
   mustMatch(documents.html, /id="rankingsList"/, "public/index.html");
+  mustMatch(documents.readme, /GPT 代充/, "README.md");
+  mustMatch(documents.readmeEn, /GPT Top-up/, "README.en.md");
+  mustMatch(documents.html, /id="topupBtn"[^>]+\/topup\//, "public/index.html");
+  mustMatch(documents.app, /tutorial\.feature\.topupTitle/, "public/app.js");
+  mustMatch(documents.security, /top-up information page is read-only/i, "SECURITY.md");
+  mustMatch(documents.relayReadme, /\/topup\//, "relay-ranking-server/README.md");
   return { version, tag, checkedFiles: Object.keys(documents) };
 }
 

@@ -1,5 +1,5 @@
 const ORIGIN = "https://api.vx314490015.cn";
-const ALLOWED_PATHS = new Set(["/", "/health", "/api/v1/rankings", "/api/v1/audits"]);
+const ALLOWED_PATHS = new Set(["/", "/health", "/api/v1/rankings", "/api/v1/audits", "/topup", "/topup/", "/topup/qr.svg"]);
 
 function json(status, value) {
   return new Response(JSON.stringify(value), {
@@ -55,7 +55,7 @@ export default {
       outgoing.set("x-content-type-options", "nosniff");
       return new Response(response.body, { status: response.status, headers: outgoing });
     } catch {
-      return json(502, { error: "ranking origin unavailable" });
+      return json(502, { error: "service origin unavailable" });
     }
   },
 };

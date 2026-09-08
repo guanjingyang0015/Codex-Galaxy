@@ -42,3 +42,5 @@ Do not commit generated installers, `node_modules`, `.codex`, `.codex-galaxy`, `
 For homepage/account-order changes, verify all ranking rows are present without opening a dialog, reordering survives editing, and blocked switching lists scheduled tasks with the correct chat target. Use an isolated Codex home and synthetic credentials for account tests; do not restart an active user session for UI validation.
 
 Public user documentation should describe user-visible product behavior and omit internal deployment controls, credentials, and administration procedures. Keep the documentation consistency check aligned with this boundary.
+
+Promotional and plan pages must use Codex Galaxy branding, avoid copying third-party branding, and keep display-only flows separate from authentication, payment, and order handling.
