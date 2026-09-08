@@ -40,3 +40,5 @@ Switch and IPC failures are recorded in the local `~/.codex-galaxy/logs/galaxy.l
 Do not commit generated installers, `node_modules`, `.codex`, `.codex-galaxy`, `.codex-project`, `auth.json`, environment files, credentials, or signing keys.
 
 For homepage/account-order changes, verify all ranking rows are present without opening a dialog, reordering survives editing, and blocked switching lists scheduled tasks with the correct chat target. Use an isolated Codex home and synthetic credentials for account tests; do not restart an active user session for UI validation.
+
+Public user documentation should describe user-visible product behavior and omit internal deployment controls, credentials, and administration procedures. Keep the documentation consistency check aligned with this boundary.

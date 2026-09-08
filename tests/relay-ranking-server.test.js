@@ -15,6 +15,13 @@ const adminLinks = path.join(root, "relay-ranking-server", "admin_links.py");
 const adminAuth = path.join(root, "relay-ranking-server", "admin_auth.py");
 const adminAuthSetup = path.join(root, "relay-ranking-server", "admin_auth_setup.py");
 const adminWeb = path.join(root, "relay-ranking-server", "admin_web.py");
+const pythonCommand = process.env.GALAXY_TEST_PYTHON || (process.platform === "win32" ? "py" : "python3");
+
+function pythonArgs(script, ...args) {
+  return process.platform === "win32" && !process.env.GALAXY_TEST_PYTHON
+    ? ["-3.14", script, ...args]
+    : [script, ...args];
+}
 
 async function freePort() {
   const listener = net.createServer();
@@ -40,9 +47,7 @@ async function waitForHealth(url, child) {
 test("ranking server stores only safe aggregate observations and returns scored rankings", async () => {
   const port = await freePort();
   const root = await fs.mkdtemp(path.join(os.tmpdir(), "codex-galaxy-ranking-server-"));
-  const child = spawn(process.platform === "win32" ? "py" : "python3", process.platform === "win32"
-    ? ["-3.14", server]
-    : [server], {
+  const child = spawn(pythonCommand, pythonArgs(server), {
     env: { ...process.env, RELAY_RANK_HOST: "127.0.0.1", RELAY_RANK_PORT: String(port), RELAY_RANK_DB: path.join(root, "rankings.sqlite3") },
     stdio: ["ignore", "pipe", "pipe"],
   });
@@ -88,9 +93,7 @@ test("ranking server stores only safe aggregate observations and returns scored 
     assert.equal(rankings.items[0].expected_model, "gpt-6-test");
     assert.equal(rankings.items[0].observed_model, "gpt-6-test");
     assert.equal(JSON.stringify(rankings).includes("never-accept"), false);
-    const admin = spawn(process.platform === "win32" ? "py" : "python3", process.platform === "win32"
-      ? ["-3.14", adminLinks, "set", "relay.example", "https://owner.example/"]
-      : [adminLinks, "set", "relay.example", "https://owner.example/"], {
+    const admin = spawn(pythonCommand, pythonArgs(adminLinks, "set", "relay.example", "https://owner.example/"), {
       env: { ...process.env, RELAY_RANK_DB: path.join(root, "rankings.sqlite3") },
       stdio: ["ignore", "pipe", "pipe"],
     });
@@ -202,10 +205,8 @@ test("owner-only link SSH CLI remains local and contains no HTTP server", async 
   assert.doesNotMatch(source, /http\.server|BaseHTTPRequestHandler|do_POST/);
   const root = await fs.mkdtemp(path.join(os.tmpdir(), "codex-galaxy-admin-links-"));
   const database = path.join(root, "rankings.sqlite3");
-  const python = process.platform === "win32" ? "py" : "python3";
-  const prefix = process.platform === "win32" ? ["-3.14", adminLinks] : [adminLinks];
   for (const args of [["set", "relay.example", "https://relay.example/"], ["list"], ["delete", "relay.example"]]) {
-    const child = spawn(python, [...prefix, ...args], {
+    const child = spawn(pythonCommand, pythonArgs(adminLinks, ...args), {
       env: { ...process.env, RELAY_RANK_DB: database },
       stdio: ["ignore", "pipe", "pipe"],
     });
@@ -220,19 +221,14 @@ test("web admin requires login and CSRF before changing ranking links", async ()
   const fixtureRoot = await fs.mkdtemp(path.join(os.tmpdir(), "codex-galaxy-web-admin-"));
   const database = path.join(fixtureRoot, "rankings.sqlite3");
   const authFile = path.join(fixtureRoot, "admin_auth.json");
-  const python = process.platform === "win32" ? "py" : "python3";
-  const setupArgs = process.platform === "win32"
-    ? ["-3.14", adminAuthSetup, "--path", authFile, "--username", "synthetic-owner", "--password-stdin"]
-    : [adminAuthSetup, "--path", authFile, "--username", "synthetic-owner", "--password-stdin"];
-  const setup = spawn(python, setupArgs, { stdio: ["pipe", "pipe", "pipe"] });
+  const setup = spawn(pythonCommand, pythonArgs(adminAuthSetup, "--path", authFile, "--username", "synthetic-owner", "--password-stdin"), { stdio: ["pipe", "pipe", "pipe"] });
   setup.stdin.end("synthetic-password\nsynthetic-password\n");
   assert.equal(await new Promise((resolve) => setup.once("close", resolve)), 0);
   const storedAuth = await fs.readFile(authFile, "utf8");
   assert.doesNotMatch(storedAuth, /synthetic-password/);
 
   const port = await freePort();
-  const serverArgs = process.platform === "win32" ? ["-3.14", server] : [server];
-  const child = spawn(python, serverArgs, {
+  const child = spawn(pythonCommand, pythonArgs(server), {
     env: {
       ...process.env,
       RELAY_RANK_HOST: "127.0.0.1",

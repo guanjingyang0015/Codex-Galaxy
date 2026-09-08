@@ -17,6 +17,10 @@ function mustMatch(text, pattern, file) {
   assert.match(text, pattern, `${file} 未同步必要内容`);
 }
 
+function mustNotMatch(text, pattern, file) {
+  assert.doesNotMatch(text, pattern, `${file} 包含不应公开的内部说明`);
+}
+
 export async function checkDocumentationConsistency() {
   const packageJson = JSON.parse(await read("package.json"));
   const packageLock = JSON.parse(await read("package-lock.json"));
@@ -35,7 +39,22 @@ export async function checkDocumentationConsistency() {
     security: await read("SECURITY.md"),
     checklist: await read("RELEASE_CHECKLIST.md"),
     workflow: await read(".github/workflows/build.yml"),
+    relayReadme: await read("relay-ranking-server/README.md"),
   };
+
+  const archivedReleaseNotes = (await fs.readdir(path.join(PROJECT_ROOT, "release-notes")))
+    .filter((name) => /^v.*\.md$/i.test(name))
+    .map((name) => fs.readFile(path.join(PROJECT_ROOT, "release-notes", name), "utf8"));
+  const publicReleaseHistory = (await Promise.all(archivedReleaseNotes)).join("\n");
+  const publicDescriptions = [
+    documents.readme,
+    documents.readmeEn,
+    documents.app,
+    documents.html,
+    documents.security,
+    documents.relayReadme,
+    publicReleaseHistory,
+  ].join("\n");
 
   assert.equal(packageLock.version, version, "package-lock.json 顶层版本未同步");
   assert.equal(packageLock.packages[""].version, version, "package-lock.json 根包版本未同步");
@@ -53,13 +72,9 @@ export async function checkDocumentationConsistency() {
   mustMatch(documents.releaseInfo, new RegExp(`releases/tag/${tagPattern}`), "release-info.js");
   mustMatch(documents.releaseNotes, new RegExp(`# Codex Galaxy ${versionPattern}`), `release-notes/${tag}.md`);
   mustMatch(documents.releaseNotes, /README|文档|documentation/i, `release-notes/${tag}.md`);
-  mustMatch(documents.readme, /inProgress/, "README.md");
-  mustMatch(documents.readme, /thread_history/, "README.md");
   mustMatch(documents.readme, /config\.toml/, "README.md");
   mustMatch(documents.readme, /API ↔ 官方切换步骤/, "README.md");
   mustMatch(documents.readme, /第一次添加账号配置.*日常使用切换账号.*异常故障处理.*特色功能/s, "README.md");
-  mustMatch(documents.readmeEn, /inProgress/, "README.en.md");
-  mustMatch(documents.readmeEn, /thread_history/, "README.en.md");
   mustMatch(documents.readmeEn, /config\.toml/, "README.en.md");
   mustMatch(documents.readmeEn, /API ↔ official switching steps/, "README.en.md");
   mustMatch(documents.readmeEn, /first account setup.*daily account switching.*failure recovery.*features/s, "README.en.md");
@@ -80,6 +95,16 @@ export async function checkDocumentationConsistency() {
   mustMatch(documents.checklist, /GitHub Actions/, "RELEASE_CHECKLIST.md");
   mustMatch(documents.workflow, /npm run check:docs/, ".github/workflows/build.yml");
   mustMatch(documents.workflow, /npm run stamp:release/, ".github/workflows/build.yml");
+  mustNotMatch(
+    publicDescriptions,
+    /\/admin\/|admin_links\.py|admin_auth_setup\.py|PBKDF2|不可逆哈希|已自定义|使用默认链接|ranking destinations|排行榜跳转|排名跳转|服务器所有者|服务所有者|server owner|service owner|SSH-only|root-only/i,
+    "公开项目说明",
+  );
+  mustNotMatch(
+    publicDescriptions,
+    /inProgress|crash residue|崩溃遗留/i,
+    "公开项目说明",
+  );
 
   mustMatch(documents.readme, /手动排序/, "README.md");
   mustMatch(documents.readmeEn, /account order/, "README.en.md");

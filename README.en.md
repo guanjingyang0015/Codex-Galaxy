@@ -6,7 +6,7 @@
 
 Codex Galaxy is a local desktop utility for switching between Codex accounts and compatible APIs while continuing project tasks saved on the same computer.
 
-**Current version: Codex Galaxy 2.1.0**
+**Current version: Codex Galaxy 2.1.1**
 
 The in-app guide is now organized by stage: **first account setup → daily account switching → failure recovery → features**. Open **Guide** and choose only the stage you need instead of reading one long page.
 
@@ -15,8 +15,8 @@ The in-app guide is now organized by stage: **first account setup → daily acco
 - Switch between an official account and multiple API profiles
 - Use API-to-API switching without an official account
 - Resume existing local tasks with less repeated setup
-- Block switching only for a genuinely recent unfinished reply, not for a stale `inProgress` marker left by a crashed session
-- Rebuild complete thread details by merging local SQLite history with rollout files instead of showing a truncated tail
+- List unfinished chats and scheduled tasks before switching so they can be opened and completed
+- Continue projects and chat history stored on this computer across accounts and APIs
 - Check old session format and safely restore it from a verified backup when needed
 - Manage local plugins, downloaded marketplaces, and project data
 - Record a timestamped redacted local log so switch failures can be inspected and reported
@@ -45,17 +45,14 @@ API profiles must support the OpenAI Responses API. API keys stay in encrypted l
 - Successful audits automatically submit redacted results without another checkbox. The server receives no API key, request body, full output, or chat history.
 - **API ranking** defaults to an all-model overall board and can switch to GPT, DeepSeek, Gemini, or any other tested model. Each provider shows protocol, model, capability, stability, and latency components.
 - A site's ranking score is its highest test in the last 7 days; when the current test is the only recent one, that score is used. The UI also shows the network and per-site 90-day highs for excellent/good/usable/inconclusive/high-risk comparison.
-- Every ranking row is clickable. Only the server owner can override destinations through an SSH-only admin tool; ordinary clients and the public API cannot change them. Without an override, the tested HTTPS API host is used.
-- The service owner can also open `https://api.vx314490015.cn/admin/` from any computer and sign in to add, replace, inspect, or restore ranking destinations. The admin password is stored only as a non-reversible hash; changing it remains a root-only interactive server operation.
-- The dashboard lists every ranked site/model entry, not only hosts that already have an override. Green “Customized” and gray “Default link” badges identify the current state. Models sharing the same Base host also share one destination.
 - GPT/o-series models use reasoning-effort probes. Common models such as DeepSeek and Gemini use three deterministic Responses consistency probes without GPT reasoning parameters, so their model, protocol, stability, and latency evidence remains useful.
 - The public ranking endpoint is `https://api.vx314490015.cn`, connected to the isolated service through a dedicated Cloudflare Tunnel rather than another project's tunnel or port.
 
-## History and switching protection since 1.9.5
+## Usage and recovery notes
 
-- Before switching, Galaxy checks local Codex turn state. Recent activity is protected; an old unfinished marker with no later terminal turn is treated as a crash residue after the safety window.
-- Galaxy performs one authoritative local project synchronization when it starts, so reopening the app does not keep serving an old derived cache.
-- Thread details merge rollout messages with user/assistant items already present in the local `thread_history` SQLite database and de-duplicate them. Details are no longer capped at 200 messages.
+- Before switching, Galaxy protects unfinished work and lists the matching chat or scheduled task in the prompt.
+- Galaxy refreshes the local project list when it starts so existing tasks remain easy to find.
+- Task details show history saved on this computer.
 - The current installed version is placed first in the release record, so a new installation does not continue to display an older release as the latest record.
 - If recovery is needed, open **Log** and keep redacted screenshots and error text. Do not delete `config.toml`, `~/.codex`, or `~/.codex-galaxy`.
 - If the bottom-right area shows only one model and its reasoning level, leave the API profile's model ID blank and switch again so Galaxy refreshes the relay `/models` catalog. If the relay returns only one model, or Codex Desktop's official-account gate hides custom models, that is an upstream/provider limitation; the CLI model list can be checked separately.
@@ -88,7 +85,7 @@ API profiles must support the OpenAI Responses API. API keys stay in encrypted l
 
 Version 1.9.9 fixes official → API switches that rolled back to the official account. A current Codex official `auth.json` can contain an empty `OPENAI_API_KEY` field; version 1.9.8 incorrectly treated field presence as legacy API authentication and reported `api-auth-legacy`. Galaxy now treats only a non-empty key as a legacy API credential and never leaves official OAuth active in API mode. The captured official login remains encrypted in Galaxy and is restored unchanged when switching back, without requiring a manual official logout or process termination.
 
-Version 1.13.0 adds a continuously appendable background audit queue, fixes profile-card layout, and adds 7-day best-score ranking, 90-day history comparison, component scores, model filters, useful non-GPT probes, and an owner-only ranking-link administration tool.
+Version 1.13.0 adds a continuously appendable audit queue, fixes profile-card layout, and adds 7-day best-score ranking, 90-day history comparison, component scores, model filters, and useful non-GPT probes.
 
 When a chat history is large, Galaxy warns before direct resume. Click **Copy new-chat continuation prompt**, create a new chat in the same project, and paste it. The prompt includes the original `codex://threads/...` deep link, so Codex knows exactly which chat to continue.
 
@@ -144,8 +141,10 @@ Email: `guanjingyang@gmail.com`
 
 MIT License. Codex Galaxy is an independent local utility and is not an official OpenAI product.
 
-2.0.0 repairs invalid_id_prefix (expected rs) after API-to-official switching by removing incompatible reasoning item IDs from original and compacted history and invalidating the old scan cache. After upgrading, wait for replies to finish, switch to the official profile in Galaxy, then reopen the task. Capture each official account after its own login; saved accounts can then switch independently. Expired login requires reauthentication; plans and quotas remain separate.
+2.0.0 improves compatibility when reopening an older task after switching from an API to an official account. After upgrading, wait for replies to finish, switch to the official profile in Galaxy, then reopen the task. Capture each official account after its own login; saved accounts can then switch independently. Expired login requires reauthentication; plans and quotas remain separate.
 
 2.0.0 shows the complete API ranking directly on the homepage with model filtering and refresh. The ranking dialog, recent preview, current-model status, and duplicate audit button are removed. Use ↑ / ↓ on any account card to persist account order; editing preserves it. When unfinished tasks block switching, the dialog lists chat titles, projects and last activity, labels scheduled tasks, and can open the specific chat. Unreadable activity still blocks switching. The guide now covers official A → official B after separately signing in and capturing each account.
 
 2.1.0 improves ranking readability with larger names, details and scores, compact filters, collapsed explanations and content-sized rows that do not stretch into empty space. Account cards add To top and To bottom alongside stepwise movement; order is saved while other accounts retain their relative positions.
+
+2.1.1 refines the project description and in-app guide so public documentation focuses on account switching, task prompts, local history, API audits, and ranking features users can directly use.

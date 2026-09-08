@@ -10,9 +10,7 @@ Do not include real API keys, OAuth tokens, `auth.json`, browser cookies, comple
 
 Codex Galaxy stores its profile data locally and uses Electron `safeStorage` for API keys and captured official-account snapshots. The API gateway listens only on `127.0.0.1`.
 
-The optional public relay ranking service receives only bounded, redacted compatibility metrics after a successful audit. API keys, OAuth data, prompts, complete outputs, request bodies, and chat history are rejected or omitted before submission. The public endpoint is isolated behind its own Cloudflare Tunnel and does not reuse another project's tunnel or administrative service.
-
-The optional ranking-link web admin is served only at the protected `/admin/` route. It uses a PBKDF2 password verifier stored only on the server, login rate limiting, HttpOnly/Secure/SameSite cookies, CSRF validation, no-cache responses, and restrictive security headers. The verifier is not committed to Git, and the password must never be written to project files, terminal history, or logs.
+The optional public relay ranking service receives only bounded, redacted compatibility metrics after a successful audit. API keys, OAuth data, prompts, complete outputs, request bodies, and chat history are rejected or omitted before submission. The public endpoint is isolated behind its own Cloudflare Tunnel and does not reuse another project's tunnel or port.
 
 Galaxy's local log at `~/.codex-galaxy/logs/galaxy.log` records only bounded operation, timestamp, local time, error-type, and redacted error information. Review it before sharing and never include API keys, OAuth tokens, chat bodies, request bodies, or unredacted local paths in a report.
 
