@@ -1,7 +1,7 @@
 const $ = (selector) => document.querySelector(selector);
 const state = {
   profiles: [],
-  version: "2.0.0",
+  version: "2.1.0",
   threads: [],
   currentId: null,
   selectedProfileId: null,
@@ -28,7 +28,7 @@ const state = {
   releases: [],
   update: {
     phase: "idle",
-    currentVersion: "2.0.0",
+    currentVersion: "2.1.0",
     latestVersion: null,
     available: false,
     action: "install",
@@ -116,6 +116,8 @@ const translations = {
     "profile.loginMode.pure": "纯 API",
     "confirm.running": "未结束",
     "confirm.lastActivity": "最近活动",
+    "profile.moveTop": "置顶",
+    "profile.moveBottom": "置底",
     "profile.moveUp": "上移",
     "profile.moveDown": "下移",
     "confirm.automation": "定时任务",
@@ -128,7 +130,7 @@ const translations = {
     "tutorial.switch.officialToOfficial2": "等待所有聊天和定时任务完成；若切换被阻止，在提示列表查看任务名称并点击“打开聊天”。",
     "tutorial.switch.officialToOfficial3": "选中已捕获的 B，点击“切换并打开 Codex”，等待 100%；系统先保存 A 最新登录状态，再恢复 B。切回 A 使用同样步骤。",
     "tutorial.switch.officialToOfficial4": "本地项目和聊天继续保留；两个账号套餐和额度各自独立。登录失效时重新登录对应账号并捕获。",
-    "tutorial.manage": "账号卡片的 ↑ / ↓ 可调整全部账号顺序，自动保存；编辑账号不会改变排序。首页右侧直接显示完整 API 排名，可筛选模型或刷新。",
+    "tutorial.manage": "账号卡片支持置顶、置底和 ↑ / ↓，可调整全部账号顺序，自动保存；编辑账号不会改变排序。首页右侧直接显示完整 API 排名，可筛选模型或刷新。",
     "profile.kind.official": "Codex 官方账号",
     "profile.kind.api": "中转 API",
     "profile.keySaved": "Key 已保存",
@@ -394,7 +396,7 @@ const translations = {
     "diagnostics.opened": "已打开本地日志文件。",
     "diagnostics.truncated": "日志较长，当前只显示最后一段。",
     "tutorial.title": "分阶段使用教程",
-    "tutorial.intro": "按使用阶段阅读教程：先完成一次账号配置，日常按步骤切换，出问题先看日志，超大聊天先复制深度链接新建聊天继续，最后了解本地历史和其他特色功能。当前版本为 v2.0.0。",
+    "tutorial.intro": "按使用阶段阅读教程：先完成一次账号配置，日常按步骤切换，出问题先看日志，超大聊天先复制深度链接新建聊天继续，最后了解本地历史和其他特色功能。当前版本为 v2.1.0。",
     "tutorial.stageNav": "教程阶段",
     "tutorial.stage1.tab": "首次配置",
     "tutorial.stage1.short": "添加账号和模型",
@@ -451,7 +453,7 @@ const translations = {
     "tutorial.recovery.configTitle": "2 · 看到 config_load / Windows 设置",
     "tutorial.recovery.configText": "这通常是旧配置格式问题。1.9.8 起 Galaxy 会自动清理保留 provider 覆盖；不要删除 config.toml。",
     "tutorial.recovery.switchTitle": "3 · 账号没有切过去",
-    "tutorial.recovery.switchText": "如果进度未到 100% 或发生自动回滚，说明切换没有成功；先看日志，再重试。2.0.0 修复 API 切回官方时推理条目 item_ ID 引发的 invalid_id_prefix（期望 rs）错误，覆盖原始及压缩历史，并使旧兼容缓存失效。升级后待回复结束，在 Galaxy 重新选择官方账号并切换，完成后重新打开原任务。两个官方账号需要分别完成登录和捕获，此后可切换；登录失效时需重新登录，各账号套餐与额度独立。",
+    "tutorial.recovery.switchText": "如果进度未到 100% 或发生自动回滚，说明切换没有成功；先看日志，再重试。2.1.0 修复 API 切回官方时推理条目 item_ ID 引发的 invalid_id_prefix（期望 rs）错误，覆盖原始及压缩历史，并使旧兼容缓存失效。升级后待回复结束，在 Galaxy 重新选择官方账号并切换，完成后重新打开原任务。两个官方账号需要分别完成登录和捕获，此后可切换；登录失效时需重新登录，各账号套餐与额度独立。",
     "tutorial.recovery.windowsTitle": "4 · 只有真正的 Windows 沙盒故障",
     "tutorial.recovery.windowsText": "如果 Galaxy 明确提示 elevated 沙盒被本机策略阻止，才选择“兼容模式重试”；它不是日常切换步骤。",
     "tutorial.recovery.never": "不要删除 config.toml、~/.codex、~/.codex-galaxy，也不要为了“清空状态”手动退出官方账号。若自动恢复不完整，停止继续操作并提交脱敏日志。",
@@ -544,6 +546,8 @@ const translations = {
     "profile.loginMode.pure": "Pure API",
     "confirm.running": "Unfinished",
     "confirm.lastActivity": "Last activity",
+    "profile.moveTop": "To top",
+    "profile.moveBottom": "To bottom",
     "profile.moveUp": "Move up",
     "profile.moveDown": "Move down",
     "confirm.automation": "Scheduled task",
@@ -556,7 +560,7 @@ const translations = {
     "tutorial.switch.officialToOfficial2": "Wait for all chats and scheduled tasks to finish. If switching is blocked, use the task list and Open chat to locate the active task.",
     "tutorial.switch.officialToOfficial3": "Select captured B, click Switch and open Codex, and wait for 100%. Galaxy saves the latest A login before restoring B. Follow the same steps to return to A.",
     "tutorial.switch.officialToOfficial4": "Local projects and chats remain available. Account plans and quotas are separate. If login expires, sign in to that account again and capture it.",
-    "tutorial.manage": "Use ↑ / ↓ on any account card to save its position. Editing preserves that order. The complete API ranking is shown on the homepage, with model filtering and refresh.",
+    "tutorial.manage": "Use To top, To bottom or ↑ / ↓ on any account card to save its position. Editing preserves that order. The complete API ranking is shown on the homepage, with model filtering and refresh.",
     "profile.kind.official": "Codex official account",
     "profile.kind.api": "Relay API",
     "profile.keySaved": "Key saved",
@@ -822,7 +826,7 @@ const translations = {
     "diagnostics.opened": "The local log file was opened.",
     "diagnostics.truncated": "The log is long; only its latest section is shown.",
     "tutorial.title": "Phased usage guide",
-    "tutorial.intro": "Read the guide by stage: configure accounts once, follow the daily switch steps, preserve the scene when something fails, use a deep link to continue oversized chats in a new thread, then learn local history and other features. Current version: v2.0.0.",
+    "tutorial.intro": "Read the guide by stage: configure accounts once, follow the daily switch steps, preserve the scene when something fails, use a deep link to continue oversized chats in a new thread, then learn local history and other features. Current version: v2.1.0.",
     "tutorial.stageNav": "Tutorial stages",
     "tutorial.stage1.tab": "First setup",
     "tutorial.stage1.short": "Accounts and models",
@@ -879,7 +883,7 @@ const translations = {
     "tutorial.recovery.configTitle": "2 · config_load / Windows setup appears",
     "tutorial.recovery.configText": "This is usually an old configuration-format problem. Since 1.9.8, Galaxy removes the stale provider override automatically; never delete config.toml.",
     "tutorial.recovery.switchTitle": "3 · The account did not switch",
-    "tutorial.recovery.switchText": "If progress did not reach 100% or the transaction rolled back, the switch did not succeed; read Log before retrying. 2.0.0 repairs invalid_id_prefix (expected rs) after API-to-official switching by removing incompatible reasoning item IDs from original and compacted history and invalidating the old scan cache. After upgrading, wait for replies to finish, switch to the official profile in Galaxy, then reopen the task. Capture each official account after its own login; saved accounts can then switch independently. Expired login requires reauthentication; plans and quotas remain separate.",
+    "tutorial.recovery.switchText": "If progress did not reach 100% or the transaction rolled back, the switch did not succeed; read Log before retrying. 2.1.0 repairs invalid_id_prefix (expected rs) after API-to-official switching by removing incompatible reasoning item IDs from original and compacted history and invalidating the old scan cache. After upgrading, wait for replies to finish, switch to the official profile in Galaxy, then reopen the task. Capture each official account after its own login; saved accounts can then switch independently. Expired login requires reauthentication; plans and quotas remain separate.",
     "tutorial.recovery.windowsTitle": "4 · Only a genuine Windows sandbox failure",
     "tutorial.recovery.windowsText": "Choose Compatibility retry only when Galaxy explicitly says the elevated sandbox is blocked by a machine policy; it is not a daily switching step.",
     "tutorial.recovery.never": "Do not delete config.toml, ~/.codex, or ~/.codex-galaxy, and do not manually log out of the official account just to clear state. Stop and submit the redacted log if recovery is incomplete.",
@@ -1250,6 +1254,8 @@ function renderProfiles() {
           </div>
         </div>
         <div class="profile-actions">
+          <button data-action="move-top" data-id="${escapeHtml(profile.id)}" aria-label="${t("profile.moveTop")} ${escapeHtml(profile.name)}"${disabled || index === 0 ? " disabled" : ""}>${t("profile.moveTop")}</button>
+          <button data-action="move-bottom" data-id="${escapeHtml(profile.id)}" aria-label="${t("profile.moveBottom")} ${escapeHtml(profile.name)}"${disabled || index === state.profiles.length - 1 ? " disabled" : ""}>${t("profile.moveBottom")}</button>
           <button data-action="move-up" data-id="${escapeHtml(profile.id)}" title="${t("profile.moveUp")}" aria-label="${t("profile.moveUp")} ${escapeHtml(profile.name)}"${disabled || index === 0 ? " disabled" : ""}>↑</button>
           <button data-action="move-down" data-id="${escapeHtml(profile.id)}" title="${t("profile.moveDown")}" aria-label="${t("profile.moveDown")} ${escapeHtml(profile.name)}"${disabled || index === state.profiles.length - 1 ? " disabled" : ""}>↓</button>
           ${current ? `<span class="profile-status">${t("common.current")}</span>` : ""}
@@ -1728,9 +1734,8 @@ function renderRankingItems(items, target = $("#rankingsList"), ranking = {}) {
     const level = rankingScore >= 90 ? "excellent" : rankingScore >= 75 ? "good" : rankingScore >= 60 ? "usable" : rankingScore >= 50 ? "uncertain" : "risky";
     const body = `
     <span class="ranking-number">${item.rank || index + 1}</span>
-    <div class="ranking-main"><strong>${escapeHtml(item.provider_name || item.base_host)}</strong><small>${escapeHtml(item.expected_model || item.model || "")}${item.observed_model ? ` → ${escapeHtml(item.observed_model)}` : ""} · ${escapeHtml(t("audit.tests", { count: item.samples || 0 }))}</small>${detailed ? `<small>${escapeHtml(t("audit.scoreBreakdown", { protocol: item.protocol_score || 0, model: item.model_score || 0, effort: item.effort_score || 0, stability: item.stability_score || 0, speed: item.speed_score || 0 }))}</small><small>${escapeHtml(t("audit.historySite90", { score: item.history_90d_max || item.ranking_score || item.score || 0 }))}</small>` : ""}</div>
+    <div class="ranking-main"><strong>${escapeHtml(item.provider_name || item.base_host)}</strong><small>${escapeHtml(item.expected_model || item.model || "")}${item.observed_model ? ` → ${escapeHtml(item.observed_model)}` : ""} · ${escapeHtml(t("audit.tests", { count: item.samples || 0 }))}</small>${detailed ? `<small>${escapeHtml(t("audit.scoreBreakdown", { protocol: item.protocol_score || 0, model: item.model_score || 0, effort: item.effort_score || 0, stability: item.stability_score || 0, speed: item.speed_score || 0 }))}</small><small class="ranking-footer"><span>${escapeHtml(t("audit.historySite90", { score: item.history_90d_max || item.ranking_score || item.score || 0 }))}</span><span>${escapeHtml(t("audit.latest", { time: formatDate(item.last_test) }))}</span></small>` : ""}</div>
     <b class="ranking-score">${escapeHtml(t("audit.scoreUnit", { score: rankingScore }))}<small>${escapeHtml(t(`audit.level.${level}`))}</small></b>
-    <small class="ranking-latest">${escapeHtml(t("audit.latest", { time: formatDate(item.last_test) }))}</small>
     <span class="ranking-link">↗</span>`;
     return visitUrl
       ? `<a class="ranking-item" href="${escapeHtml(visitUrl)}" target="_blank" rel="noreferrer">${body}</a>`
@@ -2187,12 +2192,13 @@ $("#profiles").addEventListener("click", async (event) => {
   event.stopPropagation();
   const profile = state.profiles.find((item) => item.id === id);
   if (action.dataset.action === "edit" && profile) return openProfileForm(profile);
-  if (action.dataset.action === "move-up" || action.dataset.action === "move-down") {
+  if (["move-up", "move-down", "move-top", "move-bottom"].includes(action.dataset.action)) {
     const ids = state.profiles.map(item => item.id);
     const index = ids.indexOf(id);
-    const next = index + (action.dataset.action === "move-up" ? -1 : 1);
+    const next = action.dataset.action === "move-top" ? 0 : action.dataset.action === "move-bottom" ? ids.length - 1 : index + (action.dataset.action === "move-up" ? -1 : 1);
     if (index < 0 || next < 0 || next >= ids.length) return;
-    [ids[index], ids[next]] = [ids[next], ids[index]];
+    ids.splice(index, 1);
+    ids.splice(next, 0, id);
     state.refreshing = true;
     updateOperationControls();
     try { unwrap(await bridge.reorderProfiles(ids)); await refresh(); }
