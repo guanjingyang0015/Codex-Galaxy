@@ -221,3 +221,21 @@ test("an older concurrent audit cannot overwrite a newer profile result", async 
   assert.equal(profile.lastTest.status, "ok");
   assert.equal(profile.lastAudit.score, 90);
 });
+
+test("manual profile order survives editing and rejects stale or incomplete permutations", async () => {
+  const { reorderProfiles } = await import('../profiles.js');
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'galaxy-profile-order-'));
+  const paths = { root, profiles: path.join(root, 'profiles.json'), vault: path.join(root, 'vault.json') };
+  for (const id of ['a','b','c']) await saveProfile({id,name:id,kind:'official',model:'gpt-official'}, paths);
+  await setCurrent('b', paths);
+  const beforeVault = await fs.readFile(paths.vault, 'utf8');
+  await reorderProfiles(['c','b','a'], paths);
+  await saveProfile({id:'b',name:'renamed',kind:'official',model:'gpt-official'}, paths);
+  const state = await publicProfiles(paths);
+  assert.deepEqual(state.profiles.map(p => p.id), ['c','b','a']);
+  assert.equal(state.currentId, 'b');
+  assert.equal(await fs.readFile(paths.vault, 'utf8'), beforeVault);
+  const before = await fs.readFile(paths.profiles, 'utf8');
+  for (const ids of [['c','c','a'], ['a','b'], ['a','b','unknown'], null]) await assert.rejects(reorderProfiles(ids, paths), /排序/);
+  assert.equal(await fs.readFile(paths.profiles, 'utf8'), before);
+});

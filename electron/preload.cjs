@@ -5,6 +5,8 @@ contextBridge.exposeInMainWorld("codexGalaxy", {
   checkUpdate: () => ipcRenderer.invoke("codex-galaxy:check-update"),
   installUpdate: (language) => ipcRenderer.invoke("codex-galaxy:install-update", { language }),
   sync: (operationId) => ipcRenderer.invoke("codex-galaxy:sync", { operationId }),
+  reorderProfiles: (ids) => ipcRenderer.invoke("codex-galaxy:reorder-profiles", ids),
+  openActiveTask: (requestId, id) => ipcRenderer.invoke("codex-galaxy:open-active-task", { requestId, id }),
   saveProfile: (profile) => ipcRenderer.invoke("codex-galaxy:save-profile", profile),
   deleteProfile: (id) => ipcRenderer.invoke("codex-galaxy:delete-profile", id),
   clearProfileKey: (id) => ipcRenderer.invoke("codex-galaxy:clear-profile-key", id),

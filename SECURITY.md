@@ -25,3 +25,5 @@ Security fixes are released against the latest published version. Users should u
 ## Release documentation rule
 
 Security, recovery, account-switching, and local-data behavior changes must be reflected in both READMEs, the in-app Chinese and English guide, and the matching release notes before publication. The project’s documentation consistency checks are part of the release gate.
+
+Account order and task details (2.0.0): moving accounts changes only the profile list order, never vault credentials. Switch-blocking task titles and project paths are read locally and are not submitted to API ranking services. Opening a task accepts only an ID from the current sender-bound confirmation; an unfinished-task confirmation cannot authorize a switch.

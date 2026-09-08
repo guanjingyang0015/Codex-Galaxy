@@ -23,3 +23,5 @@
 6. 核验标签目标、公开 Release、全部安装包和 SHA-256 文件。
 
 GitHub Actions 会在构建安装包前写入当前提交和运行编号，使已发布版本的应用内发布记录不会显示旧版本或“本地版本”。任何一项检查失败，版本都不能交付。
+
+- For 2.0.0: verify homepage rankings, saved account order, scheduled-task blocker details and official-to-official tutorials. Includes the previously unpublished 1.13.1 reasoning-ID fix; 1.13.1 is superseded as a local candidate.

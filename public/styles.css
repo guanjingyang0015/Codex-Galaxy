@@ -343,3 +343,30 @@ dialog::backdrop { background: rgba(0, 0, 0, 0.72); }
   .tutorial-card-grid, .tutorial-direction-grid, .tutorial-feature-grid { grid-template-columns: 1fr; }
   .audit-form { grid-template-columns: 1fr; }
 }
+
+/* Complete homepage ranking and switch-blocking task details. */
+.status-board { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.audit-panel-body { gap: 10px; }
+.audit-panel .rankings-toolbar { flex-direction: column; align-items: stretch; padding: 10px 0; }
+.audit-panel .rankings-toolbar-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.audit-panel .rankings-toolbar-actions select { min-width: 0; max-width: 100%; }
+.audit-panel .rankings-list { overflow: visible; max-height: none; padding: 0; }
+.active-task-list { display: grid; gap: 8px; max-height: 42vh; overflow: auto; }
+.active-task { display: flex; align-items: center; gap: 12px; padding: 12px; border: 1px solid var(--line); border-radius: 7px; }
+.active-task > div { display: grid; gap: 5px; flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.active-task strong { font-size: 12px; }
+.active-task small { color: var(--muted); font-size: 10px; }
+.active-task .button { flex: 0 0 auto; }
+@media (max-width: 760px) {
+  .shell { height: auto; min-height: 100vh; }
+  .workspace { overflow: visible; }
+  .grid { grid-template-rows: auto auto; }
+  .profile-list { max-height: 45vh; }
+  .audit-panel-body { overflow: visible; }
+  .status-board { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+.audit-panel .rankings-toolbar small { display: block; }
+.audit-explanation { color: var(--muted); font-size: 11px; }
+.audit-explanation summary { cursor: pointer; padding: 3px 0; }
+.audit-explanation[open] .audit-intro { margin-top: 9px; }
+.audit-explanation .audit-rubric { margin-top: 8px; }

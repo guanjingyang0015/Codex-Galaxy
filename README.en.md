@@ -6,7 +6,7 @@
 
 Codex Galaxy is a local desktop utility for switching between Codex accounts and compatible APIs while continuing project tasks saved on the same computer.
 
-**Current version: Codex Galaxy 1.13.1**
+**Current version: Codex Galaxy 2.0.0**
 
 The in-app guide is now organized by stage: **first account setup → daily account switching → failure recovery → features**. Open **Guide** and choose only the stage you need instead of reading one long page.
 
@@ -144,4 +144,6 @@ Email: `guanjingyang@gmail.com`
 
 MIT License. Codex Galaxy is an independent local utility and is not an official OpenAI product.
 
-1.13.1 repairs invalid_id_prefix (expected rs) after API-to-official switching by removing incompatible reasoning item IDs from original and compacted history and invalidating the old scan cache. After upgrading, wait for replies to finish, switch to the official profile in Galaxy, then reopen the task. Capture each official account after its own login; saved accounts can then switch independently. Expired login requires reauthentication; plans and quotas remain separate.
+2.0.0 repairs invalid_id_prefix (expected rs) after API-to-official switching by removing incompatible reasoning item IDs from original and compacted history and invalidating the old scan cache. After upgrading, wait for replies to finish, switch to the official profile in Galaxy, then reopen the task. Capture each official account after its own login; saved accounts can then switch independently. Expired login requires reauthentication; plans and quotas remain separate.
+
+2.0.0 shows the complete API ranking directly on the homepage with model filtering and refresh. The ranking dialog, recent preview, current-model status, and duplicate audit button are removed. Use ↑ / ↓ on any account card to persist account order; editing preserves it. When unfinished tasks block switching, the dialog lists chat titles, projects and last activity, labels scheduled tasks, and can open the specific chat. Unreadable activity still blocks switching. The guide now covers official A → official B after separately signing in and capturing each account.

@@ -153,7 +153,9 @@ export async function saveProfile(input, paths = runtimePaths()) {
     wireApi: "responses",
     updatedAt: new Date().toISOString(),
   };
-  data.profiles = data.profiles.filter((item) => item.id !== profile.id).concat({ ...previous, ...profile });
+  const index = data.profiles.findIndex(item => item.id === profile.id);
+  if (index >= 0) data.profiles[index] = { ...previous, ...profile };
+  else data.profiles.push(profile);
   if (providedApiKey) vault.profiles[profile.id] = { ...(vault.profiles[profile.id] || {}), apiKey: encrypt(providedApiKey) };
   else if (input.kind !== "api" && vault.profiles[profile.id]?.apiKey) {
     const next = { ...vault.profiles[profile.id] };
@@ -164,6 +166,14 @@ export async function saveProfile(input, paths = runtimePaths()) {
   await writeJson(paths.profiles, data);
   await writeJson(paths.vault, vault);
   return profile;
+}
+
+export async function reorderProfiles(ids, paths = runtimePaths()) {
+  const { data } = await loadProfiles(paths);
+  if (!Array.isArray(ids) || ids.length !== data.profiles.length || new Set(ids).size !== ids.length || ids.some(id => !data.profiles.some(profile => profile.id === id))) throw new Error("排序必须包含所有账号且不能重复，请刷新后重试。");
+  data.profiles = ids.map(id => data.profiles.find(profile => profile.id === id));
+  await writeJson(paths.profiles, data);
+  return { ids };
 }
 
 export async function deleteProfile(id, paths = runtimePaths()) {

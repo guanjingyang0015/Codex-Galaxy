@@ -87,3 +87,39 @@ test("latest Codex thread ignores stale unfinished turns and falls back to the n
   db.close();
   assert.equal(await latestCodexThreadId(home), "latest-user");
 });
+
+test("activity details enumerate and deduplicate all tasks, including scheduled jobs", async () => {
+  const { inspectCodexActivity } = await import('../codex-activity.js');
+  const home = await fs.mkdtemp(path.join(os.tmpdir(), 'galaxy-activity-details-'));
+  const { DatabaseSync } = await import('node:sqlite');
+  const now = Date.now();
+  for (const name of ['thread_history.sqlite', 'thread_history_1.sqlite']) {
+    const db = new DatabaseSync(path.join(home, name));
+    db.exec('create table thread_turns (thread_id text, status text, started_at integer, completed_at integer)');
+    for (const id of ['chat', 'cron', 'missing']) db.prepare('insert into thread_turns values (?, ?, ?, null)').run(id, 'inProgress', now);
+    db.prepare('insert into thread_turns values (?, ?, ?, ?)').run('done', 'completed', now, now);
+    db.close();
+  }
+  const meta = new DatabaseSync(path.join(home, 'state_5.sqlite'));
+  meta.exec('create table threads (id text, title text, cwd text, thread_source text)');
+  meta.prepare('insert into threads values (?, ?, ?, ?)').run('chat', '修复项目', 'C:/project', 'user');
+  meta.prepare('insert into threads values (?, ?, ?, ?)').run('cron', '每日巡检', 'C:/jobs', 'user');
+  meta.close();
+  await fs.mkdir(path.join(home, 'sqlite'));
+  const automation = new DatabaseSync(path.join(home, 'sqlite/jobs.db'));
+  automation.exec("create table automation_runs (thread_id text); insert into automation_runs values ('cron')");
+  automation.close();
+  const result = await inspectCodexActivity(home);
+  assert.equal(result.active, true);
+  assert.equal(result.tasks.length, 3);
+  assert.equal(result.tasks.find(t => t.id === 'chat').title, '修复项目');
+  assert.equal(result.tasks.find(t => t.id === 'cron').source, 'automation');
+  assert.equal(result.tasks.find(t => t.id === 'missing').title, 'missing');
+  assert.equal(result.tasks[0].lastActivityAt, now);
+  await fs.writeFile(path.join(home, 'thread_history_2.sqlite'), 'unreadable');
+  assert.equal((await inspectCodexActivity(home)).active, true);
+  for (const name of ['thread_history.sqlite', 'thread_history_1.sqlite']) {
+    const db = new DatabaseSync(path.join(home, name)); db.exec("update thread_turns set status='completed'"); db.close();
+  }
+  assert.equal((await inspectCodexActivity(home)).active, null);
+});

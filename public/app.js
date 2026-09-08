@@ -1,7 +1,7 @@
 const $ = (selector) => document.querySelector(selector);
 const state = {
   profiles: [],
-  version: "1.13.1",
+  version: "2.0.0",
   threads: [],
   currentId: null,
   selectedProfileId: null,
@@ -28,7 +28,7 @@ const state = {
   releases: [],
   update: {
     phase: "idle",
-    currentVersion: "1.13.1",
+    currentVersion: "2.0.0",
     latestVersion: null,
     available: false,
     action: "install",
@@ -114,6 +114,21 @@ const translations = {
     "profile.modelAutoPrefix": "自动",
     "profile.loginMode.official": "官方登录",
     "profile.loginMode.pure": "纯 API",
+    "confirm.running": "未结束",
+    "confirm.lastActivity": "最近活动",
+    "profile.moveUp": "上移",
+    "profile.moveDown": "下移",
+    "confirm.automation": "定时任务",
+    "confirm.background": "后台任务",
+    "confirm.chat": "聊天任务",
+    "confirm.openTask": "打开聊天",
+    "confirm.unknownTasks": "无法读取具体任务，请检查 Codex 的运行中聊天与定时任务，稍后重试。",
+    "tutorial.switch.officialToOfficialTitle": "官方 A → 官方 B",
+    "tutorial.switch.officialToOfficial1": "先分别添加 A、B；在 Codex 登录对应账号后，回到 Galaxy 在对应卡片点击“捕获”。仅填写名称不代表已经登录。",
+    "tutorial.switch.officialToOfficial2": "等待所有聊天和定时任务完成；若切换被阻止，在提示列表查看任务名称并点击“打开聊天”。",
+    "tutorial.switch.officialToOfficial3": "选中已捕获的 B，点击“切换并打开 Codex”，等待 100%；系统先保存 A 最新登录状态，再恢复 B。切回 A 使用同样步骤。",
+    "tutorial.switch.officialToOfficial4": "本地项目和聊天继续保留；两个账号套餐和额度各自独立。登录失效时重新登录对应账号并捕获。",
+    "tutorial.manage": "账号卡片的 ↑ / ↓ 可调整全部账号顺序，自动保存；编辑账号不会改变排序。首页右侧直接显示完整 API 排名，可筛选模型或刷新。",
     "profile.kind.official": "Codex 官方账号",
     "profile.kind.api": "中转 API",
     "profile.keySaved": "Key 已保存",
@@ -197,6 +212,7 @@ const translations = {
     "threads.copyLink": "复制深度链接",
     "threads.copyContinuationPrompt": "复制新聊天继续提示",
     "threads.continuationPromptCopied": "已复制新聊天提示。请在同一项目下新建聊天后粘贴发送。",
+    "audit.explain": "检测与评分说明",
     "audit.panelTitle": "API 检测与排名",
     "audit.intro": "已保存 API 可直接检测；临时 API 才需要填写地址和 Key。检测在后台运行，完成后自动保存并提交脱敏排名。",
     "audit.rubric": "评分：模型核对 40 分、接口协议 25 分、能力探针 15 分、稳定性 10 分、速度 10 分。GPT/o 系列测试推理强度，其他模型测试确定性一致性；模型不匹配时总分最高 49 分。",
@@ -378,7 +394,7 @@ const translations = {
     "diagnostics.opened": "已打开本地日志文件。",
     "diagnostics.truncated": "日志较长，当前只显示最后一段。",
     "tutorial.title": "分阶段使用教程",
-    "tutorial.intro": "按使用阶段阅读教程：先完成一次账号配置，日常按步骤切换，出问题先看日志，超大聊天先复制深度链接新建聊天继续，最后了解本地历史和其他特色功能。当前版本为 v1.13.1。",
+    "tutorial.intro": "按使用阶段阅读教程：先完成一次账号配置，日常按步骤切换，出问题先看日志，超大聊天先复制深度链接新建聊天继续，最后了解本地历史和其他特色功能。当前版本为 v2.0.0。",
     "tutorial.stageNav": "教程阶段",
     "tutorial.stage1.tab": "首次配置",
     "tutorial.stage1.short": "添加账号和模型",
@@ -435,7 +451,7 @@ const translations = {
     "tutorial.recovery.configTitle": "2 · 看到 config_load / Windows 设置",
     "tutorial.recovery.configText": "这通常是旧配置格式问题。1.9.8 起 Galaxy 会自动清理保留 provider 覆盖；不要删除 config.toml。",
     "tutorial.recovery.switchTitle": "3 · 账号没有切过去",
-    "tutorial.recovery.switchText": "如果进度未到 100% 或发生自动回滚，说明切换没有成功；先看日志，再重试。1.13.1 修复 API 切回官方时推理条目 item_ ID 引发的 invalid_id_prefix（期望 rs）错误，覆盖原始及压缩历史，并使旧兼容缓存失效。升级后待回复结束，在 Galaxy 重新选择官方账号并切换，完成后重新打开原任务。两个官方账号需要分别完成登录和捕获，此后可切换；登录失效时需重新登录，各账号套餐与额度独立。",
+    "tutorial.recovery.switchText": "如果进度未到 100% 或发生自动回滚，说明切换没有成功；先看日志，再重试。2.0.0 修复 API 切回官方时推理条目 item_ ID 引发的 invalid_id_prefix（期望 rs）错误，覆盖原始及压缩历史，并使旧兼容缓存失效。升级后待回复结束，在 Galaxy 重新选择官方账号并切换，完成后重新打开原任务。两个官方账号需要分别完成登录和捕获，此后可切换；登录失效时需重新登录，各账号套餐与额度独立。",
     "tutorial.recovery.windowsTitle": "4 · 只有真正的 Windows 沙盒故障",
     "tutorial.recovery.windowsText": "如果 Galaxy 明确提示 elevated 沙盒被本机策略阻止，才选择“兼容模式重试”；它不是日常切换步骤。",
     "tutorial.recovery.never": "不要删除 config.toml、~/.codex、~/.codex-galaxy，也不要为了“清空状态”手动退出官方账号。若自动恢复不完整，停止继续操作并提交脱敏日志。",
@@ -526,6 +542,21 @@ const translations = {
     "profile.modelAutoPrefix": "Auto",
     "profile.loginMode.official": "Official login",
     "profile.loginMode.pure": "Pure API",
+    "confirm.running": "Unfinished",
+    "confirm.lastActivity": "Last activity",
+    "profile.moveUp": "Move up",
+    "profile.moveDown": "Move down",
+    "confirm.automation": "Scheduled task",
+    "confirm.background": "Background task",
+    "confirm.chat": "Chat",
+    "confirm.openTask": "Open chat",
+    "confirm.unknownTasks": "Task details are unavailable. Check running chats and scheduled tasks in Codex, then retry.",
+    "tutorial.switch.officialToOfficialTitle": "Official A → official B",
+    "tutorial.switch.officialToOfficial1": "Add A and B separately. Sign in to each in Codex, then Capture on its matching Galaxy card. A saved name alone is not a captured login.",
+    "tutorial.switch.officialToOfficial2": "Wait for all chats and scheduled tasks to finish. If switching is blocked, use the task list and Open chat to locate the active task.",
+    "tutorial.switch.officialToOfficial3": "Select captured B, click Switch and open Codex, and wait for 100%. Galaxy saves the latest A login before restoring B. Follow the same steps to return to A.",
+    "tutorial.switch.officialToOfficial4": "Local projects and chats remain available. Account plans and quotas are separate. If login expires, sign in to that account again and capture it.",
+    "tutorial.manage": "Use ↑ / ↓ on any account card to save its position. Editing preserves that order. The complete API ranking is shown on the homepage, with model filtering and refresh.",
     "profile.kind.official": "Codex official account",
     "profile.kind.api": "Relay API",
     "profile.keySaved": "Key saved",
@@ -609,6 +640,7 @@ const translations = {
     "threads.copyLink": "Copy deep link",
     "threads.copyContinuationPrompt": "Copy new-chat continuation prompt",
     "threads.continuationPromptCopied": "Continuation prompt copied. Create a new chat in the same project and paste it.",
+    "audit.explain": "About audits and scoring",
     "audit.panelTitle": "API audit and ranking",
     "audit.intro": "Saved APIs can be tested directly; only temporary APIs require an address and key. Audits run in the background and automatically submit redacted results.",
     "audit.rubric": "Score: model identity 40, protocol 25, capability probes 15, stability 10, latency 10. GPT/o models test reasoning efforts; other models test deterministic consistency. A model mismatch caps the total at 49.",
@@ -790,7 +822,7 @@ const translations = {
     "diagnostics.opened": "The local log file was opened.",
     "diagnostics.truncated": "The log is long; only its latest section is shown.",
     "tutorial.title": "Phased usage guide",
-    "tutorial.intro": "Read the guide by stage: configure accounts once, follow the daily switch steps, preserve the scene when something fails, use a deep link to continue oversized chats in a new thread, then learn local history and other features. Current version: v1.13.1.",
+    "tutorial.intro": "Read the guide by stage: configure accounts once, follow the daily switch steps, preserve the scene when something fails, use a deep link to continue oversized chats in a new thread, then learn local history and other features. Current version: v2.0.0.",
     "tutorial.stageNav": "Tutorial stages",
     "tutorial.stage1.tab": "First setup",
     "tutorial.stage1.short": "Accounts and models",
@@ -847,7 +879,7 @@ const translations = {
     "tutorial.recovery.configTitle": "2 · config_load / Windows setup appears",
     "tutorial.recovery.configText": "This is usually an old configuration-format problem. Since 1.9.8, Galaxy removes the stale provider override automatically; never delete config.toml.",
     "tutorial.recovery.switchTitle": "3 · The account did not switch",
-    "tutorial.recovery.switchText": "If progress did not reach 100% or the transaction rolled back, the switch did not succeed; read Log before retrying. 1.13.1 repairs invalid_id_prefix (expected rs) after API-to-official switching by removing incompatible reasoning item IDs from original and compacted history and invalidating the old scan cache. After upgrading, wait for replies to finish, switch to the official profile in Galaxy, then reopen the task. Capture each official account after its own login; saved accounts can then switch independently. Expired login requires reauthentication; plans and quotas remain separate.",
+    "tutorial.recovery.switchText": "If progress did not reach 100% or the transaction rolled back, the switch did not succeed; read Log before retrying. 2.0.0 repairs invalid_id_prefix (expected rs) after API-to-official switching by removing incompatible reasoning item IDs from original and compacted history and invalidating the old scan cache. After upgrading, wait for replies to finish, switch to the official profile in Galaxy, then reopen the task. Capture each official account after its own login; saved accounts can then switch independently. Expired login requires reauthentication; plans and quotas remain separate.",
     "tutorial.recovery.windowsTitle": "4 · Only a genuine Windows sandbox failure",
     "tutorial.recovery.windowsText": "Choose Compatibility retry only when Galaxy explicitly says the elevated sandbox is blocked by a machine policy; it is not a daily switching step.",
     "tutorial.recovery.never": "Do not delete config.toml, ~/.codex, or ~/.codex-galaxy, and do not manually log out of the official account just to clear state. Stop and submit the redacted log if recovery is incomplete.",
@@ -979,11 +1011,7 @@ function updateOperationControls() {
   $("#pluginBtn").disabled = busy;
   $("#diagnosticsBtn").disabled = busy;
   $("#addProfileBtn").disabled = busy;
-  $("#auditBtn").disabled = busy;
-  $("#topRankingsBtn").disabled = busy;
-  $("#rankingsBtn").disabled = busy;
   $("#adHocAuditBtn").disabled = busy;
-  $("#refreshRankingsBtn").disabled = busy;
   if ($("#search")) $("#search").disabled = busy;
   if ($("#projectFilter")) $("#projectFilter").disabled = busy;
   renderUpdateAction();
@@ -1128,7 +1156,6 @@ function updateStatusBoard() {
   const running = state.codexRunning ? t("common.running") : t("common.notRunning");
   $("#statusProfile").textContent = current?.name || t("common.notSelected");
   $("#statusLoginMode").textContent = current ? profileLoginModeLabel(current) : t("common.notSelected");
-  $("#statusModel").textContent = current ? profileModelLabel(current) : t("common.notSelected");
   $("#statusGateway").textContent = state.gatewayRunning ? t("common.running") : t("common.notRunning");
   $("#statusCodex").textContent = t("status.codexSummary", {
     running,
@@ -1208,7 +1235,7 @@ function renderProfiles() {
   if (!state.profiles.length) {
     root.innerHTML = `<div class="empty">${t("profile.empty")}</div>`;
   } else {
-    root.innerHTML = state.profiles.map((profile) => {
+    root.innerHTML = state.profiles.map((profile, index) => {
       const selected = profile.id === state.selectedProfileId;
       const current = profile.id === state.currentId;
       return `<div class="profile-item${selected ? " selected" : ""}${current ? " current" : ""}" data-action="select" data-id="${escapeHtml(profile.id)}" tabindex="0" role="radio" aria-checked="${selected}">
@@ -1223,6 +1250,8 @@ function renderProfiles() {
           </div>
         </div>
         <div class="profile-actions">
+          <button data-action="move-up" data-id="${escapeHtml(profile.id)}" title="${t("profile.moveUp")}" aria-label="${t("profile.moveUp")} ${escapeHtml(profile.name)}"${disabled || index === 0 ? " disabled" : ""}>↑</button>
+          <button data-action="move-down" data-id="${escapeHtml(profile.id)}" title="${t("profile.moveDown")}" aria-label="${t("profile.moveDown")} ${escapeHtml(profile.name)}"${disabled || index === state.profiles.length - 1 ? " disabled" : ""}>↓</button>
           ${current ? `<span class="profile-status">${t("common.current")}</span>` : ""}
           <button data-action="edit" data-id="${escapeHtml(profile.id)}" title="${t("profile.editTitle")}" aria-label="${t("profile.editTitle")} ${escapeHtml(profile.name)}"${disabled}>${t("common.edit")}</button>
           ${profile.kind === "official" ? `<button data-action="capture" data-id="${escapeHtml(profile.id)}" title="${t("profile.captureTitle")}"${disabled}>${t("common.capture")}</button>` : `<button data-action="test" data-id="${escapeHtml(profile.id)}" title="${t("profile.testTitle")}"${disabled}>${state.testingProfileId === profile.id ? t("profile.testRunning") : t("common.test")}</button><button data-action="audit" data-id="${escapeHtml(profile.id)}" title="${t("audit.adHoc")}"${disabled}>${t("actions.audit")}</button><button data-action="clear-key" data-id="${escapeHtml(profile.id)}" title="${current ? t("profile.currentCannotClear") : profile.hasApiKey ? t("common.clearKey") : t("profile.actions.noKey")}"${disabled || current || !profile.hasApiKey ? " disabled" : ""}>${t("common.clearKey")}</button>`}
@@ -1486,6 +1515,7 @@ function showSwitchConfirmation(request) {
   $("#switchConfirmTitle").textContent = request.title || t("confirm.title");
   $("#switchConfirmMessage").textContent = request.message || t("confirm.message");
   $("#switchConfirmDetail").textContent = request.detail || "";
+  $("#activeTasks").innerHTML = (request.tasks || []).map(task => `<div class="active-task"><div><strong>${escapeHtml(task.title || task.id || t("common.unknown"))}</strong><small>${escapeHtml(/automation|cron|heartbeat/i.test(task.source) ? t("confirm.automation") : /subagent|sub_agent|internal/i.test(task.source) ? t("confirm.background") : t("confirm.chat"))} · ${escapeHtml(t("confirm.running"))} · ${escapeHtml(t("confirm.lastActivity"))} ${escapeHtml(formatDate(task.lastActivityAt))}</small><small>${escapeHtml(task.cwd || task.id)}</small></div>${/^[0-9a-f-]{36}$/i.test(task.id) ? `<button class="button secondary" data-task-id="${escapeHtml(task.id)}">${t("confirm.openTask")}</button>` : ""}</div>`).join("") || (request.canContinue === false ? `<p class="confirm-detail">${t("confirm.unknownTasks")}</p>` : "");
   dialog.showModal();
   $("#cancelSwitchConfirm").focus();
 }
@@ -1684,14 +1714,14 @@ function auditAssessmentLabel(value) {
   return t(`audit.assessment.${value || "inconclusive"}`);
 }
 
-function renderRankingItems(items, target = $("#rankingPreview"), ranking = {}) {
+function renderRankingItems(items, target = $("#rankingsList"), ranking = {}) {
   if (!target) return;
   if (!Array.isArray(items) || !items.length) {
     target.innerHTML = `<div class="empty">${t("audit.rankingsLoading")}</div>`;
     return;
   }
   const detailed = target?.id === "rankingsList";
-  const visibleItems = detailed ? items : items.slice(0, 3);
+  const visibleItems = items;
   target.innerHTML = visibleItems.map((item, index) => {
     const visitUrl = safeHomepageForDisplay(item.homepage) || safeHomepageForDisplay(`https://${item.base_host || ""}/`);
     const rankingScore = Math.round(Number(item.ranking_score) || Number(item.score) || 0);
@@ -1717,7 +1747,7 @@ function safeHomepageForDisplay(value) {
   }
 }
 
-async function loadRankings(target = $("#rankingPreview"), sort = $("#rankingSort")?.value || "overall") {
+async function loadRankings(target = $("#rankingsList"), sort = $("#rankingSort")?.value || "overall") {
   try {
     const model = target?.id === "rankingsList" ? $("#rankingModel")?.value || "" : "";
     const ranking = unwrap(await bridge.getRankings(sort, model));
@@ -1982,24 +2012,9 @@ if ($("#syncBtn")) $("#syncBtn").addEventListener("click", sync);
 $("#updateBtn").addEventListener("click", handleUpdateAction);
 $("#languageSelect").addEventListener("change", (event) => setLanguage(event.currentTarget.value));
 $("#tutorialBtn").addEventListener("click", openTutorial);
-$("#auditBtn").addEventListener("click", () => {
-  const profile = selectedProfile();
-  if (profile?.kind === "api") return startSavedProfileAudit(profile);
-  openRelayAudit(null);
-});
-$("#topRankingsBtn").addEventListener("click", async () => {
-  $("#rankingsDialog").showModal();
-  await loadRankings($("#rankingsList"));
-});
-$("#rankingsBtn").addEventListener("click", async () => {
-  $("#rankingsDialog").showModal();
-  await loadRankings($("#rankingsList"));
-});
-$("#refreshRankingsBtn").addEventListener("click", () => loadRankings());
 $("#reloadRankings").addEventListener("click", () => loadRankings($("#rankingsList")));
 $("#rankingSort").addEventListener("change", () => loadRankings($("#rankingsList")));
 $("#rankingModel").addEventListener("change", () => loadRankings($("#rankingsList")));
-$("#closeRankings").addEventListener("click", () => $("#rankingsDialog").close());
 $("#adHocAuditBtn").addEventListener("click", () => openRelayAudit());
 $("#closeRelayAudit").addEventListener("click", () => $("#relayAuditDialog").close());
 $("#cancelRelayAudit").addEventListener("click", () => $("#relayAuditDialog").close());
@@ -2096,6 +2111,12 @@ $("#cancelProfileBtn").addEventListener("click", closeProfileForm);
 $("#profileForm [name=kind]").addEventListener("change", updateProfileFields);
 $("#switchOpenBtn").addEventListener("click", () => state.selectedProfileId && switchAccount(state.selectedProfileId));
 $("#closeDialog").addEventListener("click", () => $("#threadDialog").close());
+$("#activeTasks").addEventListener("click", async event => {
+  const button = event.target.closest("[data-task-id]");
+  if (!button) return;
+  try { unwrap(await bridge.openActiveTask(state.switchConfirmation, button.dataset.taskId)); }
+  catch (error) { notice(error.message, true); }
+});
 $("#cancelSwitchConfirm").addEventListener("click", () => closeSwitchConfirmation(false));
 $("#continueSwitchConfirm").addEventListener("click", () => closeSwitchConfirmation(true));
 $("#switchConfirmDialog").addEventListener("cancel", (event) => {
@@ -2166,6 +2187,19 @@ $("#profiles").addEventListener("click", async (event) => {
   event.stopPropagation();
   const profile = state.profiles.find((item) => item.id === id);
   if (action.dataset.action === "edit" && profile) return openProfileForm(profile);
+  if (action.dataset.action === "move-up" || action.dataset.action === "move-down") {
+    const ids = state.profiles.map(item => item.id);
+    const index = ids.indexOf(id);
+    const next = index + (action.dataset.action === "move-up" ? -1 : 1);
+    if (index < 0 || next < 0 || next >= ids.length) return;
+    [ids[index], ids[next]] = [ids[next], ids[index]];
+    state.refreshing = true;
+    updateOperationControls();
+    try { unwrap(await bridge.reorderProfiles(ids)); await refresh(); }
+    catch (error) { notice(error.message, true); }
+    finally { state.refreshing = false; updateOperationControls(); }
+    return;
+  }
   if (action.dataset.action === "test") return testProfile(id);
   if (action.dataset.action === "audit") return startSavedProfileAudit(profile);
   if (action.dataset.action === "clear-key") return clearProfileKey(id);

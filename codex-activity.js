@@ -84,31 +84,82 @@ function readTurnRows(db, tables) {
   return db.prepare(`select ${pick("thread_id")} as thread_id, ${pick("rollout_ordinal")} as rollout_ordinal, "status" as status, ${pick("completed_at")} as completed_at, ${pick("started_at")} as started_at from thread_turns`).all();
 }
 
-export async function hasActiveCodexTurn(codexHome) {
+export async function inspectCodexActivity(codexHome) {
   let DatabaseSync;
-  try { ({ DatabaseSync } = await import("node:sqlite")); } catch { return null; }
+  try { ({ DatabaseSync } = await import("node:sqlite")); } catch { return { active: null, tasks: [] }; }
   const entries = await fs.readdir(codexHome, { withFileTypes: true }).catch(() => []);
   const databases = entries
     .filter((entry) => entry.isFile() && /^thread_history(?:_\d+)?\.sqlite$/i.test(entry.name))
     .map((entry) => path.join(codexHome, entry.name));
   let inspected = false;
+  let uncertain = false;
+  const tasks = new Map();
   for (const databasePath of databases) {
     let db;
-    try { db = new DatabaseSync(databasePath, { readOnly: true }); } catch { continue; }
+    try { db = new DatabaseSync(databasePath, { readOnly: true }); } catch { uncertain = true; continue; }
     try {
       const tables = db.prepare("select name from sqlite_master where type='table'").all().map((row) => row.name);
       const rows = readTurnRows(db, tables);
       if (!rows) continue;
       inspected = true;
-      const active = unfinishedTurns(rows, latestItemTimes(db, tables));
-      if (active.length) return true;
+      const latestItems = latestItemTimes(db, tables);
+      const active = unfinishedTurns(rows, latestItems);
+      for (const row of active) {
+        const id = String(row.thread_id || "");
+        const previous = tasks.get(id);
+        const startedAt = timestampMs(row.started_at);
+        const lastActivityAt = Math.max(startedAt || 0, latestItems.get(id) || 0) || null;
+        if (!previous || (lastActivityAt || 0) > (previous.lastActivityAt || 0)) tasks.set(id, { id, title: id || "未知任务", cwd: "", source: "", status: String(row.status || "unknown"), startedAt, lastActivityAt });
+      }
     } catch {
-      return null;
+      uncertain = true;
     } finally {
       db.close();
     }
   }
-  return inspected ? false : null;
+  await enrichActiveTasks(codexHome, tasks, DatabaseSync);
+  return { active: tasks.size ? true : inspected && !uncertain ? false : null, tasks: [...tasks.values()].sort((a, b) => (b.lastActivityAt || 0) - (a.lastActivityAt || 0)) };
+}
+
+
+// Metadata is descriptive only: unavailable titles must never hide an active turn.
+async function enrichActiveTasks(codexHome, tasks, DatabaseSync) {
+  if (!tasks.size) return;
+  const entries = await fs.readdir(codexHome).catch(() => []);
+  const nested = await fs.readdir(path.join(codexHome, "sqlite")).catch(() => []);
+  const files = [...entries.filter(name => /^state(?:_\d+)?\.sqlite$/i.test(name)).map(name => path.join(codexHome, name)), ...nested.filter(name => /\.(sqlite|db)$/i.test(name)).map(name => path.join(codexHome, "sqlite", name))];
+  for (const file of files) {
+    let db;
+    try {
+      db = new DatabaseSync(file, { readOnly: true });
+      const tables = db.prepare("select name from sqlite_master where type='table'").all().map(row => row.name);
+      if (tables.includes("threads")) {
+        const columns = db.prepare("pragma table_info(threads)").all().map(row => row.name);
+        if (columns.includes("id")) for (const task of tasks.values()) {
+          const pick = column => columns.includes(column) ? '"' + column + '"' : "null";
+          const row = db.prepare('select ' + ["title", "cwd", "thread_source", "source"].map(c => pick(c) + ' as "' + c + '"').join(', ') + ' from threads where id = ?').get(task.id);
+          if (row) Object.assign(task, { title: row.title || task.title, cwd: row.cwd || task.cwd, source: row.thread_source || row.source || task.source });
+        }
+      }
+      if (tables.includes("automation_runs")) {
+        const columns = db.prepare("pragma table_info(automation_runs)").all().map(row => row.name);
+        if (columns.includes("thread_id")) for (const task of tasks.values()) {
+          const pick = column => columns.includes(column) ? '"' + column + '"' : "null";
+          const row = db.prepare('select ' + ["thread_title", "source_cwd"].map(c => pick(c) + ' as "' + c + '"').join(', ') + ' from automation_runs where thread_id = ? limit 1').get(task.id);
+          if (row) {
+            task.source = "automation";
+            if (task.title === task.id && row.thread_title) task.title = row.thread_title;
+            if (!task.cwd && row.source_cwd) task.cwd = row.source_cwd;
+          }
+        }
+      }
+    } catch { /* Keep the active task and its ID when metadata cannot be read. */ }
+    finally { db?.close(); }
+  }
+}
+
+export async function hasActiveCodexTurn(codexHome) {
+  return (await inspectCodexActivity(codexHome)).active;
 }
 
 export async function latestCodexThreadId(codexHome) {

@@ -38,3 +38,5 @@ Switch and IPC failures are recorded in the local `~/.codex-galaxy/logs/galaxy.l
 `npm test` includes a documentation synchronization regression test. Do not bypass or weaken it to make a release pass. A version is not released until documentation checks, tests, builds, commit, tag, GitHub Actions, public Release, and asset verification all succeed.
 
 Do not commit generated installers, `node_modules`, `.codex`, `.codex-galaxy`, `.codex-project`, `auth.json`, environment files, credentials, or signing keys.
+
+For homepage/account-order changes, verify all ranking rows are present without opening a dialog, reordering survives editing, and blocked switching lists scheduled tasks with the correct chat target. Use an isolated Codex home and synthetic credentials for account tests; do not restart an active user session for UI validation.

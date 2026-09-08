@@ -81,6 +81,12 @@ export async function checkDocumentationConsistency() {
   mustMatch(documents.workflow, /npm run check:docs/, ".github/workflows/build.yml");
   mustMatch(documents.workflow, /npm run stamp:release/, ".github/workflows/build.yml");
 
+  mustMatch(documents.readme, /手动排序/, "README.md");
+  mustMatch(documents.readmeEn, /account order/, "README.en.md");
+  mustMatch(documents.app, /tutorial\.switch\.officialToOfficialTitle/, "public/app.js");
+  mustMatch(documents.html, /tutorial\.switch\.officialToOfficialTitle/, "public/index.html");
+  mustMatch(documents.html, /id="activeTasks"/, "public/index.html");
+  mustMatch(documents.html, /id="rankingsList"/, "public/index.html");
   return { version, tag, checkedFiles: Object.keys(documents) };
 }
 

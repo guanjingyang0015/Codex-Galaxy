@@ -5,7 +5,7 @@ import os from "node:os";
 import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { defaultPaths, inspectCodex, captureCurrent, liveProfileMatch, setOfficialWindowsSandboxFallback, switchProfile as applyProfile } from "../codex.js";
-import { runtimePaths, loadProfiles, publicProfiles, saveProfile, profileForSwitch, recordProfileTest, setCurrent, setResolvedModel, setModelCatalog, deleteProfile, clearApiKey } from "../profiles.js";
+import { runtimePaths, loadProfiles, publicProfiles, saveProfile, profileForSwitch, recordProfileTest, setCurrent, setResolvedModel, setModelCatalog, deleteProfile, clearApiKey, reorderProfiles } from "../profiles.js";
 import { syncConversations, readLibrary, readThreadDetail } from "../sync.js";
 import { setPlatformSecretProvider } from "../vault.js";
 import { buildMacTerminalArgs, buildResumeArgs, formatResumeCommand, waitForSpawn } from "../launcher.js";
@@ -23,7 +23,7 @@ import { AppUpdater } from "../app-updater.js";
 import { diagnoseThreadRollout, repairThreadRollout } from "../thread-repair.js";
 import { testApiProfile, auditApiProfile, auditRelay } from "../relay-connection.js";
 import { fetchRelayRankings, submitAuditForRanking } from "../relay-ranking.js";
-import { hasActiveCodexTurn, latestCodexThreadId } from "../codex-activity.js";
+import { inspectCodexActivity, latestCodexThreadId } from "../codex-activity.js";
 import { releaseHistory } from "../release-info.js";
 import { createDiagnosticLogger, diagnosticLogPath, readDiagnosticLog } from "../diagnostics.js";
 
@@ -843,8 +843,8 @@ async function confirmRunningCodexSwitch(event) {
   if (!running.length) return true;
   const owner = BrowserWindow.fromWebContents(event.sender) || undefined;
   if (!owner || owner.isDestroyed() || owner.webContents.isDestroyed()) return false;
-  const activeTurn = await hasActiveCodexTurn(codexPaths.home);
-  const canContinue = activeTurn === false;
+  const activity = await inspectCodexActivity(codexPaths.home);
+  const canContinue = activity.active === false;
   const requestId = `switch-${process.pid}-${Date.now()}-${++switchConfirmationSequence}`;
   owner.show();
   owner.focus();
@@ -853,10 +853,11 @@ async function confirmRunningCodexSwitch(event) {
       pendingSwitchConfirmations.delete(requestId);
       resolve(false);
     }, 120000);
-    pendingSwitchConfirmations.set(requestId, { sender: owner.webContents, timer, resolve });
+    pendingSwitchConfirmations.set(requestId, { sender: owner.webContents, timer, resolve, canContinue, taskIds: activity.tasks.map(task => task.id) });
     owner.webContents.send("codex-galaxy:confirm-switch", {
       requestId,
       canContinue,
+      tasks: activity.tasks,
       title: canContinue ? "Codex 当前处于空闲状态" : "当前回复尚未完成",
       message: canContinue
         ? "检测到 Codex 正在运行，但没有发现尚未完成的回复。"
@@ -875,8 +876,16 @@ function registerHandlers() {
     if (!pending || pending.sender !== event.sender) return;
     pendingSwitchConfirmations.delete(requestId);
     clearTimeout(pending.timer);
-    pending.resolve(payload?.confirmed === true);
+    pending.resolve(pending.canContinue && payload?.confirmed === true);
   });
+  ipcMain.handle("codex-galaxy:open-active-task", (event, request) => result(async () => {
+    const pending = pendingSwitchConfirmations.get(String(request?.requestId || ""));
+    const id = String(request?.id || "");
+    if (!pending || pending.sender !== event.sender || !pending.taskIds.includes(id) || !/^[0-9a-f-]{36}$/i.test(id)) throw new Error("任务提示已过期，请重新尝试切换以刷新任务列表。");
+    await shell.openExternal('codex://threads/' + id);
+    return { opened: true };
+  }, "open-active-task"));
+  ipcMain.handle("codex-galaxy:reorder-profiles", (_, ids) => result(() => reorderProfiles(ids, dataPaths), "reorder-profiles"));
   ipcMain.handle("codex-galaxy:get-state", () => result(getState, "get-state"));
   ipcMain.handle("codex-galaxy:check-update", () => result(() => appUpdater.check(), "check-update"));
   ipcMain.handle("codex-galaxy:install-update", (event, request) => result(async () => {
