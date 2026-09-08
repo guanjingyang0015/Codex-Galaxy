@@ -115,6 +115,7 @@ def site_row(row, csrf):
         restore = (
             "<form method='post' action='/admin/delete'>"
             f"<input type='hidden' name='csrf' value='{esc(csrf)}'>"
+            "<input type='hidden' name='active_panel' value='ranking'>"
             f"<input type='hidden' name='base_host' value='{esc(row['base_host'])}'>"
             "<button>恢复默认</button></form>"
         )
@@ -123,6 +124,7 @@ def site_row(row, csrf):
         f"<td><span class='status {status_class}'>{status_text}</span>"
         "<form method='post' action='/admin/set'>"
         f"<input type='hidden' name='csrf' value='{esc(csrf)}'>"
+        "<input type='hidden' name='active_panel' value='ranking'>"
         f"<input type='hidden' name='base_host' value='{esc(row['base_host'])}'>"
         f"<input name='homepage' type='url' value='{esc(row['homepage'])}' required>"
         "<button>保存</button></form></td>"
@@ -130,7 +132,7 @@ def site_row(row, csrf):
         f"<td>{restore}</td></tr>"
     )
 
-def page(csrf="", message="", error=""):
+def page(csrf="", message="", error="", active_panel="ranking"):
     try:
         rows = ranking_sites()
     except sqlite3.Error:
@@ -141,13 +143,16 @@ def page(csrf="", message="", error=""):
         topup_editor = topup_page.admin_editor(topup_page.load_settings(DB_PATH), csrf)
     except sqlite3.Error:
         topup_editor = '<div class="card"><h2>GPT 代充展示页</h2><p class="err">展示页配置暂时不可用</p></div>'
+    active_panel = "topup" if active_panel == "topup" else "ranking"
+    ranking_checked = " checked" if active_panel == "ranking" else ""
+    topup_checked = " checked" if active_panel == "topup" else ""
     return f"""<!doctype html>
 <html lang="zh-CN"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Codex Galaxy 管理后台</title>
 <style>
 body{{font:15px system-ui,-apple-system,Segoe UI,sans-serif;background:#0b1015;color:#e8edf2;margin:0;padding:32px}}
-main{{max-width:980px;margin:auto}}h1{{font-size:24px}}
+main{{max-width:1080px;margin:auto}}h1{{font-size:24px;margin-bottom:6px}}
 .card{{background:#141b22;border:1px solid #2b3742;border-radius:12px;padding:20px;margin:18px 0}}
 label{{display:block;margin:10px 0 5px;color:#aebbc7}}
 input,textarea{{box-sizing:border-box;width:100%;padding:10px;border:1px solid #3a4855;border-radius:7px;background:#0d1319;color:#fff;font:inherit}}
@@ -156,25 +161,39 @@ button{{padding:9px 13px;border:0;border-radius:7px;background:#67d39b;color:#07
 table{{width:100%;border-collapse:collapse}}th,td{{text-align:left;padding:11px 8px;border-bottom:1px solid #2b3742;vertical-align:top}}
 td form{{display:flex;gap:7px;margin-top:8px}}td form input{{min-width:0;flex:1}}td form button{{white-space:nowrap}}
 .editor-grid{{display:grid;grid-template-columns:1fr 1fr;gap:10px 14px}}.editor-grid .wide{{grid-column:1/-1}}
+.panel-radio{{position:absolute;opacity:0;pointer-events:none}}.panel-switcher{{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:24px 0 4px}}
+.panel-tab{{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:14px 16px;border:1px solid #33414e;border-radius:12px;background:#121920;color:#b9c5ce;cursor:pointer;transition:.18s ease}}
+.panel-tab strong{{display:block;color:#eef4f7;font-size:16px}}.panel-tab small{{white-space:nowrap}}.panel-tab:hover{{border-color:#4c6b60;background:#17221e}}
+#panel-ranking:checked~.panel-switcher label[for=panel-ranking],#panel-topup:checked~.panel-switcher label[for=panel-topup]{{border-color:#67d39b;background:linear-gradient(135deg,#183228,#14241e);box-shadow:0 0 0 1px #67d39b33,0 10px 28px #0004}}
+#panel-ranking:checked~.panel-switcher label[for=panel-ranking] strong,#panel-topup:checked~.panel-switcher label[for=panel-topup] strong{{color:#87efb6}}
+.panel-content{{display:none}}#panel-ranking:checked~.panels .ranking-panel,#panel-topup:checked~.panels .topup-panel{{display:block}}.table-wrap{{overflow-x:auto}}
 .status{{display:inline-block;padding:3px 7px;border-radius:99px;font-size:12px;font-weight:700}}
 .status.custom{{background:#264b3b;color:#8ef0b5}}.status.default{{background:#303b47;color:#c4d0da}}
 a{{color:#79b7ff;overflow-wrap:anywhere}}code{{color:#d9e2ea}}.ok{{color:#67d39b}}.err{{color:#ff8e8e}}small{{color:#9ba8b4}}
+@media(max-width:680px){{body{{padding:18px}}.panel-switcher{{grid-template-columns:1fr}}.panel-tab small{{white-space:normal}}.editor-grid{{grid-template-columns:1fr}}.editor-grid .wide{{grid-column:auto}}}}
 </style></head><body><main>
 <h1>Codex Galaxy 管理后台</h1>
-<p><small>管理排行榜链接和代充展示页内容。</small></p>
+<p><small>选择一个板块进行管理，无需滚动查找另一项功能。</small></p>
+{f'<p class="ok">{esc(message)}</p>' if message else ''}
+{f'<p class="err">{esc(error)}</p>' if error else ''}
+<input class="panel-radio" type="radio" name="admin_panel" id="panel-ranking"{ranking_checked}>
+<input class="panel-radio" type="radio" name="admin_panel" id="panel-topup"{topup_checked}>
+<div class="panel-switcher" role="tablist" aria-label="管理板块">
+<label class="panel-tab" for="panel-ranking" role="tab"><strong>API 排行榜</strong><small>站点与跳转链接</small></label>
+<label class="panel-tab" for="panel-topup" role="tab"><strong>GPT 代充展示页</strong><small>文案、流程与价格</small></label>
+</div><div class="panels"><section class="panel-content ranking-panel">
 <div class="card"><h2>新增或修改链接</h2>
 <form method="post" action="/admin/set">
 <input type="hidden" name="csrf" value="{esc(csrf)}">
+<input type="hidden" name="active_panel" value="ranking">
 <label>Base host</label><input name="base_host" placeholder="例如 api.example.com" required>
 <label>跳转网址</label><input name="homepage" type="url" placeholder="https://example.com/" required>
 <p><button>保存链接</button></p></form></div>
 <div class="card"><h2>排行榜网站链接</h2>
-{f'<p class="ok">{esc(message)}</p>' if message else ''}
-{f'<p class="err">{esc(error)}</p>' if error else ''}
 <p><small>这里会显示所有已经出现在排行榜中的站点和模型条目。绿色“已自定义”表示当前使用的是你设置的链接；灰色表示仍使用默认 API 域名。同一网站的多个模型共用同一个跳转链接。</small></p>
-<table><thead><tr><th>网站 / 模型</th><th>状态与编辑</th><th>当前生效链接</th><th>恢复</th></tr></thead>
+<div class="table-wrap"><table><thead><tr><th>网站 / 模型</th><th>状态与编辑</th><th>当前生效链接</th><th>恢复</th></tr></thead>
 <tbody>{rows_html or '<tr><td colspan="4"><small>排行榜暂时没有网站记录。</small></td></tr>'}</tbody>
-</table></div>{topup_editor}
+</table></div></div></section><section class="panel-content topup-panel">{topup_editor}</section></div>
 <form method="post" action="/admin/logout">
 <input type="hidden" name="csrf" value="{esc(csrf)}"><button>退出登录</button>
 </form></main></body></html>"""
@@ -300,7 +319,9 @@ def handle_get(handler):
     if path not in ("/admin", "/admin/"):
         return False
     session = session_for(handler)
-    send_html(handler, page(csrf=session["csrf"]) if session else login_page())
+    query = parse_qs(urlparse(handler.path).query)
+    active_panel = "topup" if query.get("panel", [""])[0] == "topup" else "ranking"
+    send_html(handler, page(csrf=session["csrf"], active_panel=active_panel) if session else login_page())
     return True
 
 def handle_post(handler):
@@ -345,6 +366,7 @@ def handle_post(handler):
         return True
     try:
         form = read_form(handler)
+        active_panel = "topup" if form.get("active_panel") == "topup" else "ranking"
         if not csrf_ok(form, session):
             raise ValueError("会话校验失败")
         if path == "/admin/set":
@@ -359,7 +381,7 @@ def handle_post(handler):
             )
             conn.commit()
             conn.close()
-            send_html(handler, page(csrf=session["csrf"], message="链接已保存"))
+            send_html(handler, page(csrf=session["csrf"], message="链接已保存", active_panel="ranking"))
             return True
         if path == "/admin/delete":
             host = clean_host(form.get("base_host"))
@@ -369,11 +391,11 @@ def handle_post(handler):
             conn.execute("delete from link_overrides where base_host = ?", (host,))
             conn.commit()
             conn.close()
-            send_html(handler, page(csrf=session["csrf"], message="已恢复默认链接"))
+            send_html(handler, page(csrf=session["csrf"], message="已恢复默认链接", active_panel="ranking"))
             return True
         if path == "/admin/topup/save":
             topup_page.save_settings(DB_PATH, form)
-            send_html(handler, page(csrf=session["csrf"], message="代充展示页已保存"))
+            send_html(handler, page(csrf=session["csrf"], message="代充展示页已保存", active_panel="topup"))
             return True
         if path == "/admin/logout":
             cookies = http.cookies.SimpleCookie()
@@ -386,10 +408,10 @@ def handle_post(handler):
         send_html(handler, "not found", 404)
         return True
     except ValueError as error:
-        send_html(handler, page(csrf=session["csrf"], error=str(error)), 400)
+        send_html(handler, page(csrf=session["csrf"], error=str(error), active_panel=locals().get("active_panel", "ranking")), 400)
         return True
     except Exception:
-        send_html(handler, page(csrf=session["csrf"], error="操作失败"), 500)
+        send_html(handler, page(csrf=session["csrf"], error="操作失败", active_panel=locals().get("active_panel", "ranking")), 500)
         return True
 
 class ThreadingHTTPServer(ThreadingMixIn, HTTPServer):

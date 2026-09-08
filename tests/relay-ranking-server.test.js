@@ -279,6 +279,13 @@ test("web admin requires login and CSRF before changing ranking links", async ()
     const publicTopupBody = await publicTopup.text();
     assert.equal(publicTopup.status, 200);
     assert.match(publicTopupBody, /Codex Galaxy/);
+    assert.match(publicTopupBody, /CODEX GALAXY \/ AI SERVICES/);
+    assert.match(publicTopupBody, /GPT READY/);
+    assert.match(publicTopupBody, /OPENAI API/);
+    assert.match(publicTopupBody, /class="ai-core"/);
+    assert.match(publicTopupBody, /class="openai-mark"/);
+    assert.match(publicTopupBody, /OpenAI<\/span><strong class="service-name">GPT <i>×<\/i> CODEX/);
+    assert.match(publicTopupBody, /prefers-reduced-motion/);
     assert.match(publicTopupBody, /GPT Pro 20x/);
     assert.match(publicTopupBody, /¥1250/);
     assert.doesNotMatch(publicTopupBody, /章鱼哥|登录|购物车|立即购买|查单/);
@@ -323,8 +330,20 @@ test("web admin requires login and CSRF before changing ranking links", async ()
     assert.match(dashboardBody, /本站共 2 个模型，链接共用/);
     assert.match(dashboardBody, /GPT 代充展示页/);
     assert.match(dashboardBody, /name="topup_products"/);
+    assert.match(dashboardBody, /id="panel-ranking" checked/);
+    assert.match(dashboardBody, /id="panel-topup"/);
+    assert.match(dashboardBody, /class="panel-switcher"/);
+    assert.match(dashboardBody, /class="panel-content ranking-panel"/);
+    assert.match(dashboardBody, /class="panel-content topup-panel"/);
+    assert.doesNotMatch(dashboardBody, /<script/);
     const csrf = dashboardBody.match(/name="csrf" value="([^"]+)"/)?.[1];
     assert.ok(csrf);
+
+    const topupPanelPage = await fetch(`${url}/admin/?panel=topup`, {
+      headers: { cookie },
+    });
+    assert.equal(topupPanelPage.status, 200);
+    assert.match(await topupPanelPage.text(), /id="panel-topup" checked/);
 
     const rejectedCsrf = await fetch(`${url}/admin/set`, {
       method: "POST",
@@ -362,7 +381,9 @@ test("web admin requires login and CSRF before changing ranking links", async ()
       }),
     });
     assert.equal(topupSaved.status, 200);
-    assert.match(await topupSaved.text(), /代充展示页已保存/);
+    const topupSaveBody = await topupSaved.text();
+    assert.match(topupSaveBody, /代充展示页已保存/);
+    assert.match(topupSaveBody, /id="panel-topup" checked/);
     const customizedTopup = await (await fetch(`${url}/topup/`)).text();
     assert.match(customizedTopup, /测试代充标题/);
     assert.match(customizedTopup, /测试套餐/);

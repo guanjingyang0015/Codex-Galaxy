@@ -6,7 +6,7 @@
 
 Codex Galaxy is a local desktop utility for switching between Codex accounts and compatible APIs while continuing project tasks saved on the same computer.
 
-**Current version: Codex Galaxy 2.2.0**
+**Current version: Codex Galaxy 2.2.1**
 
 The in-app guide is now organized by stage: **first account setup → daily account switching → failure recovery → features**. Open **Guide** and choose only the stage you need instead of reading one long page.
 
@@ -151,3 +151,5 @@ MIT License. Codex Galaxy is an independent local utility and is not an official
 2.1.1 refines the project description and in-app guide so public documentation focuses on account switching, task prompts, local history, API audits, and ranking features users can directly use.
 
 2.2.0 adds a softly animated GPT Top-up button to the app header. It opens the Codex Galaxy plan page with current plans, prices, availability, consultation steps, and the contact QR code; the page has no login, cart, order lookup, or online checkout.
+
+2.2.1 changes the web admin into switchable API Ranking and GPT Top-up panels, preserving the active panel after saves. The public plan page adds a prominent OpenAI knot mark, a `GPT × CODEX` service visual, a technical grid, and an AI orbit motif.
