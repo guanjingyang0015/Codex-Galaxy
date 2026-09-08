@@ -286,6 +286,11 @@ test("web admin requires login and CSRF before changing ranking links", async ()
     assert.match(publicTopupBody, /class="openai-mark"/);
     assert.match(publicTopupBody, /OpenAI<\/span><strong class="service-name">GPT <i>×<\/i> CODEX/);
     assert.match(publicTopupBody, /prefers-reduced-motion/);
+    assert.match(publicTopupBody, /class="redeem-flow"/);
+    assert.match(publicTopupBody, /联系微信客服获取充值 CDK/);
+    assert.match(publicTopupBody, /进入充值页面填写 CDK/);
+    assert.match(publicTopupBody, /充值到自己的 GPT 账号/);
+    assert.match(publicTopupBody, /href='https:\/\/chong\.zygtoken\.com\/' target='_blank'/);
     assert.match(publicTopupBody, /GPT Pro 20x/);
     assert.match(publicTopupBody, /¥1250/);
     assert.doesNotMatch(publicTopupBody, /章鱼哥|登录|购物车|立即购买|查单/);
