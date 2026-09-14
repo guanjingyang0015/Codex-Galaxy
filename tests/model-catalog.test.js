@@ -114,3 +114,9 @@ test("GPT-6 family models receive the same reasoning intensity fallback as GPT-5
   const catalog = buildSingleModelCatalog({ id: "gpt-6.1" });
   assert.deepEqual(catalog.models[0].supported_reasoning_levels.map((level) => level.effort), ["low", "medium", "high", "xhigh"]);
 });
+
+test("DeepSeek V4 Pro receives its three compatible reasoning intensities", () => {
+  const catalog = buildSingleModelCatalog({ id: "deepseek-v4-pro" });
+  assert.deepEqual(catalog.models[0].supported_reasoning_levels.map((level) => level.effort), ["low", "medium", "high"]);
+  assert.equal(catalog.models[0].default_reasoning_level, "medium");
+});

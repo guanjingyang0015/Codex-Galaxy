@@ -29,7 +29,7 @@ test("release identity stays compatible with 0.1.0 upgrades and preserves user d
   const modelCatalog = await fs.readFile(path.join(root, "model-catalog.js"), "utf8");
   const relayTest = await fs.readFile(path.join(root, "relay-connection.js"), "utf8");
   const releaseNotes = await fs.readFile(path.join(root, "release-notes", `v${packageJson.version}.md`), "utf8");
-  assert.equal(packageJson.version, "2.2.3");
+  assert.equal(packageJson.version, "2.2.4");
   assert.equal(packageJson.author, "Guan Jingyang <guanjingyang@gmail.com>");
   assert.equal(packageJson.license, "MIT");
   assert.equal(packageJson.build.appId, "io.github.codex-galaxy.app");
@@ -64,6 +64,8 @@ test("release identity stays compatible with 0.1.0 upgrades and preserves user d
   assert.match(providerSync, /cacheStampMatches\(officialScanCache\?\.files\?\.\[cacheKey\], stat\)/);
   assert.match(providerSync, /officialScanTotalBytes/);
   assert.match(providerSync, /preserveOfficialMessageScanCacheAfterHeaderSync/);
+  assert.match(providerSync, /provider-local.*content/s);
+  assert.match(providerSync, /array_above_max_length/);
   assert.match(electronMain, /requestSingleInstanceLock\(\)/);
   assert.match(electronMain, /second-instance/);
   assert.match(electronMain, /version: app\.getVersion\(\)/);
@@ -110,17 +112,20 @@ test("release identity stays compatible with 0.1.0 upgrades and preserves user d
   assert.match(releaseInfo, /c7e0034525e895bbd0f855cc5edd229098e1f938/);
   assert.match(releaseInfo, /33521136697/);
   assert.deepEqual(releaseHistory(packageJson.version)[0], {
-    version: "2.2.3",
-    tag: "v2.2.3",
+    version: "2.2.4",
+    tag: "v2.2.4",
     commit: null,
     actionsRun: null,
-    url: "https://github.com/guanjingyang0015/Codex-Galaxy/releases/tag/v2.2.3",
+    url: "https://github.com/guanjingyang0015/Codex-Galaxy/releases/tag/v2.2.4",
   });
   assert.match(profilesJs, /PROFILE_SCHEMA_VERSION = 6/);
   assert.match(relayTest, /\/models/);
   assert.doesNotMatch(renderer, /profile\.current\s*\?/);
   assert.match(releaseNotes, /文档|documentation/i);
   assert.match(modelCatalog, /instructions_template: "\{\{ personality \}\}"/);
+  assert.match(html, /id="openaiHomeTimeline"/);
+  assert.match(html, /id="openaiTimeline"/);
+  assert.match(renderer, /openAIHistoryPointTitle/);
   assert.match(preload, /checkUpdate/);
   assert.match(preload, /installUpdate/);
   assert.match(preload, /onUpdateStatus/);

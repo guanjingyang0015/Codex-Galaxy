@@ -1,7 +1,7 @@
 const $ = (selector) => document.querySelector(selector);
 const state = {
   profiles: [],
-  version: "2.2.3",
+  version: "2.2.4",
   openaiStatus: null,
   threads: [],
   currentId: null,
@@ -29,7 +29,7 @@ const state = {
   releases: [],
   update: {
     phase: "idle",
-    currentVersion: "2.2.3",
+    currentVersion: "2.2.4",
     latestVersion: null,
     available: false,
     action: "install",
@@ -133,6 +133,13 @@ const translations = {
     "openai.updated": "更新时间：{time}",
     "openai.noComponents": "暂时没有可用组件",
     "openai.saved": "首页常驻项目已更新为 {name}。",
+    "openai.historyLabel": "OpenAI 健康度历史",
+    "openai.historyTitle": "90 天健康度时间线",
+    "openai.historyHint": "绿色正常，黄色性能下降，橙色部分中断，红色重大中断；悬停查看原因。",
+    "openai.historyOldest": "90 天前",
+    "openai.historyToday": "今天",
+    "openai.historyUnavailable": "历史数据暂时无法读取",
+    "openai.noIncident": "没有公开事件报告",
     "profiles.title": "账号管理",
     "profiles.add": "添加账号",
     "profile.modelAuto": "自动发现",
@@ -421,7 +428,7 @@ const translations = {
     "diagnostics.opened": "已打开本地日志文件。",
     "diagnostics.truncated": "日志较长，当前只显示最后一段。",
     "tutorial.title": "分阶段使用教程",
-    "tutorial.intro": "按使用阶段阅读教程：先完成一次账号配置，日常按步骤切换，出问题先看日志，超大聊天先复制深度链接新建聊天继续，最后了解本地历史和其他特色功能。当前版本为 v2.2.3。",
+    "tutorial.intro": "按使用阶段阅读教程：先完成一次账号配置，日常按步骤切换，出问题先看日志，超大聊天先复制深度链接新建聊天继续，最后了解本地历史和其他特色功能。当前版本为 v2.2.4。",
     "tutorial.stageNav": "教程阶段",
     "tutorial.stage1.tab": "首次配置",
     "tutorial.stage1.short": "添加账号和模型",
@@ -589,6 +596,13 @@ const translations = {
     "openai.updated": "Updated: {time}",
     "openai.noComponents": "No components available",
     "openai.saved": "Home component updated to {name}.",
+    "openai.historyLabel": "OpenAI health history",
+    "openai.historyTitle": "90-day health timeline",
+    "openai.historyHint": "Green is operational, yellow degraded, orange partial outage, red major outage. Hover for the reason.",
+    "openai.historyOldest": "90 days ago",
+    "openai.historyToday": "Today",
+    "openai.historyUnavailable": "History is temporarily unavailable",
+    "openai.noIncident": "No public incident reported",
     "profiles.title": "Accounts",
     "profiles.add": "Add account",
     "profile.modelAuto": "Auto detect",
@@ -877,7 +891,7 @@ const translations = {
     "diagnostics.opened": "The local log file was opened.",
     "diagnostics.truncated": "The log is long; only its latest section is shown.",
     "tutorial.title": "Phased usage guide",
-    "tutorial.intro": "Read the guide by stage: configure accounts once, follow the daily switch steps, preserve the scene when something fails, use a deep link to continue oversized chats in a new thread, then learn local history and other features. Current version: v2.2.3.",
+    "tutorial.intro": "Read the guide by stage: configure accounts once, follow the daily switch steps, preserve the scene when something fails, use a deep link to continue oversized chats in a new thread, then learn local history and other features. Current version: v2.2.4.",
     "tutorial.stageNav": "Tutorial stages",
     "tutorial.stage1.tab": "First setup",
     "tutorial.stage1.short": "Accounts and models",
@@ -1213,6 +1227,33 @@ function openAIStatusLabel(status) {
   return t(key);
 }
 
+function openAIHistoryPointTitle(point) {
+  const date = point?.date ? formatDate(point.date) : t("common.timeUnknown");
+  const status = openAIStatusLabel(point?.status);
+  const reason = point?.reason || t("openai.noIncident");
+  const incident = point?.incidentName ? ` · ${point.incidentName}` : "";
+  return `${date} · ${status}${incident} · ${reason}`;
+}
+
+function renderOpenAITimeline(target, timeline) {
+  if (!target) return;
+  if (!Array.isArray(timeline) || !timeline.length) {
+    target.innerHTML = `<span class="openai-timeline-empty">${escapeHtml(t("openai.historyUnavailable"))}</span>`;
+    return;
+  }
+  target.innerHTML = timeline.map((point) => {
+    const status = ["operational", "degraded_performance", "partial_outage", "major_outage", "under_maintenance"].includes(point?.status) ? point.status : "operational";
+    const title = openAIHistoryPointTitle(point);
+    return `<span class="openai-timeline-segment status-${status}" role="listitem" title="${escapeHtml(title)}" aria-label="${escapeHtml(title)}"></span>`;
+  }).join("");
+}
+
+function renderOpenAIHistory() {
+  const timeline = state.openaiStatus?.timeline;
+  renderOpenAITimeline($("#openaiHomeTimeline"), timeline);
+  renderOpenAITimeline($("#openaiTimeline"), timeline);
+}
+
 function renderOpenAIStatus() {
   const data = state.openaiStatus;
   const pinned = data?.pinned;
@@ -1222,6 +1263,7 @@ function renderOpenAIStatus() {
   if (overall) overall.textContent = data?.ok ? (data.overall?.description || openAIStatusLabel(data.overall?.indicator)) : t("status.openaiUnavailable");
   const updated = $("#openaiUpdatedAt");
   if (updated) updated.textContent = data?.fetchedAt ? t("openai.updated", { time: formatDate(data.fetchedAt) }) : "";
+  renderOpenAIHistory();
   const select = $("#openaiStatusPinned");
   if (select && data?.components?.length) {
     const current = data.pinned?.name || data.pinnedComponent;
@@ -2144,6 +2186,7 @@ $("#openaiStatusHome").addEventListener("click", openOpenAIStatusDialog);
 $("#closeOpenAIStatus").addEventListener("click", () => $("#openaiStatusDialog").close());
 $("#dismissOpenAIStatus").addEventListener("click", () => $("#openaiStatusDialog").close());
 $("#openaiRefresh").addEventListener("click", loadOpenAIStatus);
+$("#openaiHistoryRefresh").addEventListener("click", loadOpenAIStatus);
 $("#openaiOfficial").addEventListener("click", () => bridge.openOpenAIStatus());
 $("#openaiSavePinned").addEventListener("click", async () => {
   const name = $("#openaiStatusPinned").value;

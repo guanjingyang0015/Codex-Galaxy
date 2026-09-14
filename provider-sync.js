@@ -168,22 +168,45 @@ function removeExactJsonProperty(line, property, value, expectedRecord) {
 }
 
 function officialMessageLineWithoutInvalidId(line) {
-  if ((!line.includes('"response_item"') && !line.includes('"compacted"')) || !line.includes('"id"')) return null;
+  if (!line.includes('"response_item"') && !line.includes('"compacted"')) return null;
   let record;
   try { record = JSON.parse(line); } catch { return null; }
   if (record?.type === "compacted" && Array.isArray(record.payload?.replacement_history)) {
     let changed = false;
-    for (const item of record.payload.replacement_history) {
+    for (let index = 0; index < record.payload.replacement_history.length; index += 1) {
+      const item = record.payload.replacement_history[index];
       const repaired = officialMessageLineWithoutInvalidId(JSON.stringify({ type: "response_item", payload: item }));
       if (repaired !== null) {
-        delete item.id;
-        changed = true;
+        try {
+          const replacement = JSON.parse(repaired);
+          if (replacement?.payload && typeof replacement.payload === "object") {
+            record.payload.replacement_history[index] = replacement.payload;
+            changed = true;
+          }
+        } catch {}
       }
     }
     return changed ? JSON.stringify(record) : null;
   }
-  if (record?.type !== "response_item" || !record.payload || typeof record.payload !== "object" || !Object.hasOwn(record.payload, "id")) return null;
+  if (record?.type !== "response_item" || !record.payload || typeof record.payload !== "object") return null;
   const itemType = record.payload.type;
+  // DeepSeek-style reasoning items carry provider-local `content` blocks.
+  // Official Responses reasoning input accepts summary/encrypted state, but
+  // does not accept reasoning `content`; forwarding that array produces the
+  // opaque `input[n].content array_above_max_length` 400 error.  Preserve
+  // official IDs/encrypted state when present, while dropping provider-local
+  // reasoning payloads that cannot be replayed by the official account.
+  if (itemType === "reasoning" && Object.hasOwn(record.payload, "content")) {
+    const sanitized = { ...record.payload };
+    delete sanitized.content;
+    const id = typeof sanitized.id === "string" ? sanitized.id : "";
+    if (!id.startsWith("rs")) {
+      delete sanitized.id;
+      delete sanitized.encrypted_content;
+    }
+    return JSON.stringify({ ...record, payload: sanitized });
+  }
+  if (!Object.hasOwn(record.payload, "id")) return null;
   const idPrefix = itemType === "message"
     ? "msg"
     : itemType === "function_call"

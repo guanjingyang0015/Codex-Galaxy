@@ -178,6 +178,7 @@ test("API-to-API provider sync does not remove relay response message IDs", asyn
     JSON.stringify({ type: "session_meta", payload: { id: "root-thread", model_provider: "relay-a" } }),
     JSON.stringify({ type: "response_item", payload: { type: "message", id: invalidId, role: "assistant", content: [] } }),
     JSON.stringify({ type: "response_item", payload: { type: "function_call", id: "call_relay_item", call_id: "call_relay", name: "example", arguments: "{}" } }),
+    JSON.stringify({ type: "response_item", payload: { type: "reasoning", summary: [], content: [{ type: "reasoning_text", text: "keep provider state" }], encrypted_content: "relay-state" } }),
   ].join("\n") + "\n");
 
   const result = await syncProviderMetadata({ codexHome: home, targetProvider: "relay-b" });
@@ -185,6 +186,8 @@ test("API-to-API provider sync does not remove relay response message IDs", asyn
   assert.equal(lines[0].payload.model_provider, "relay-b");
   assert.equal(lines[1].payload.id, invalidId);
   assert.equal(lines[2].payload.id, "call_relay_item");
+  assert.deepEqual(lines[3].payload.content, [{ type: "reasoning_text", text: "keep provider state" }]);
+  assert.equal(lines[3].payload.encrypted_content, "relay-state");
   assert.equal(result.sanitizedMessageIds, 0);
 });
 
@@ -539,4 +542,45 @@ test("official sync repairs reasoning IDs in history and compaction despite a v1
   const api = (await fs.readFile(file, "utf8")).trim().split("\n").map(JSON.parse);
   assert.deepEqual(api[1].payload, bad);
   assert.deepEqual(api[3].payload.replacement_history, [bad, valid]);
+});
+
+test("official sync removes provider reasoning content before replay and preserves exact rollback", async () => {
+  const home = await fs.mkdtemp(path.join(os.tmpdir(), "galaxy-reasoning-content-"));
+  await fs.mkdir(path.join(home, "sessions"), { recursive: true });
+  const file = path.join(home, "sessions/root.jsonl");
+  const deepseekReasoning = {
+    type: "reasoning",
+    summary: [],
+    content: [{ type: "reasoning_text", text: "provider-local chain" }],
+    encrypted_content: "deepseek-provider-state",
+  };
+  const officialReasoning = {
+    type: "reasoning",
+    id: "rs_official",
+    summary: [],
+    content: [{ type: "reasoning_text", text: "unexpected visible content" }],
+    encrypted_content: "opaque-official-state",
+  };
+  const original = [
+    { type: "session_meta", payload: { id: "root-thread", model_provider: "relay-deepseek" } },
+    { type: "response_item", payload: deepseekReasoning },
+    { type: "response_item", payload: officialReasoning },
+    { type: "compacted", payload: { replacement_history: [deepseekReasoning] } },
+  ].map(JSON.stringify).join("\n") + "\n";
+  await fs.writeFile(file, original);
+
+  const result = await syncProviderMetadata({ codexHome: home, targetProvider: "openai" });
+  const repaired = (await fs.readFile(file, "utf8")).trim().split("\n").map(JSON.parse);
+  assert.deepEqual(repaired[1].payload, { type: "reasoning", summary: [] });
+  assert.deepEqual(repaired[2].payload, {
+    type: "reasoning",
+    id: "rs_official",
+    summary: [],
+    encrypted_content: "opaque-official-state",
+  });
+  assert.deepEqual(repaired[3].payload.replacement_history, [{ type: "reasoning", summary: [] }]);
+  assert.equal(result.sanitizedMessageIds, 3);
+
+  await restoreProviderMetadata({ codexHome: home, backupDir: result.backupDir });
+  assert.equal(await fs.readFile(file, "utf8"), original);
 });

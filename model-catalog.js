@@ -20,8 +20,11 @@ function reasoningLevels(item, id) {
       .filter((level) => ["minimal", "low", "medium", "high", "xhigh"].includes(level.effort) && level.description)
     : [];
   if (supplied.length) return supplied;
-  const reasoningModel = /(?:reason|thinking|think|r1|o1|o3|o4|gpt-[3-9]|qwq|deepseek-reasoner)/i.test(id);
-  const efforts = reasoningModel ? ["low", "medium", "high", "xhigh"] : ["low", "medium"];
+  const deepSeekReasoningModel = /deepseek[-/:_.](?:reasoner|r\d+|v\d+[-/:_.](?:pro|reason|think)(?:$|[-/:_.]))/i.test(id);
+  const reasoningModel = deepSeekReasoningModel || /(?:reason|thinking|think|r1|o1|o3|o4|gpt-[3-9]|qwq)/i.test(id);
+  // DeepSeek's reasoning family exposes three Codex-compatible intensities;
+  // do not add xhigh, which that provider does not advertise.
+  const efforts = deepSeekReasoningModel ? ["low", "medium", "high"] : reasoningModel ? ["low", "medium", "high", "xhigh"] : ["low", "medium"];
   return efforts.map((effort) => ({
     effort,
     description: effort === "low" ? "Fast responses with lighter reasoning" : effort === "medium" ? "Balances speed and reasoning depth" : effort === "high" ? "Greater reasoning depth for complex tasks" : "Maximum reasoning depth when supported",
