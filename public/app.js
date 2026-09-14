@@ -2,6 +2,7 @@ const $ = (selector) => document.querySelector(selector);
 const state = {
   profiles: [],
   version: "2.2.2",
+  openaiStatus: null,
   threads: [],
   currentId: null,
   selectedProfileId: null,
@@ -86,6 +87,7 @@ const translations = {
     "actions.topup": "GPT 代充",
     "actions.topupHint": "套餐与价格",
     "actions.topupLabel": "打开 GPT 代充套餐与价格",
+    "actions.openaiStatus": "OpenAI 状态",
     "actions.diagnostics": "日志",
     "actions.refresh": "刷新项目",
     "actions.refreshTitle": "重新扫描本机 Codex 项目记录",
@@ -111,6 +113,26 @@ const translations = {
     "status.gateway": "本地网关",
     "status.codex": "Codex 状态",
     "status.codexSummary": "{running} · {provider}",
+    "status.openai": "OpenAI 健康度",
+    "status.openaiLoading": "读取中",
+    "status.openaiUnavailable": "暂时无法读取",
+    "status.openaiOperational": "正常运行",
+    "status.openaiDegraded": "性能下降",
+    "status.openaiPartial": "部分中断",
+    "status.openaiMajor": "重大中断",
+    "status.openaiMaintenance": "维护中",
+    "status.openaiUnknown": "状态未知",
+    "openai.dialogTitle": "OpenAI 服务健康度",
+    "openai.dialogIntro": "数据来自 OpenAI 官方状态页，自动刷新。选择一个项目后，它会常驻显示在首页。",
+    "openai.overall": "整体状态",
+    "openai.components": "全部服务组件",
+    "openai.pin": "首页常驻项目",
+    "openai.pinSave": "保存首页项目",
+    "openai.refresh": "立即刷新",
+    "openai.openOfficial": "打开官方状态页",
+    "openai.updated": "更新时间：{time}",
+    "openai.noComponents": "暂时没有可用组件",
+    "openai.saved": "首页常驻项目已更新为 {name}。",
     "profiles.title": "账号管理",
     "profiles.add": "添加账号",
     "profile.modelAuto": "自动发现",
@@ -521,6 +543,7 @@ const translations = {
     "actions.topup": "GPT Top-up",
     "actions.topupHint": "Plans & pricing",
     "actions.topupLabel": "Open GPT top-up plans and pricing",
+    "actions.openaiStatus": "OpenAI status",
     "actions.diagnostics": "Log",
     "actions.refresh": "Refresh projects",
     "actions.refreshTitle": "Rescan local Codex project records",
@@ -546,6 +569,26 @@ const translations = {
     "status.gateway": "Local gateway",
     "status.codex": "Codex status",
     "status.codexSummary": "{running} · {provider}",
+    "status.openai": "OpenAI health",
+    "status.openaiLoading": "Loading",
+    "status.openaiUnavailable": "Unavailable",
+    "status.openaiOperational": "Operational",
+    "status.openaiDegraded": "Degraded performance",
+    "status.openaiPartial": "Partial outage",
+    "status.openaiMajor": "Major outage",
+    "status.openaiMaintenance": "Under maintenance",
+    "status.openaiUnknown": "Unknown",
+    "openai.dialogTitle": "OpenAI service health",
+    "openai.dialogIntro": "Data comes from the official OpenAI status page and refreshes automatically. Choose a component to keep on the home page.",
+    "openai.overall": "Overall status",
+    "openai.components": "All service components",
+    "openai.pin": "Pinned on home",
+    "openai.pinSave": "Save home component",
+    "openai.refresh": "Refresh now",
+    "openai.openOfficial": "Open official status page",
+    "openai.updated": "Updated: {time}",
+    "openai.noComponents": "No components available",
+    "openai.saved": "Home component updated to {name}.",
     "profiles.title": "Accounts",
     "profiles.add": "Add account",
     "profile.modelAuto": "Auto detect",
@@ -1165,6 +1208,42 @@ function selectedProfile() {
   return state.profiles.find((profile) => profile.id === state.selectedProfileId) || null;
 }
 
+function openAIStatusLabel(status) {
+  const key = { none: "status.openaiOperational", operational: "status.openaiOperational", degraded_performance: "status.openaiDegraded", partial_outage: "status.openaiPartial", major_outage: "status.openaiMajor", under_maintenance: "status.openaiMaintenance" }[status] || "status.openaiUnknown";
+  return t(key);
+}
+
+function renderOpenAIStatus() {
+  const data = state.openaiStatus;
+  const pinned = data?.pinned;
+  $("#statusOpenAI").textContent = data?.ok ? openAIStatusLabel(pinned?.status) : t("status.openaiUnavailable");
+  $("#statusOpenAIComponent").textContent = pinned?.name || data?.pinnedComponent || t("status.openaiLoading");
+  const overall = $("#openaiOverallStatus");
+  if (overall) overall.textContent = data?.ok ? (data.overall?.description || openAIStatusLabel(data.overall?.indicator)) : t("status.openaiUnavailable");
+  const updated = $("#openaiUpdatedAt");
+  if (updated) updated.textContent = data?.fetchedAt ? t("openai.updated", { time: formatDate(data.fetchedAt) }) : "";
+  const select = $("#openaiStatusPinned");
+  if (select && data?.components?.length) {
+    const current = data.pinned?.name || data.pinnedComponent;
+    select.innerHTML = data.components.map((item) => `<option value="${escapeHtml(item.name)}">${escapeHtml(item.name)}</option>`).join("");
+    if (data.components.some((item) => item.name === current)) select.value = current;
+  }
+  const list = $("#openaiComponents");
+  if (!list) return;
+  list.innerHTML = data?.components?.length ? data.components.map((item) => `<div class="openai-component"><div><strong>${escapeHtml(item.name)}</strong><small>${item.updatedAt ? formatDate(item.updatedAt) : ""}</small></div><span class="openai-component-status status-${escapeHtml(item.status)}">${escapeHtml(openAIStatusLabel(item.status))}</span></div>`).join("") : `<div class="empty">${t("openai.noComponents")}</div>`;
+}
+
+async function loadOpenAIStatus() {
+  if (!bridge?.getOpenAIStatus) return;
+  try { state.openaiStatus = unwrap(await bridge.getOpenAIStatus()); } catch (error) { state.openaiStatus = { ok: false, error: error.message }; }
+  renderOpenAIStatus();
+}
+
+async function openOpenAIStatusDialog() {
+  await loadOpenAIStatus();
+  $("#openaiStatusDialog").showModal();
+}
+
 function updateStatusBoard() {
   const current = state.profiles.find((profile) => profile.id === state.currentId);
   const running = state.codexRunning ? t("common.running") : t("common.notRunning");
@@ -1175,6 +1254,7 @@ function updateStatusBoard() {
     running,
     provider: state.codexProvider || t("common.providerNotConfigured"),
   });
+  renderOpenAIStatus();
   if ($("#libraryMeta")) {
     $("#libraryMeta").textContent = t("threads.summary", {
       count: state.threads.length,
@@ -2059,6 +2139,17 @@ document.querySelectorAll("[data-tutorial-stage]").forEach((button) => {
 });
 $("#pluginBtn").addEventListener("click", openPlugins);
 $("#diagnosticsBtn").addEventListener("click", openDiagnostics);
+$("#openaiStatusBtn").addEventListener("click", openOpenAIStatusDialog);
+$("#openaiStatusHome").addEventListener("click", openOpenAIStatusDialog);
+$("#closeOpenAIStatus").addEventListener("click", () => $("#openaiStatusDialog").close());
+$("#dismissOpenAIStatus").addEventListener("click", () => $("#openaiStatusDialog").close());
+$("#openaiRefresh").addEventListener("click", loadOpenAIStatus);
+$("#openaiOfficial").addEventListener("click", () => bridge.openOpenAIStatus());
+$("#openaiSavePinned").addEventListener("click", async () => {
+  const name = $("#openaiStatusPinned").value;
+  if (!name) return;
+  try { unwrap(await bridge.setOpenAIStatusPinned(name)); await loadOpenAIStatus(); notice(t("openai.saved", { name })); } catch (error) { notice(error.message, true); }
+});
 $("#closeTutorial").addEventListener("click", () => $("#tutorialDialog").close());
 $("#finishTutorial").addEventListener("click", () => $("#tutorialDialog").close());
 $("#closePlugins").addEventListener("click", () => $("#pluginDialog").close());
@@ -2251,4 +2342,6 @@ if (!bridge) {
   bridge.onUpdateStatus(applyUpdateStatus);
   bridge.onSwitchConfirmation(showSwitchConfirmation);
   refresh().catch((error) => notice(error.message, true));
+  loadOpenAIStatus();
+  window.setInterval(loadOpenAIStatus, 60000);
 }

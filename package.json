@@ -60,6 +60,7 @@
       "desktop-process.js",
       "codex-activity.js",
       "diagnostics.js",
+      "openai-status.js",
       "release-info.js",
       "sync.js",
       "vault.js",

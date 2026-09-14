@@ -73,10 +73,27 @@ button:focus-visible, input:focus-visible, select:focus-visible, [tabindex]:focu
 .current-context { display: flex; min-width: 230px; flex-direction: column; align-items: flex-end; }
 .current-context span { color: var(--muted); font-size: 11px; }
 .current-context strong { margin-top: 2px; font-size: 13px; }
-.status-board { display: grid; flex: 0 0 auto; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 1px; padding: 1px; border-radius: 8px; background: var(--line); overflow: hidden; }
+.status-board { display: grid; flex: 0 0 auto; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 1px; padding: 1px; border-radius: 8px; background: var(--line); overflow: hidden; }
 .status-cell { min-width: 0; padding: 8px 11px; background: var(--surface); }
 .status-cell .mini-label { display: block; margin-bottom: 3px; }
 .status-cell strong { display: block; overflow: hidden; color: #dce2e6; font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
+.status-openai { border: 0; color: inherit; text-align: left; transition: background .18s, box-shadow .18s; }
+.status-openai:hover { background: #172820; box-shadow: inset 0 0 0 1px #4d8f75; }
+.status-openai small { display: block; overflow: hidden; margin-top: 3px; color: var(--muted); font-size: 9px; text-overflow: ellipsis; white-space: nowrap; }
+.openai-status-dialog { width: min(900px, calc(100vw - 40px)); }
+.openai-status-summary { display: flex; align-items: end; justify-content: space-between; gap: 18px; margin: 14px 0; padding: 14px; border: 1px solid #36584a; border-radius: 8px; background: #14201b; }
+.openai-status-summary strong { display: block; color: var(--accent); font-size: 19px; }
+.openai-status-summary small { color: var(--muted); font-size: 10px; }
+.openai-status-config { display: flex; align-items: end; justify-content: space-between; gap: 12px; margin-bottom: 18px; }
+.openai-status-config label { display: grid; min-width: 240px; gap: 6px; color: var(--muted); font-size: 11px; }
+.openai-status-config select { min-height: 34px; padding: 6px 9px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface-2); color: var(--text); }
+.openai-component-list { display: grid; max-height: 42vh; gap: 6px; overflow: auto; }
+.openai-component { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 12px; border: 1px solid var(--line-soft); border-radius: 7px; background: #141719; }
+.openai-component strong { display: block; font-size: 12px; }
+.openai-component small { display: block; margin-top: 3px; color: var(--muted); font-size: 9px; }
+.openai-component-status { color: var(--accent); font-size: 11px; white-space: nowrap; }
+.openai-component-status.status-major_outage, .openai-component-status.status-partial_outage { color: var(--danger); }
+.openai-component-status.status-degraded_performance, .openai-component-status.status-under_maintenance { color: var(--amber); }
 
 .notice { position: absolute; top: 8px; right: 0; z-index: 20; width: min(520px, 80vw); padding: 11px 13px; border: 1px solid #3f6959; border-radius: 7px; background: #17241f; box-shadow: 0 12px 32px rgba(0, 0, 0, 0.38); color: #bdebd7; font-size: 12px; line-height: 1.5; }
 .notice.error { border-color: #714a4a; background: #291b1b; color: #ffc1c1; }

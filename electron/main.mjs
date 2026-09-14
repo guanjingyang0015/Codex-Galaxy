@@ -26,6 +26,7 @@ import { fetchRelayRankings, submitAuditForRanking } from "../relay-ranking.js";
 import { inspectCodexActivity, latestCodexThreadId } from "../codex-activity.js";
 import { releaseHistory } from "../release-info.js";
 import { createDiagnosticLogger, diagnosticLogPath, readDiagnosticLog } from "../diagnostics.js";
+import { fetchOpenAIStatus, OPENAI_STATUS_PAGE, setOpenAIStatusSettings } from "../openai-status.js";
 
 const appRoot = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const codexPaths = defaultPaths();
@@ -984,6 +985,9 @@ function registerHandlers() {
     model: request?.model,
     fetcher: (url, options) => net.fetch(url, options),
   }), "get-rankings"));
+  ipcMain.handle("codex-galaxy:get-openai-status", () => result(() => fetchOpenAIStatus({ settingsFile: dataPaths.settings, fetcher: (url, options) => net.fetch(url, options) }), "get-openai-status"));
+  ipcMain.handle("codex-galaxy:set-openai-status-pinned", (_, component) => result(() => setOpenAIStatusSettings(dataPaths.settings, component), "set-openai-status-pinned"));
+  ipcMain.handle("codex-galaxy:open-openai-status", () => result(() => shell.openExternal(OPENAI_STATUS_PAGE), "open-openai-status"));
   ipcMain.handle("codex-galaxy:capture-profile", (_, id) => result(async () => {
     const captured = await captureCurrent(codexPaths, await profileForSwitch(id, dataPaths), dataPaths.vault);
     await setCurrent(id, dataPaths);

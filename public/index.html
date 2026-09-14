@@ -14,6 +14,7 @@
         <span class="topup-spark" aria-hidden="true">✦</span><span data-i18n="actions.topup">GPT 代充</span><small data-i18n="actions.topupHint">套餐与价格</small>
       </a>
       <div class="top-actions">
+        <button id="openaiStatusBtn" class="button secondary" data-i18n="actions.openaiStatus">OpenAI 状态</button>
         <button id="updateBtn" class="button secondary update-action" data-i18n="update.check">检查更新</button>
         <label class="language-control" title="语言 / Language">
           <span class="sr-only">语言 / Language</span>
@@ -38,6 +39,7 @@
         <div class="status-cell"><span class="mini-label" data-i18n="status.loginMode">登录模式</span><strong id="statusLoginMode">检测中</strong></div>
         <div class="status-cell"><span class="mini-label" data-i18n="status.gateway">本地网关</span><strong id="statusGateway">检测中</strong></div>
         <div class="status-cell"><span class="mini-label" data-i18n="status.codex">Codex 状态</span><strong id="statusCodex">检测中</strong></div>
+        <button id="openaiStatusHome" class="status-cell status-openai" type="button"><span class="mini-label" data-i18n="status.openai">OpenAI 健康度</span><strong id="statusOpenAI">读取中</strong><small id="statusOpenAIComponent">Codex API</small></button>
       </section>
       <div id="notice" class="notice" hidden></div>
       <section class="grid">
@@ -191,6 +193,14 @@
     <div class="diagnostics-toolbar"><div><span class="mini-label" data-i18n="diagnostics.path">日志文件</span><code id="diagnosticsPath">检测中</code></div><div class="diagnostics-actions"><button id="refreshDiagnostics" class="button secondary" data-i18n="diagnostics.refresh">刷新日志</button><button id="openDiagnosticsFile" class="button secondary" data-i18n="diagnostics.open">打开文件</button></div></div>
     <pre id="diagnosticsText" class="diagnostics-log" aria-live="polite">正在读取本地日志…</pre>
     <div class="dialog-actions"><button id="copyDiagnostics" class="button primary" data-i18n="diagnostics.copy">复制日志</button></div>
+  </dialog>
+  <dialog id="openaiStatusDialog" class="openai-status-dialog">
+    <div class="dialog-head"><div><p class="eyebrow">OPENAI STATUS</p><h2 data-i18n="openai.dialogTitle">OpenAI 服务健康度</h2></div><button id="closeOpenAIStatus" class="icon-button" title="关闭" data-i18n-title="dialog.close" aria-label="关闭">×</button></div>
+    <div class="tutorial-intro" data-i18n="openai.dialogIntro">数据来自 OpenAI 官方状态页，自动刷新。选择一个项目后，它会常驻显示在首页。</div>
+    <div class="openai-status-summary"><div><span class="mini-label" data-i18n="openai.overall">整体状态</span><strong id="openaiOverallStatus">读取中</strong></div><small id="openaiUpdatedAt"></small></div>
+    <div class="openai-status-config"><label><span data-i18n="openai.pin">首页常驻项目</span><select id="openaiStatusPinned"></select></label><div class="diagnostics-actions"><button id="openaiSavePinned" class="button primary" data-i18n="openai.pinSave">保存首页项目</button><button id="openaiRefresh" class="button secondary" data-i18n="openai.refresh">立即刷新</button><button id="openaiOfficial" class="button secondary" data-i18n="openai.openOfficial">打开官方状态页</button></div></div>
+    <h3 data-i18n="openai.components">全部服务组件</h3><div id="openaiComponents" class="openai-component-list"></div>
+    <div class="dialog-actions"><button id="dismissOpenAIStatus" class="button primary" data-i18n="common.close">关闭</button></div>
   </dialog>
   <script src="./app.js"></script>
 </body>
