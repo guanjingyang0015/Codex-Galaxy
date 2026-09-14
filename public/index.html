@@ -9,7 +9,7 @@
 <body>
   <div class="shell">
     <header class="topbar">
-          <div class="brand"><span class="brand-mark">CG</span><div><div class="brand-name">Codex Galaxy</div><div class="brand-sub">v<span id="appVersionInline">3.0.0</span></div></div></div>
+          <div class="brand"><span class="brand-mark">CG</span><div><div class="brand-name">Codex Galaxy</div><div class="brand-sub">v<span id="appVersionInline">3.0.1</span></div></div></div>
       <a id="topupBtn" class="topup-action" href="https://api.vx314490015.cn/topup/" target="_blank" rel="noreferrer" data-i18n-aria-label="actions.topupLabel" aria-label="打开 GPT 代充套餐与价格">
         <span class="topup-spark" aria-hidden="true">✦</span><span data-i18n="actions.topup">GPT 代充</span><small data-i18n="actions.topupHint">套餐与价格</small>
       </a>
@@ -31,16 +31,18 @@
       </div>
     </header>
     <main class="workspace">
-      <section class="page-heading"><div><p class="eyebrow">CODEX GALAXY</p><h1 data-i18n="page.title">账号与 API</h1></div><div class="current-context"><span data-i18n="status.account">当前账号</span><strong id="currentProfileName">未选择</strong></div></section>
+      <section class="page-heading"><div class="page-heading-title"><p class="eyebrow">CODEX GALAXY</p><h1 data-i18n="page.title">账号与 API</h1></div><p class="page-heading-summary" data-i18n="page.summary">账号切换、API 检测与服务健康度一站查看</p><div class="current-context"><span data-i18n="status.account">当前账号</span><strong id="currentProfileName">未选择</strong></div></section>
       <section class="status-board" aria-label="当前使用状态" data-i18n-aria-label="status.boardLabel">
         <div class="status-cell"><span class="mini-label" data-i18n="status.account">当前账号</span><strong id="statusProfile">未选择</strong></div>
         <div class="status-cell"><span class="mini-label" data-i18n="status.loginMode">登录模式</span><strong id="statusLoginMode">检测中</strong></div>
         <div class="status-cell"><span class="mini-label" data-i18n="status.gateway">本地网关</span><strong id="statusGateway">检测中</strong></div>
         <div class="status-cell"><span class="mini-label" data-i18n="status.codex">Codex 状态</span><strong id="statusCodex">检测中</strong></div>
-        <button id="openaiStatusHome" class="status-cell status-openai" type="button"><span class="mini-label" data-i18n="status.openai">OpenAI 健康度</span><strong id="statusOpenAI">读取中</strong><small id="statusOpenAIComponent">Codex API</small></button>
         <div class="status-overview-panel">
-          <div class="openai-home-history-head">
-            <div><span class="mini-label" data-i18n="openai.historyTitle">24 小时健康度</span><small data-i18n="openai.historyHint">每小时一个色块：绿色正常，黄色性能下降，橙色部分中断，红色重大中断；悬停查看原因</small></div>
+          <div class="openai-overview-head">
+            <button id="openaiStatusHome" class="status-openai" type="button"><span class="mini-label" data-i18n="status.openai">OpenAI 健康度</span><strong id="statusOpenAI">读取中</strong><small id="statusOpenAIComponent">Codex API</small></button>
+            <div class="openai-home-history-head">
+              <div><span class="mini-label" data-i18n="openai.historyTitle">24 小时健康度</span><small data-i18n="openai.historyHint">每小时一个色块：绿色正常，黄色性能下降，橙色部分中断，红色重大中断；悬停查看原因</small></div>
+            </div>
             <button id="openaiHistoryRefresh" class="button secondary" data-i18n="openai.refresh">立即刷新</button>
           </div>
           <div id="openaiHomeTimeline" class="openai-timeline-track" role="list" aria-label="OpenAI 最近 24 小时健康度"></div>
@@ -48,7 +50,7 @@
           <div class="home-meta-grid">
             <div><span class="mini-label" data-i18n="footer.codexHome">CODEX HOME</span><code id="codexHome">检测中</code></div>
             <div><span class="mini-label" data-i18n="footer.author">作者邮箱</span><strong>guanjingyang@gmail.com</strong></div>
-            <div><span class="mini-label" data-i18n="release.label">最近发布记录</span><strong id="releaseRecordVersion">v3.0.0</strong><a id="releaseRecordLink" href="https://github.com/guanjingyang0015/Codex-Galaxy/releases/tag/v3.0.0" target="_blank" rel="noreferrer" data-i18n="release.github">GitHub Release</a><small id="releaseRecordMeta">本地版本 · Actions 未知</small></div>
+            <div><span class="mini-label" data-i18n="release.label">最近发布记录</span><strong id="releaseRecordVersion">v3.0.1</strong><a id="releaseRecordLink" href="https://github.com/guanjingyang0015/Codex-Galaxy/releases/tag/v3.0.1" target="_blank" rel="noreferrer" data-i18n="release.github">GitHub Release</a><small id="releaseRecordMeta">本地版本 · Actions 未知</small></div>
           </div>
         </div>
       </section>
@@ -116,7 +118,7 @@
   <dialog id="threadDialog"><div class="dialog-head"><div><p class="eyebrow">THREAD DETAIL</p><h2 id="dialogTitle">线程</h2></div><button id="closeDialog" class="icon-button" title="关闭" data-i18n-title="dialog.close" aria-label="关闭" data-i18n-aria-label="dialog.close">×</button></div><div id="dialogMeta" class="dialog-meta"></div><div id="dialogHealth" class="thread-health" role="status"></div><div id="dialogLargeContext" class="thread-large-context" hidden><strong data-i18n="threads.largeContextTitle">这个聊天历史较大，直接继续可能触发上下文压缩失败</strong><p data-i18n="threads.largeContextText">建议在同一项目下新建聊天，并带上当前聊天的深度链接继续；原聊天会保留，不会被删除。</p><div class="thread-large-context-actions"><button id="copyThreadLinkBtn" class="button secondary" data-i18n="threads.copyLink">复制深度链接</button><button id="copyContinuationPromptBtn" class="button primary" data-i18n="threads.copyContinuationPrompt">复制新聊天继续提示</button></div></div><div id="dialogCompatibility" class="compatibility-note" hidden></div><div id="dialogMessages" class="messages"></div><div class="resume-zone"><span class="mini-label" data-i18n="threads.selectAccountResume">选择账号并继续</span><div id="resumeProfiles" class="resume-profiles"></div></div><div class="dialog-actions"><button id="repairThreadBtn" class="button repair" hidden data-i18n="threads.repair">备份并修复旧会话</button><button id="launchBtn" class="button primary" data-i18n="threads.launchWithCurrent">用当前账号继续</button><button id="copyResumeBtn" class="button secondary" data-i18n="threads.copyResume">复制 resume 命令</button></div></dialog>
   <dialog id="tutorialDialog" class="tutorial-dialog">
     <div class="dialog-head"><div><p class="eyebrow">PHASED USAGE GUIDE</p><h2 data-i18n="tutorial.title">分阶段使用教程</h2></div><button id="closeTutorial" class="icon-button" title="关闭教程" data-i18n-title="dialog.closeTutorial" aria-label="关闭教程" data-i18n-aria-label="dialog.closeTutorial">×</button></div>
-    <div class="tutorial-intro" data-i18n="tutorial.intro">按使用阶段阅读教程：先完成一次账号配置，日常按步骤切换，出问题先看日志，超大聊天先复制深度链接新建聊天继续，最后了解本地历史和其他特色功能。当前版本为 v3.0.0。</div>
+    <div class="tutorial-intro" data-i18n="tutorial.intro">按使用阶段阅读教程：先完成一次账号配置，日常按步骤切换，出问题先看日志，超大聊天先复制深度链接新建聊天继续，最后了解本地历史和其他特色功能。当前版本为 v3.0.1。</div>
     <nav class="tutorial-stage-tabs" role="tablist" aria-label="教程阶段" data-i18n-aria-label="tutorial.stageNav">
       <button type="button" role="tab" class="tutorial-stage-tab active" data-tutorial-stage="setup" aria-selected="true" aria-controls="tutorial-stage-setup" tabindex="0"><span class="stage-index">1</span><span><strong data-i18n="tutorial.stage1.tab">首次配置</strong><small data-i18n="tutorial.stage1.short">添加账号和模型</small></span></button>
       <button type="button" role="tab" class="tutorial-stage-tab" data-tutorial-stage="switch" aria-selected="false" aria-controls="tutorial-stage-switch" tabindex="-1"><span class="stage-index">2</span><span><strong data-i18n="tutorial.stage2.tab">日常切换</strong><small data-i18n="tutorial.stage2.short">按步骤切换账号</small></span></button>
@@ -159,6 +161,9 @@
           <article class="tutorial-feature"><strong data-i18n="tutorial.feature.modelsTitle">模型目录</strong><p data-i18n="tutorial.feature.modelsText">API 模型 ID 可留空自动发现；填写具体 GPT 型号时仍会读取完整目录，并保留你的型号作为默认值。</p></article>
           <article class="tutorial-feature"><strong data-i18n="tutorial.feature.gatewayTitle">直连与兼容网关</strong><p data-i18n="tutorial.feature.gatewayText">直连模式让 Codex 直接访问 Base URL；兼容网关模式使用本机回环网关，需要 Galaxy 保持运行。</p></article>
           <article class="tutorial-feature"><strong data-i18n="tutorial.feature.auditTitle">后台 API 检测</strong><p data-i18n="tutorial.feature.auditText">可并行检测全部已保存 API。报告按模型核对、协议、推理、稳定性和速度逐项显示证据；期望模型不匹配时总分最高 49 分。</p></article>
+          <article class="tutorial-feature"><strong data-i18n="tutorial.feature.healthTitle">OpenAI 健康度时间线</strong><p data-i18n="tutorial.feature.healthText">首页状态区显示最近 24 小时、每小时一格；绿色表示正常，黄色性能下降，橙色部分中断，红色重大中断。鼠标悬停或键盘聚焦色块即可查看时间、状态和原因。</p></article>
+          <article class="tutorial-feature"><strong data-i18n="tutorial.feature.healthSelectTitle">选择正确的健康度项目</strong><p data-i18n="tutorial.feature.healthSelectText">看 GPT 网页版选 ChatGPT；看 Codex 网页版选 Codex Web；看桌面版选 Codex in ChatGPT Desktop；看接口调用选 Codex API。下拉选项会显示中文用途和英文原名。</p></article>
+          <article class="tutorial-feature"><strong data-i18n="tutorial.feature.performanceTitle">轻量后台刷新</strong><p data-i18n="tutorial.feature.performanceText">健康度只在窗口可见时每 5 分钟刷新一次；窗口隐藏后暂停轮询，避免持续网络请求和重复渲染。账号、排名和切换操作仍按需执行。</p></article>
           <article class="tutorial-feature"><strong data-i18n="tutorial.feature.topupTitle">GPT 代充套餐</strong><p data-i18n="tutorial.feature.topupText">顶部发光按钮打开 Codex Galaxy 套餐展示页，可查看价格、状态和二维码；页面使用 GPT、Codex 与 AI 科技视觉，不需要登录，也没有在线购买。</p></article>
           <article class="tutorial-feature"><strong data-i18n="tutorial.feature.toolsTitle">插件、刷新和清理</strong><p data-i18n="tutorial.feature.toolsText">插件窗口管理本地插件市场；刷新只重建列表；清理数据会先创建备份。</p></article>
           <article class="tutorial-feature"><strong data-i18n="tutorial.feature.updateTitle">安全更新</strong><p data-i18n="tutorial.feature.updateText">Windows 更新会核对官方 Release 地址和 SHA-256；覆盖安装不会删除账号和本地记录。</p></article>
@@ -208,7 +213,7 @@
     <div class="dialog-head"><div><p class="eyebrow">OPENAI STATUS</p><h2 data-i18n="openai.dialogTitle">OpenAI 服务健康度</h2></div><button id="closeOpenAIStatus" class="icon-button" title="关闭" data-i18n-title="dialog.close" aria-label="关闭">×</button></div>
     <div class="tutorial-intro" data-i18n="openai.dialogIntro">数据来自 OpenAI 官方状态页，自动刷新。选择一个项目后，它会常驻显示在首页。</div>
     <div class="openai-status-summary"><div><span class="mini-label" data-i18n="openai.overall">整体状态</span><strong id="openaiOverallStatus">读取中</strong></div><small id="openaiUpdatedAt"></small></div>
-    <div class="openai-status-config"><label><span data-i18n="openai.pin">首页常驻项目</span><select id="openaiStatusPinned"></select></label><div class="diagnostics-actions"><button id="openaiSavePinned" class="button primary" data-i18n="openai.pinSave">保存首页项目</button><button id="openaiRefresh" class="button secondary" data-i18n="openai.refresh">立即刷新</button><button id="openaiOfficial" class="button secondary" data-i18n="openai.openOfficial">打开官方状态页</button></div></div>
+    <div class="openai-status-config"><label><span data-i18n="openai.pin">首页常驻项目</span><select id="openaiStatusPinned" aria-describedby="openaiPinnedHint"></select><small id="openaiPinnedHint" class="openai-pinned-hint"></small></label><div class="diagnostics-actions"><button id="openaiSavePinned" class="button primary" data-i18n="openai.pinSave">保存首页项目</button><button id="openaiRefresh" class="button secondary" data-i18n="openai.refresh">立即刷新</button><button id="openaiOfficial" class="button secondary" data-i18n="openai.openOfficial">打开官方状态页</button></div></div>
     <div class="openai-dialog-history"><div class="openai-history-heading"><h3 data-i18n="openai.historyTitle">24 小时健康度</h3><small data-i18n="openai.historyHint">每小时一个色块：绿色正常，黄色性能下降，橙色部分中断，红色重大中断；悬停查看原因</small></div><div id="openaiTimeline" class="openai-timeline-track openai-timeline-large" role="list" aria-label="OpenAI 最近 24 小时健康度"></div><div class="openai-timeline-axis"><span data-i18n="openai.historyOldest">24 小时前</span><span data-i18n="openai.historyToday">当前</span></div></div>
     <h3 data-i18n="openai.components">全部服务组件</h3><div id="openaiComponents" class="openai-component-list"></div>
     <div class="dialog-actions"><button id="dismissOpenAIStatus" class="button primary" data-i18n="common.close">关闭</button></div>

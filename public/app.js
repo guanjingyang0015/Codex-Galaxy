@@ -1,7 +1,7 @@
 const $ = (selector) => document.querySelector(selector);
 const state = {
   profiles: [],
-  version: "3.0.0",
+  version: "3.0.1",
   openaiStatus: null,
   threads: [],
   currentId: null,
@@ -29,7 +29,7 @@ const state = {
   releases: [],
   update: {
     phase: "idle",
-    currentVersion: "3.0.0",
+    currentVersion: "3.0.1",
     latestVersion: null,
     available: false,
     action: "install",
@@ -39,6 +39,9 @@ const state = {
 };
 const bridge = window.codexGalaxy;
 let auditCountdownTimer = null;
+let openAIStatusRequest = null;
+let openAIStatusTimer = null;
+const OPENAI_STATUS_REFRESH_MS = 5 * 60 * 1000;
 
 const translations = {
   "zh-CN": {
@@ -104,6 +107,7 @@ const translations = {
     "update.cancelled": "已取消更新，当前任务不会受影响。",
     "update.macOpened": "已打开 GitHub 最新版页面。请按 Mac 芯片选择 x64 或 arm64 DMG；当前包未签名，请遵循 macOS 系统提示。",
     "page.title": "账号与 API",
+    "page.summary": "账号切换、API 检测与服务健康度一站查看",
     "status.boardLabel": "当前使用状态",
     "status.account": "当前账号",
     "status.loginMode": "登录模式",
@@ -121,7 +125,7 @@ const translations = {
     "status.openaiMaintenance": "维护中",
     "status.openaiUnknown": "状态未知",
     "openai.dialogTitle": "OpenAI 服务健康度",
-    "openai.dialogIntro": "数据来自 OpenAI 官方状态页，自动刷新。选择一个项目后，它会常驻显示在首页。",
+    "openai.dialogIntro": "数据来自 OpenAI 官方状态页，自动刷新。选择一个项目后，它会常驻显示在首页；下拉选项会显示中文用途、英文原名和快速选择提示。",
     "openai.overall": "整体状态",
     "openai.components": "全部服务组件",
     "openai.pin": "首页常驻项目",
@@ -138,6 +142,44 @@ const translations = {
     "openai.historyToday": "当前",
     "openai.historyUnavailable": "历史数据暂时无法读取",
     "openai.noIncident": "没有公开事件报告",
+    "openai.hover.time": "时间",
+    "openai.hover.status": "状态",
+    "openai.hover.incident": "事件",
+    "openai.hover.reason": "原因",
+    "openai.reasonReported": "官方状态页报告该时间段存在服务波动",
+    "openai.reasonOperational": "该小时没有公开事件，服务正常运行",
+    "openai.reasonImage": "图像生成服务异常",
+    "openai.reasonChatGPT": "ChatGPT 服务异常",
+    "openai.reasonCodex": "Codex 服务异常",
+    "openai.reasonApi": "API 接口异常",
+    "openai.reasonLogin": "登录服务异常",
+    "openai.reasonSearch": "搜索服务异常",
+    "openai.reasonAudio": "语音服务异常",
+    "openai.reasonErrors": "错误率升高",
+    "openai.reasonLatency": "响应延迟升高",
+    "openai.reasonOutage": "服务中断或暂时不可用",
+    "openai.reasonMaintenance": "服务维护中",
+    "openai.reasonInvestigating": "官方正在调查",
+    "openai.reasonMonitoring": "官方正在监控",
+    "openai.reasonResolved": "事件已恢复",
+    "openai.componentHintFallback": "OpenAI 官方状态页中的服务组件，可用英文原名核对。",
+    "openai.componentLabel.chatgpt": "GPT 网页版",
+    "openai.componentLabel.codexWeb": "Codex 网页版",
+    "openai.componentLabel.codexDesktop": "Codex 桌面版",
+    "openai.componentLabel.codexApi": "Codex API 接口",
+    "openai.componentLabel.api": "OpenAI API 接口",
+    "openai.componentLabel.images": "图像生成",
+    "openai.componentLabel.login": "登录与账号",
+    "openai.componentLabel.generic": "OpenAI 服务组件",
+    "openai.component.chatgpt": "用于 GPT 网页版（chatgpt.com）的对话、登录和生成能力。",
+    "openai.component.codexWeb": "用于 Codex 网页版的任务、项目和代码工作流。",
+    "openai.component.codexDesktop": "用于 Codex Desktop 桌面版（ChatGPT Desktop 内）的任务和登录。",
+    "openai.component.codexApi": "用于 Codex API 接口请求和模型调用。",
+    "openai.component.api": "用于 OpenAI API 接口请求；不确定时优先选择 Codex API。",
+    "openai.component.images": "只关注图像生成能力；不是完整的 GPT 网页版健康度。",
+    "openai.component.login": "只关注登录、OAuth 和账号会话，不代表聊天或 Codex 功能。",
+    "openai.component.generic": "只关注该项服务；需要查看 GPT 网页版请选择 ChatGPT，需要查看 Codex 网页版请选择 Codex Web。",
+    "openai.pinSelectionGuide": "快速选择：GPT 网页版选 ChatGPT；Codex 网页版选 Codex Web；桌面版选 Codex in ChatGPT Desktop；接口调用选 Codex API。",
     "profiles.title": "账号管理",
     "profiles.add": "添加账号",
     "profile.modelAuto": "自动发现",
@@ -426,7 +468,7 @@ const translations = {
     "diagnostics.opened": "已打开本地日志文件。",
     "diagnostics.truncated": "日志较长，当前只显示最后一段。",
     "tutorial.title": "分阶段使用教程",
-    "tutorial.intro": "按使用阶段阅读教程：先完成一次账号配置，日常按步骤切换，出问题先看日志，超大聊天先复制深度链接新建聊天继续，最后了解本地历史和其他特色功能。当前版本为 v3.0.0。",
+    "tutorial.intro": "按使用阶段阅读教程：先完成一次账号配置，日常按步骤切换，出问题先看日志，超大聊天先复制深度链接新建聊天继续，最后了解本地历史和其他特色功能。当前版本为 v3.0.1。",
     "tutorial.stageNav": "教程阶段",
     "tutorial.stage1.tab": "首次配置",
     "tutorial.stage1.short": "添加账号和模型",
@@ -495,6 +537,12 @@ const translations = {
     "tutorial.feature.gatewayText": "直连模式让 Codex 直接访问 Base URL；兼容网关模式使用本机回环网关，需要 Galaxy 保持运行。",
     "tutorial.feature.auditTitle": "后台 API 检测",
     "tutorial.feature.auditText": "可并行检测全部已保存 API。报告按模型核对、协议、推理、稳定性和速度逐项显示证据；期望模型不匹配时总分最高 49 分。",
+    "tutorial.feature.healthTitle": "OpenAI 健康度时间线",
+    "tutorial.feature.healthText": "首页状态区显示最近 24 小时、每小时一格；绿色表示正常，黄色性能下降，橙色部分中断，红色重大中断。鼠标悬停或键盘聚焦色块即可查看时间、状态和原因。",
+    "tutorial.feature.healthSelectTitle": "选择正确的健康度项目",
+    "tutorial.feature.healthSelectText": "看 GPT 网页版选 ChatGPT；看 Codex 网页版选 Codex Web；看桌面版选 Codex in ChatGPT Desktop；看接口调用选 Codex API。下拉选项会显示中文用途和英文原名。",
+    "tutorial.feature.performanceTitle": "轻量后台刷新",
+    "tutorial.feature.performanceText": "健康度只在窗口可见时每 5 分钟刷新一次；窗口隐藏后暂停轮询，避免持续网络请求和重复渲染。账号、排名和切换操作仍按需执行。",
     "tutorial.feature.topupTitle": "GPT 代充套餐",
     "tutorial.feature.topupText": "顶部发光按钮打开 Codex Galaxy 套餐展示页，可查看价格、状态和二维码；页面使用 GPT、Codex 与 AI 科技视觉，不需要登录，也没有在线购买。",
     "tutorial.feature.toolsTitle": "插件、刷新和清理",
@@ -565,6 +613,7 @@ const translations = {
     "update.cancelled": "Update cancelled. The current task is unaffected.",
     "update.macOpened": "The latest GitHub release page is open. Choose the x64 or arm64 DMG for your Mac. The current build is unsigned; follow the macOS security prompts.",
     "page.title": "Accounts and APIs",
+    "page.summary": "Switch accounts, audit APIs, and check service health in one view",
     "status.boardLabel": "Current usage status",
     "status.account": "Current account",
     "status.loginMode": "Login mode",
@@ -582,7 +631,7 @@ const translations = {
     "status.openaiMaintenance": "Under maintenance",
     "status.openaiUnknown": "Unknown",
     "openai.dialogTitle": "OpenAI service health",
-    "openai.dialogIntro": "Data comes from the official OpenAI status page and refreshes automatically. Choose a component to keep on the home page.",
+    "openai.dialogIntro": "Data comes from the official OpenAI status page and refreshes automatically. Choose a component to keep on the home page; each option includes a usage hint, English name, and quick-choice guide.",
     "openai.overall": "Overall status",
     "openai.components": "All service components",
     "openai.pin": "Pinned on home",
@@ -599,6 +648,44 @@ const translations = {
     "openai.historyToday": "Now",
     "openai.historyUnavailable": "History is temporarily unavailable",
     "openai.noIncident": "No public incident reported",
+    "openai.hover.time": "Time",
+    "openai.hover.status": "Status",
+    "openai.hover.incident": "Incident",
+    "openai.hover.reason": "Reason",
+    "openai.reasonReported": "The official status page reported service instability during this hour",
+    "openai.reasonOperational": "No public incident was reported during this hour; service was operational",
+    "openai.reasonImage": "Image generation service issue",
+    "openai.reasonChatGPT": "ChatGPT service issue",
+    "openai.reasonCodex": "Codex service issue",
+    "openai.reasonApi": "API service issue",
+    "openai.reasonLogin": "Login service issue",
+    "openai.reasonSearch": "Search service issue",
+    "openai.reasonAudio": "Audio service issue",
+    "openai.reasonErrors": "Elevated error rates",
+    "openai.reasonLatency": "Increased response latency",
+    "openai.reasonOutage": "Service interruption or temporary unavailability",
+    "openai.reasonMaintenance": "Service maintenance",
+    "openai.reasonInvestigating": "OpenAI is investigating",
+    "openai.reasonMonitoring": "OpenAI is monitoring the recovery",
+    "openai.reasonResolved": "Incident resolved",
+    "openai.componentHintFallback": "A service component from the official OpenAI status page; use the English name to cross-check.",
+    "openai.componentLabel.chatgpt": "GPT web",
+    "openai.componentLabel.codexWeb": "Codex web",
+    "openai.componentLabel.codexDesktop": "Codex Desktop",
+    "openai.componentLabel.codexApi": "Codex API",
+    "openai.componentLabel.api": "OpenAI API",
+    "openai.componentLabel.images": "Image generation",
+    "openai.componentLabel.login": "Login and accounts",
+    "openai.componentLabel.generic": "OpenAI service component",
+    "openai.component.chatgpt": "Tracks GPT web (chatgpt.com) conversations, login, and generation features.",
+    "openai.component.codexWeb": "Tracks Codex web tasks, projects, and coding workflows.",
+    "openai.component.codexDesktop": "Tracks Codex Desktop tasks and login inside ChatGPT Desktop.",
+    "openai.component.codexApi": "Tracks Codex API requests and model calls.",
+    "openai.component.api": "Tracks OpenAI API requests; choose Codex API when unsure.",
+    "openai.component.images": "Tracks image generation only; it is not the full GPT web health signal.",
+    "openai.component.login": "Tracks login, OAuth, and account sessions only; it does not represent chat or Codex features.",
+    "openai.component.generic": "Tracks only this service; choose ChatGPT for GPT web or Codex Web for Codex web.",
+    "openai.pinSelectionGuide": "Quick choice: ChatGPT for GPT web; Codex Web for Codex web; Codex in ChatGPT Desktop for the desktop app; Codex API for API calls.",
     "profiles.title": "Accounts",
     "profiles.add": "Add account",
     "profile.modelAuto": "Auto detect",
@@ -887,7 +974,7 @@ const translations = {
     "diagnostics.opened": "The local log file was opened.",
     "diagnostics.truncated": "The log is long; only its latest section is shown.",
     "tutorial.title": "Phased usage guide",
-    "tutorial.intro": "Read the guide by stage: configure accounts once, follow the daily switch steps, preserve the scene when something fails, use a deep link to continue oversized chats in a new thread, then learn local history and other features. Current version: v3.0.0.",
+    "tutorial.intro": "Read the guide by stage: configure accounts once, follow the daily switch steps, preserve the scene when something fails, use a deep link to continue oversized chats in a new thread, then learn local history and other features. Current version: v3.0.1.",
     "tutorial.stageNav": "Tutorial stages",
     "tutorial.stage1.tab": "First setup",
     "tutorial.stage1.short": "Accounts and models",
@@ -956,6 +1043,12 @@ const translations = {
     "tutorial.feature.gatewayText": "Direct API connects Codex to the Base URL; Compatibility gateway uses a local loopback gateway and requires Galaxy to run.",
     "tutorial.feature.auditTitle": "Background API audit",
     "tutorial.feature.auditText": "Audit all saved APIs in parallel. Reports show evidence for model identity, protocol, reasoning, stability, and latency; a model mismatch caps the total at 49.",
+    "tutorial.feature.healthTitle": "OpenAI health timeline",
+    "tutorial.feature.healthText": "The home status area shows the latest 24 hours with one segment per hour: green operational, yellow degraded, orange partial outage, red major outage. Hover or focus a segment for its time, status, and reason.",
+    "tutorial.feature.healthSelectTitle": "Choose the right health component",
+    "tutorial.feature.healthSelectText": "Choose ChatGPT for GPT web, Codex Web for Codex web, Codex in ChatGPT Desktop for the desktop app, and Codex API for API calls. Each option shows a usage hint plus its English name.",
+    "tutorial.feature.performanceTitle": "Lightweight background refresh",
+    "tutorial.feature.performanceText": "Health refreshes every five minutes only while the window is visible; polling pauses when hidden to avoid continuous requests and duplicate rendering. Accounts, rankings, and switching still run on demand.",
     "tutorial.feature.topupTitle": "GPT Top-up plans",
     "tutorial.feature.topupText": "The glowing header button opens the Codex Galaxy plan page with GPT, Codex, and AI-inspired visuals, prices, availability, and a contact QR code. No login or online checkout is required.",
     "tutorial.feature.toolsTitle": "Plugins, refresh, and cleanup",
@@ -1191,7 +1284,7 @@ function unwrap(response) {
 function formatDate(value) {
   if (!value) return t("common.timeUnknown");
   const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? value : date.toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
+  return Number.isNaN(date.getTime()) ? value : date.toLocaleString(currentLanguage === "zh-CN" ? "zh-CN" : "en-US", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit", hour12: false });
 }
 
 function selectedProfile() {
@@ -1203,12 +1296,64 @@ function openAIStatusLabel(status) {
   return t(key);
 }
 
+function openAIComponentGuide(name) {
+  const value = String(name || "").trim().toLowerCase();
+  if (value === "chatgpt" || value.includes("chatgpt web")) return { label: "openai.componentLabel.chatgpt", hint: "openai.component.chatgpt" };
+  if (value.includes("codex web")) return { label: "openai.componentLabel.codexWeb", hint: "openai.component.codexWeb" };
+  if (value.includes("codex in chatgpt desktop") || value.includes("codex desktop")) return { label: "openai.componentLabel.codexDesktop", hint: "openai.component.codexDesktop" };
+  if (value.includes("codex api")) return { label: "openai.componentLabel.codexApi", hint: "openai.component.codexApi" };
+  if (value === "api" || value.includes("openai api")) return { label: "openai.componentLabel.api", hint: "openai.component.api" };
+  if (value.includes("image")) return { label: "openai.componentLabel.images", hint: "openai.component.images" };
+  if (value.includes("login") || value.includes("auth")) return { label: "openai.componentLabel.login", hint: "openai.component.login" };
+  return { label: "openai.componentLabel.generic", hint: "openai.component.generic" };
+}
+
+function openAIComponentLabel(name) {
+  const original = String(name || t("common.unknown"));
+  const guide = openAIComponentGuide(original);
+  const friendly = t(guide.label).replace(/[。.]$/, "");
+  return friendly === original ? original : `${friendly} (${original})`;
+}
+
+function openAIComponentHint(name) {
+  const guide = openAIComponentGuide(name);
+  return t(guide.hint || "openai.componentHintFallback");
+}
+
+function localizeOpenAIReason(point) {
+  const raw = [point?.incidentName, point?.reason].filter(Boolean).join(" · ").trim();
+  if (currentLanguage !== "zh-CN") return raw || t("openai.noIncident");
+  if (!raw) return point?.status === "operational" ? t("openai.reasonOperational") : t("openai.reasonReported");
+  const source = raw.toLowerCase();
+  const reasons = [];
+  const add = (key) => { const value = t(key); if (!reasons.includes(value)) reasons.push(value); };
+  if (/image|picture|visual|dall[- ]?e|图像/.test(source)) add("openai.reasonImage");
+  if (/chatgpt/.test(source)) add("openai.reasonChatGPT");
+  if (/codex/.test(source)) add("openai.reasonCodex");
+  if (/responses? api|\bapi\b/.test(source)) add("openai.reasonApi");
+  if (/login|auth|oauth|登录/.test(source)) add("openai.reasonLogin");
+  if (/search|搜索/.test(source)) add("openai.reasonSearch");
+  if (/audio|voice|语音/.test(source)) add("openai.reasonAudio");
+  if (/error|fail|issue|incident|错误|失败/.test(source)) add("openai.reasonErrors");
+  if (/latency|slow|performance|degrad|延迟|性能/.test(source)) add("openai.reasonLatency");
+  if (/outage|unavailable|down|disrupt|中断|不可用/.test(source)) add("openai.reasonOutage");
+  if (/maintenance|维护/.test(source)) add("openai.reasonMaintenance");
+  if (/investigat|调查/.test(source)) add("openai.reasonInvestigating");
+  if (/monitor|监控/.test(source)) add("openai.reasonMonitoring");
+  if (/resolved|recover|恢复/.test(source)) add("openai.reasonResolved");
+  return reasons.length ? reasons.join("；") : t("openai.reasonReported");
+}
+
 function openAIHistoryPointTitle(point) {
   const date = point?.date ? formatDate(point.date) : t("common.timeUnknown");
   const status = openAIStatusLabel(point?.status);
-  const reason = point?.reason || t("openai.noIncident");
-  const incident = point?.incidentName ? ` · ${point.incidentName}` : "";
-  return `${date} · ${status}${incident} · ${reason}`;
+  const reason = localizeOpenAIReason(point);
+  const incident = currentLanguage === "zh-CN"
+    ? (point?.incidentName && localizeOpenAIReason({ ...point, reason: "" }) !== reason ? ` · ${t("openai.hover.incident")}：${localizeOpenAIReason({ ...point, reason: "" })}` : "")
+    : (point?.incidentName ? ` · ${point.incidentName}` : "");
+  return currentLanguage === "zh-CN"
+    ? `${t("openai.hover.time")}：${date} · ${t("openai.hover.status")}：${status}${incident} · ${t("openai.hover.reason")}：${reason}`
+    : `${date} · ${status}${incident} · ${t("openai.hover.reason")}：${reason}`;
 }
 
 function renderOpenAITimeline(target, timeline) {
@@ -1234,27 +1379,52 @@ function renderOpenAIStatus() {
   const data = state.openaiStatus;
   const pinned = data?.pinned;
   $("#statusOpenAI").textContent = data?.ok ? openAIStatusLabel(pinned?.status) : t("status.openaiUnavailable");
-  $("#statusOpenAIComponent").textContent = pinned?.name || data?.pinnedComponent || t("status.openaiLoading");
+  $("#statusOpenAIComponent").textContent = data?.ok ? openAIComponentLabel(pinned?.name || data?.pinnedComponent || t("status.openaiLoading")) : t("status.openaiLoading");
   const overall = $("#openaiOverallStatus");
-  if (overall) overall.textContent = data?.ok ? (data.overall?.description || openAIStatusLabel(data.overall?.indicator)) : t("status.openaiUnavailable");
+  if (overall) overall.textContent = data?.ok
+    ? (currentLanguage === "zh-CN" ? openAIStatusLabel(data.overall?.indicator) : (data.overall?.description || openAIStatusLabel(data.overall?.indicator)))
+    : t("status.openaiUnavailable");
   const updated = $("#openaiUpdatedAt");
   if (updated) updated.textContent = data?.fetchedAt ? t("openai.updated", { time: formatDate(data.fetchedAt) }) : "";
   renderOpenAIHistory();
   const select = $("#openaiStatusPinned");
   if (select && data?.components?.length) {
     const current = data.pinned?.name || data.pinnedComponent;
-    select.innerHTML = data.components.map((item) => `<option value="${escapeHtml(item.name)}">${escapeHtml(item.name)}</option>`).join("");
+    select.innerHTML = data.components.map((item) => `<option value="${escapeHtml(item.name)}" title="${escapeHtml(openAIComponentHint(item.name))}">${escapeHtml(openAIComponentLabel(item.name))}</option>`).join("");
     if (data.components.some((item) => item.name === current)) select.value = current;
+    const selected = data.components.find((item) => item.name === select.value) || data.components[0];
+    const hint = $("#openaiPinnedHint");
+    if (hint) {
+      hint.textContent = `${openAIComponentHint(selected?.name)} ${t("openai.pinSelectionGuide")}`;
+      select.title = hint.textContent;
+    }
   }
   const list = $("#openaiComponents");
   if (!list) return;
-  list.innerHTML = data?.components?.length ? data.components.map((item) => `<div class="openai-component"><div><strong>${escapeHtml(item.name)}</strong><small>${item.updatedAt ? formatDate(item.updatedAt) : ""}</small></div><span class="openai-component-status status-${escapeHtml(item.status)}">${escapeHtml(openAIStatusLabel(item.status))}</span></div>`).join("") : `<div class="empty">${t("openai.noComponents")}</div>`;
+  list.innerHTML = data?.components?.length ? data.components.map((item) => `<div class="openai-component" title="${escapeHtml(openAIComponentHint(item.name))}"><div><strong>${escapeHtml(openAIComponentLabel(item.name))}</strong><small>${item.updatedAt ? formatDate(item.updatedAt) : ""}</small></div><span class="openai-component-status status-${escapeHtml(item.status)}">${escapeHtml(openAIStatusLabel(item.status))}</span></div>`).join("") : `<div class="empty">${t("openai.noComponents")}</div>`;
 }
 
 async function loadOpenAIStatus() {
-  if (!bridge?.getOpenAIStatus) return;
-  try { state.openaiStatus = unwrap(await bridge.getOpenAIStatus()); } catch (error) { state.openaiStatus = { ok: false, error: error.message }; }
-  renderOpenAIStatus();
+  if (!bridge?.getOpenAIStatus) return null;
+  if (openAIStatusRequest) return openAIStatusRequest;
+  openAIStatusRequest = (async () => {
+    try { state.openaiStatus = unwrap(await bridge.getOpenAIStatus()); } catch (error) { state.openaiStatus = { ok: false, error: error.message }; }
+    renderOpenAIStatus();
+    return state.openaiStatus;
+  })().finally(() => { openAIStatusRequest = null; });
+  return openAIStatusRequest;
+}
+
+function stopOpenAIStatusPolling() {
+  if (openAIStatusTimer) {
+    window.clearInterval(openAIStatusTimer);
+    openAIStatusTimer = null;
+  }
+}
+
+function startOpenAIStatusPolling() {
+  if (openAIStatusTimer || document.hidden) return;
+  openAIStatusTimer = window.setInterval(() => { loadOpenAIStatus().catch(() => {}); }, OPENAI_STATUS_REFRESH_MS);
 }
 
 async function openOpenAIStatusDialog() {
@@ -2161,6 +2331,20 @@ $("#closeOpenAIStatus").addEventListener("click", () => $("#openaiStatusDialog")
 $("#dismissOpenAIStatus").addEventListener("click", () => $("#openaiStatusDialog").close());
 $("#openaiRefresh").addEventListener("click", loadOpenAIStatus);
 $("#openaiHistoryRefresh").addEventListener("click", loadOpenAIStatus);
+$("#openaiStatusPinned").addEventListener("change", (event) => {
+  const hint = $("#openaiPinnedHint");
+  if (!hint) return;
+  hint.textContent = `${openAIComponentHint(event.currentTarget.value)} ${t("openai.pinSelectionGuide")}`;
+  event.currentTarget.title = hint.textContent;
+});
+document.addEventListener("visibilitychange", () => {
+  if (document.hidden) {
+    stopOpenAIStatusPolling();
+    return;
+  }
+  startOpenAIStatusPolling();
+  loadOpenAIStatus().catch(() => {});
+});
 $("#openaiOfficial").addEventListener("click", () => bridge.openOpenAIStatus());
 $("#openaiSavePinned").addEventListener("click", async () => {
   const name = $("#openaiStatusPinned").value;
@@ -2360,5 +2544,5 @@ if (!bridge) {
   bridge.onSwitchConfirmation(showSwitchConfirmation);
   refresh().catch((error) => notice(error.message, true));
   loadOpenAIStatus();
-  window.setInterval(loadOpenAIStatus, 60000);
+  startOpenAIStatusPolling();
 }
