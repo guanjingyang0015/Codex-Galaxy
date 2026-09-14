@@ -30,8 +30,8 @@ button:focus-visible, input:focus-visible, select:focus-visible, [tabindex]:focu
   z-index: 5;
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 18px;
+  justify-content: flex-start;
+  gap: 14px;
   padding: 0 24px;
   border-bottom: 1px solid var(--line-soft);
   background: rgba(16, 18, 20, 0.96);
@@ -50,6 +50,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, [tabindex]:focu
 }
 .brand-name { font-size: 15px; font-weight: 750; }
 .brand-sub { margin-top: 2px; color: var(--muted); font-size: 9px; }
+.topbar > .topup-action { margin-left: 24px; }
 .topup-action { position: relative; display: grid; min-width: 154px; grid-template-columns: auto auto; align-items: center; justify-content: center; gap: 0 7px; padding: 8px 18px; overflow: hidden; border: 1px solid rgba(120, 214, 173, 0.78); border-radius: 999px; background: linear-gradient(110deg, #163526, #224a35 45%, #153c43); box-shadow: 0 0 12px rgba(120, 214, 173, 0.44), inset 0 0 16px rgba(104, 217, 255, 0.08); color: #edfff7; font-size: 13px; font-weight: 850; text-decoration: none; isolation: isolate; animation: topup-pulse 2.2s ease-in-out infinite; }
 .topup-action::before { content: ""; position: absolute; z-index: -1; inset: -60% -20%; background: linear-gradient(105deg, transparent 30%, rgba(255, 255, 255, 0.42) 48%, transparent 66%); transform: translateX(-75%); animation: topup-shine 3.2s ease-in-out infinite; }
 .topup-action:hover { border-color: #b2ffda; box-shadow: 0 0 22px rgba(120, 214, 173, 0.72), inset 0 0 18px rgba(104, 217, 255, 0.13); color: #fff; transform: translateY(-1px); }
@@ -70,15 +71,18 @@ button:focus-visible, input:focus-visible, select:focus-visible, [tabindex]:focu
 .eyebrow, .mini-label { margin: 0 0 8px; color: var(--accent); font-size: 10px; font-weight: 750; text-transform: uppercase; }
 .page-heading .eyebrow { margin: 0; }
 .page-heading h1 { margin: 0; font-size: 21px; line-height: 1.1; }
-.page-heading-summary { min-width: 0; margin: 0; overflow: hidden; color: var(--muted); font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
+.page-heading-summary { display: flex; min-width: 0; align-items: center; gap: clamp(10px, 2vw, 24px); margin: 0; overflow: hidden; color: var(--muted); font-size: 10px; white-space: nowrap; }
+.page-heading-summary span { overflow: hidden; text-overflow: ellipsis; }
+.page-heading-summary span + span { position: relative; padding-left: clamp(10px, 2vw, 24px); }
+.page-heading-summary span + span::before { content: ""; position: absolute; top: 50%; left: 0; width: 3px; height: 3px; border-radius: 50%; background: #4d8f75; transform: translateY(-50%); }
 .current-context { display: flex; min-width: 0; flex-direction: row; align-items: baseline; justify-content: flex-end; gap: 8px; }
 .current-context span { color: var(--muted); font-size: 10px; }
 .current-context strong { margin-top: 0; max-width: 220px; overflow: hidden; font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
 .status-board { display: grid; flex: 0 0 auto; grid-template-columns: repeat(4, minmax(0, 1fr)) minmax(360px, 2.3fr); grid-template-rows: auto; gap: 1px; padding: 1px; border-radius: 8px; background: var(--line); overflow: hidden; }
-.status-cell { min-width: 0; padding: 8px 11px; background: var(--surface); }
+.status-cell { min-width: 0; align-self: start; padding: 8px 11px; background: var(--surface); }
 .status-cell .mini-label { display: block; margin-bottom: 3px; }
 .status-cell strong { display: block; overflow: hidden; color: #dce2e6; font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
-.status-openai { display: block; min-width: 0; border: 0; color: inherit; text-align: left; transition: background .18s, box-shadow .18s; }
+.status-openai { display: block; min-width: 0; align-self: start; padding: 8px 11px; border: 0; border-radius: 0; appearance: none; background: var(--surface); color: inherit; font: inherit; text-align: left; transition: background .18s, box-shadow .18s; }
 .status-openai:hover { background: #172820; box-shadow: inset 0 0 0 1px #4d8f75; }
 .status-openai small { display: block; overflow: hidden; margin-top: 3px; color: var(--muted); font-size: 9px; text-overflow: ellipsis; white-space: nowrap; }
 .status-overview-panel { grid-column: 5; grid-row: 1; display: flex; min-width: 0; flex-direction: column; padding: 7px 10px 7px; background: var(--surface); }
@@ -89,10 +93,10 @@ button:focus-visible, input:focus-visible, select:focus-visible, [tabindex]:focu
 .openai-overview-head > .status-openai small { margin-top: 1px; font-size: 8px; }
 .openai-home-history-head, .openai-history-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .openai-home-history-head small, .openai-history-heading small { display: block; margin-top: 3px; color: var(--muted); font-size: 9px; }
-.openai-overview-head .openai-home-history-head { min-width: 0; }
+.openai-overview-head .openai-home-history-head, .openai-overview-head .openai-home-history-head > div { min-width: 0; }
 .openai-overview-head .openai-home-history-head .mini-label { margin-bottom: 0; }
 .openai-overview-head .openai-home-history-head small { overflow: hidden; margin-top: 2px; text-overflow: ellipsis; white-space: nowrap; }
-.openai-overview-head > .button { min-height: 26px; padding: 4px 8px; font-size: 10px; }
+.openai-overview-head > .button { flex: 0 0 auto; min-height: 26px; padding: 4px 8px; font-size: 10px; }
 .openai-timeline-track { display: flex; align-items: stretch; gap: 2px; width: 100%; min-height: 13px; margin-top: 8px; padding: 2px; border-radius: 4px; background: #0d1011; }
 .openai-timeline-large { min-height: 22px; margin-top: 10px; padding: 3px; }
 .openai-timeline-segment { display: block; flex: 1 1 0; min-width: 2px; min-height: 9px; border-radius: 1px; opacity: .95; cursor: help; transition: transform .12s, opacity .12s, box-shadow .12s; }
@@ -376,6 +380,7 @@ dialog::backdrop { background: rgba(0, 0, 0, 0.72); }
 
 @media (max-width: 760px) {
   .topbar { padding: 0 14px; }
+  .topbar > .topup-action { margin-left: 0; }
   .top-actions { gap: 6px; }
   .top-actions .button { padding: 7px 9px; }
   .topup-action { min-width: 112px; padding-inline: 10px; }
