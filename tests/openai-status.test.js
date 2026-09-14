@@ -14,27 +14,29 @@ test("fetches official components and resolves the pinned service", async () => 
   assert.equal(response.pinned.name, "Codex Web");
   assert.equal(response.pinned.status, "degraded_performance");
   assert.equal(response.historyAvailable, true);
-  assert.equal(response.timeline.length, 90);
+  assert.equal(response.timeline.length, 24);
   assert.equal((await getOpenAIStatusSettings(settingsFile)).pinnedComponent, "Codex Web");
 });
 
-test("builds colored daily history points with incident reasons", () => {
+test("builds 24 colored hourly history points with incident reasons", () => {
   const timeline = buildStatusTimeline([{
     id: "incident-1",
     name: "Responses API errors",
     status: "resolved",
     impact: "major",
-    created_at: "2026-09-10T08:00:00Z",
-    resolved_at: "2026-09-12T12:00:00Z",
+    created_at: "2026-09-14T08:15:00Z",
+    resolved_at: "2026-09-14T10:20:00Z",
     incident_updates: [{
       status: "investigating",
       body: "Elevated errors are affecting Responses.",
-      created_at: "2026-09-10T08:00:00Z",
+      created_at: "2026-09-14T08:15:00Z",
     }],
-  }], { now: new Date("2026-09-14T12:00:00Z"), days: 7 });
-  assert.equal(timeline.length, 7);
-  assert.equal(timeline.find((item) => item.date === "2026-09-11").status, "major_outage");
-  assert.match(timeline.find((item) => item.date === "2026-09-11").reason, /Elevated errors/);
+  }], { now: new Date("2026-09-14T12:35:00Z"), hours: 24 });
+  assert.equal(timeline.length, 24);
+  assert.equal(timeline[0].date, "2026-09-13T13:00:00.000Z");
+  assert.equal(timeline.at(-1).date, "2026-09-14T12:00:00.000Z");
+  assert.equal(timeline.find((item) => item.date === "2026-09-14T08:00:00.000Z").status, "major_outage");
+  assert.match(timeline.find((item) => item.date === "2026-09-14T09:00:00.000Z").reason, /Elevated errors/);
   assert.equal(timeline.at(-1).status, "operational");
   assert.equal(timeline.at(-1).reason, "");
 });
@@ -57,5 +59,5 @@ test("keeps the current status when the optional incident feed is unavailable", 
   assert.equal(result.ok, true);
   assert.equal(result.historyAvailable, false);
   assert.equal(result.pinned.name, "Codex API");
-  assert.equal(result.timeline.length, 90);
+  assert.equal(result.timeline.length, 24);
 });

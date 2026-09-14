@@ -5,7 +5,7 @@ import { readJson, writeJson } from "./vault.js";
 export const OPENAI_STATUS_PAGE = "https://status.openai.com/";
 export const OPENAI_STATUS_API = "https://status.openai.com/api/v2/summary.json";
 export const OPENAI_STATUS_INCIDENTS_API = "https://status.openai.com/api/v2/incidents.json";
-export const OPENAI_STATUS_HISTORY_DAYS = 90;
+export const OPENAI_STATUS_HISTORY_HOURS = 24;
 const DEFAULT_PIN = "Codex API";
 
 function cleanText(value, limit = 180) {
@@ -83,12 +83,12 @@ function incidentHealthStatus(incident, updateStatus = "") {
   return "operational";
 }
 
-function dayStart(date) {
-  return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
+function hourStart(date) {
+  return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate(), date.getUTCHours()));
 }
 
-function dayKey(date) {
-  return date.toISOString().slice(0, 10);
+function hourKey(date) {
+  return date.toISOString();
 }
 
 function incidentPoint(incident, start, end) {
@@ -109,21 +109,21 @@ function incidentPoint(incident, start, end) {
   };
 }
 
-export function buildStatusTimeline(incidents = [], { now = new Date(), days = OPENAI_STATUS_HISTORY_DAYS } = {}) {
-  const end = dayStart(new Date(now));
+export function buildStatusTimeline(incidents = [], { now = new Date(), hours = OPENAI_STATUS_HISTORY_HOURS } = {}) {
+  const end = hourStart(new Date(now));
   const first = new Date(end);
-  first.setUTCDate(first.getUTCDate() - Math.max(1, Math.min(180, Number(days) || OPENAI_STATUS_HISTORY_DAYS)) + 1);
+  first.setUTCHours(first.getUTCHours() - Math.max(1, Math.min(168, Number(hours) || OPENAI_STATUS_HISTORY_HOURS)) + 1);
   const normalized = incidents.map(normalizeIncident).filter((item) => item.id && item.name);
   const timeline = [];
-  for (let cursor = new Date(first); cursor <= end; cursor.setUTCDate(cursor.getUTCDate() + 1)) {
+  for (let cursor = new Date(first); cursor <= end; cursor.setUTCHours(cursor.getUTCHours() + 1)) {
     const start = new Date(cursor);
     const pointEnd = new Date(cursor);
-    pointEnd.setUTCDate(pointEnd.getUTCDate() + 1);
+    pointEnd.setUTCHours(pointEnd.getUTCHours() + 1);
     const points = normalized.map((incident) => incidentPoint(incident, start, pointEnd)).filter(Boolean);
     points.sort((a, b) => (STATUS_SEVERITY[b.status] || 0) - (STATUS_SEVERITY[a.status] || 0));
     const primary = points[0] || { status: "operational", reason: "", incidentName: "", incidentId: "" };
     timeline.push({
-      date: dayKey(start),
+      date: hourKey(start),
       status: primary.status,
       reason: cleanText(points.slice(0, 3).map((item) => item.reason).filter(Boolean).join("; "), 420),
       incidentName: primary.incidentName,

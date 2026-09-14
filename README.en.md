@@ -6,7 +6,7 @@
 
 Codex Galaxy is a local desktop utility for switching between Codex accounts and compatible APIs while continuing project tasks saved on the same computer.
 
-**Current version: Codex Galaxy 2.2.4**
+**Current version: Codex Galaxy 3.0.0**
 
 The in-app guide is now organized by stage: **first account setup → daily account switching → failure recovery → features**. Open **Guide** and choose only the stage you need instead of reading one long page.
 
@@ -21,7 +21,7 @@ The in-app guide is now organized by stage: **first account setup → daily acco
 - Manage local plugins, downloaded marketplaces, and project data
 - Record a timestamped redacted local log so switch failures can be inspected and reported
 - Check for updates automatically; Windows can install them and macOS opens the latest download page
-- Show a 90-day color-coded OpenAI health timeline on the home page; hover a segment for the date, incident, and public reason
+- Show the latest 24 hours of OpenAI health in the home status area, one segment per hour; hover for the time, incident, and public reason
 - Open a prominent GPT Top-up page from the header to view plans, prices, availability, and the contact QR code without signing in or purchasing online
 - Use Simplified Chinese or English
 
@@ -154,6 +154,8 @@ MIT License. Codex Galaxy is an independent local utility and is not an official
 2.2.0 adds a softly animated GPT Top-up button to the app header. It opens the Codex Galaxy plan page with current plans, prices, availability, consultation steps, and the contact QR code; the page has no login, cart, order lookup, or online checkout.
 
 2.2.1 changes the web admin into switchable API Ranking and GPT Top-up panels, preserving the active panel after saves. The public plan page adds a prominent OpenAI knot mark, a `GPT × CODEX` service visual, a technical grid, and an AI orbit motif.
+
+3.0.0 changes OpenAI health to the latest 24 hours with one segment per hour; moves health, CODEX HOME, author email, and the latest release record into the right side of the home status area; and removes the duplicate header OpenAI Status/Local App indicators and bottom information strip.
 
 2.2.4 fixes history replay when switching from DeepSeek V4 Pro back to the official GPT account; adds a 90-day color-coded OpenAI health timeline with hoverable public incident reasons, and exposes low, medium, and high reasoning levels for DeepSeek V4 Pro.
 

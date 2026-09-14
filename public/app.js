@@ -1,7 +1,7 @@
 const $ = (selector) => document.querySelector(selector);
 const state = {
   profiles: [],
-  version: "2.2.4",
+  version: "3.0.0",
   openaiStatus: null,
   threads: [],
   currentId: null,
@@ -29,7 +29,7 @@ const state = {
   releases: [],
   update: {
     phase: "idle",
-    currentVersion: "2.2.4",
+    currentVersion: "3.0.0",
     latestVersion: null,
     available: false,
     action: "install",
@@ -49,7 +49,6 @@ const translations = {
     "status.repairing": "修复中",
     "status.updating": "更新中",
     "status.gatewayRunning": "本地网关运行中",
-    "status.localProgram": "本机程序",
     "common.localError": "本地操作失败",
     "common.cancelled": "已取消",
     "common.copied": "已复制",
@@ -87,7 +86,6 @@ const translations = {
     "actions.topup": "GPT 代充",
     "actions.topupHint": "套餐与价格",
     "actions.topupLabel": "打开 GPT 代充套餐与价格",
-    "actions.openaiStatus": "OpenAI 状态",
     "actions.diagnostics": "日志",
     "actions.refresh": "刷新项目",
     "actions.refreshTitle": "重新扫描本机 Codex 项目记录",
@@ -134,10 +132,10 @@ const translations = {
     "openai.noComponents": "暂时没有可用组件",
     "openai.saved": "首页常驻项目已更新为 {name}。",
     "openai.historyLabel": "OpenAI 健康度历史",
-    "openai.historyTitle": "90 天健康度时间线",
-    "openai.historyHint": "绿色正常，黄色性能下降，橙色部分中断，红色重大中断；悬停查看原因。",
-    "openai.historyOldest": "90 天前",
-    "openai.historyToday": "今天",
+    "openai.historyTitle": "24 小时健康度",
+    "openai.historyHint": "每小时一个色块：绿色正常，黄色性能下降，橙色部分中断，红色重大中断；悬停查看原因。",
+    "openai.historyOldest": "24 小时前",
+    "openai.historyToday": "当前",
     "openai.historyUnavailable": "历史数据暂时无法读取",
     "openai.noIncident": "没有公开事件报告",
     "profiles.title": "账号管理",
@@ -428,7 +426,7 @@ const translations = {
     "diagnostics.opened": "已打开本地日志文件。",
     "diagnostics.truncated": "日志较长，当前只显示最后一段。",
     "tutorial.title": "分阶段使用教程",
-    "tutorial.intro": "按使用阶段阅读教程：先完成一次账号配置，日常按步骤切换，出问题先看日志，超大聊天先复制深度链接新建聊天继续，最后了解本地历史和其他特色功能。当前版本为 v2.2.4。",
+    "tutorial.intro": "按使用阶段阅读教程：先完成一次账号配置，日常按步骤切换，出问题先看日志，超大聊天先复制深度链接新建聊天继续，最后了解本地历史和其他特色功能。当前版本为 v3.0.0。",
     "tutorial.stageNav": "教程阶段",
     "tutorial.stage1.tab": "首次配置",
     "tutorial.stage1.short": "添加账号和模型",
@@ -512,7 +510,6 @@ const translations = {
     "status.repairing": "Repairing",
     "status.updating": "Updating",
     "status.gatewayRunning": "Local gateway running",
-    "status.localProgram": "Local app",
     "common.localError": "Local operation failed",
     "common.cancelled": "Cancelled",
     "common.copied": "Copied",
@@ -550,7 +547,6 @@ const translations = {
     "actions.topup": "GPT Top-up",
     "actions.topupHint": "Plans & pricing",
     "actions.topupLabel": "Open GPT top-up plans and pricing",
-    "actions.openaiStatus": "OpenAI status",
     "actions.diagnostics": "Log",
     "actions.refresh": "Refresh projects",
     "actions.refreshTitle": "Rescan local Codex project records",
@@ -597,10 +593,10 @@ const translations = {
     "openai.noComponents": "No components available",
     "openai.saved": "Home component updated to {name}.",
     "openai.historyLabel": "OpenAI health history",
-    "openai.historyTitle": "90-day health timeline",
-    "openai.historyHint": "Green is operational, yellow degraded, orange partial outage, red major outage. Hover for the reason.",
-    "openai.historyOldest": "90 days ago",
-    "openai.historyToday": "Today",
+    "openai.historyTitle": "24-hour health",
+    "openai.historyHint": "One segment per hour: green is operational, yellow degraded, orange partial outage, red major outage. Hover for the reason.",
+    "openai.historyOldest": "24 hours ago",
+    "openai.historyToday": "Now",
     "openai.historyUnavailable": "History is temporarily unavailable",
     "openai.noIncident": "No public incident reported",
     "profiles.title": "Accounts",
@@ -891,7 +887,7 @@ const translations = {
     "diagnostics.opened": "The local log file was opened.",
     "diagnostics.truncated": "The log is long; only its latest section is shown.",
     "tutorial.title": "Phased usage guide",
-    "tutorial.intro": "Read the guide by stage: configure accounts once, follow the daily switch steps, preserve the scene when something fails, use a deep link to continue oversized chats in a new thread, then learn local history and other features. Current version: v2.2.4.",
+    "tutorial.intro": "Read the guide by stage: configure accounts once, follow the daily switch steps, preserve the scene when something fails, use a deep link to continue oversized chats in a new thread, then learn local history and other features. Current version: v3.0.0.",
     "tutorial.stageNav": "Tutorial stages",
     "tutorial.stage1.tab": "First setup",
     "tutorial.stage1.short": "Accounts and models",
@@ -1057,24 +1053,6 @@ function updateOperationBusy(update = state.update) {
   return ["downloading", "ready", "installing"].includes(update?.phase);
 }
 
-function updateStatusPill() {
-  $("#statusPill").textContent = state.switching
-    ? t("status.switching")
-    : state.refreshing
-      ? t("status.refreshing")
-      : state.cleaning
-        ? t("status.cleaning")
-        : state.repairing
-          ? t("status.repairing")
-        : Object.keys(state.auditTasks).length
-          ? t("audit.running")
-        : updateOperationBusy()
-          ? t("status.updating")
-        : state.gatewayRunning
-          ? t("status.gatewayRunning")
-          : t("status.localProgram");
-}
-
 function updateOperationControls() {
   const busy = operationBusy();
   if ($("#syncBtn")) $("#syncBtn").disabled = busy;
@@ -1087,7 +1065,6 @@ function updateOperationControls() {
   if ($("#projectFilter")) $("#projectFilter").disabled = busy;
   renderUpdateAction();
   $("#profileForm").querySelectorAll("button, input, select").forEach((control) => { control.disabled = busy; });
-  updateStatusPill();
   renderProfiles();
   renderThreads();
   if (state.selectedThread && $("#threadDialog").open) renderThreadDialog(state.selectedThread);
@@ -1123,7 +1100,6 @@ function applyUpdateStatus(status) {
   if (wasBusy !== isBusy) updateOperationControls();
   else {
     renderUpdateAction();
-    updateStatusPill();
   }
 }
 
@@ -1303,7 +1279,6 @@ function updateStatusBoard() {
       time: state.librarySyncedAt ? formatDate(state.librarySyncedAt) : t("common.notSynced"),
     });
   }
-  updateStatusPill();
 }
 
 function renderReleaseRecord() {
@@ -2181,7 +2156,6 @@ document.querySelectorAll("[data-tutorial-stage]").forEach((button) => {
 });
 $("#pluginBtn").addEventListener("click", openPlugins);
 $("#diagnosticsBtn").addEventListener("click", openDiagnostics);
-$("#openaiStatusBtn").addEventListener("click", openOpenAIStatusDialog);
 $("#openaiStatusHome").addEventListener("click", openOpenAIStatusDialog);
 $("#closeOpenAIStatus").addEventListener("click", () => $("#openaiStatusDialog").close());
 $("#dismissOpenAIStatus").addEventListener("click", () => $("#openaiStatusDialog").close());
