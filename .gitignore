@@ -18,3 +18,14 @@ __pycache__/
 *.pyc
 .DS_Store
 .codex-project/
+
+# Local content-publishing workspace and debug artifacts (not part of Codex Galaxy)
+CONTENT_RULES.md
+DAILY_WORKFLOW.md
+PROJECT_REQUIREMENTS.md
+config/
+content/
+logs/
+published/
+publisher/
+probe.cjs
