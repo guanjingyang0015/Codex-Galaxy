@@ -29,7 +29,7 @@ test("release identity stays compatible with 0.1.0 upgrades and preserves user d
   const modelCatalog = await fs.readFile(path.join(root, "model-catalog.js"), "utf8");
   const relayTest = await fs.readFile(path.join(root, "relay-connection.js"), "utf8");
   const releaseNotes = await fs.readFile(path.join(root, "release-notes", `v${packageJson.version}.md`), "utf8");
-  assert.equal(packageJson.version, "3.0.2");
+  assert.equal(packageJson.version, "3.0.3");
   assert.equal(packageJson.author, "Guan Jingyang <guanjingyang@gmail.com>");
   assert.equal(packageJson.license, "MIT");
   assert.equal(packageJson.build.appId, "io.github.codex-galaxy.app");
@@ -112,11 +112,11 @@ test("release identity stays compatible with 0.1.0 upgrades and preserves user d
   assert.match(releaseInfo, /c7e0034525e895bbd0f855cc5edd229098e1f938/);
   assert.match(releaseInfo, /33521136697/);
   assert.deepEqual(releaseHistory(packageJson.version)[0], {
-    version: "3.0.2",
-    tag: "v3.0.2",
+    version: "3.0.3",
+    tag: "v3.0.3",
     commit: null,
     actionsRun: null,
-    url: "https://github.com/guanjingyang0015/Codex-Galaxy/releases/tag/v3.0.2",
+    url: "https://github.com/guanjingyang0015/Codex-Galaxy/releases/tag/v3.0.3",
   });
   assert.match(profilesJs, /PROFILE_SCHEMA_VERSION = 6/);
   assert.match(relayTest, /\/models/);
@@ -129,6 +129,7 @@ test("release identity stays compatible with 0.1.0 upgrades and preserves user d
   assert.match(html, /class="home-meta-grid"/);
   assert.match(html, /class="page-heading-summary"/);
   assert.match(html, /data-i18n="page\.summary\.health"/);
+  assert.match(html, /class="status-runtime-grid"/);
   assert.match(html, /id="openaiPinnedHint"/);
   assert.match(html, /tutorial\.feature\.healthSelectText/);
   assert.match(html, /tutorial\.feature\.performanceText/);
