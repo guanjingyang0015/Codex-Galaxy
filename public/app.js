@@ -1,7 +1,7 @@
 const $ = (selector) => document.querySelector(selector);
 const state = {
   profiles: [],
-  version: "3.0.3",
+  version: "3.0.4",
   openaiStatus: null,
   threads: [],
   currentId: null,
@@ -29,7 +29,7 @@ const state = {
   releases: [],
   update: {
     phase: "idle",
-    currentVersion: "3.0.3",
+    currentVersion: "3.0.4",
     latestVersion: null,
     available: false,
     action: "install",
@@ -471,7 +471,7 @@ const translations = {
     "diagnostics.opened": "已打开本地日志文件。",
     "diagnostics.truncated": "日志较长，当前只显示最后一段。",
     "tutorial.title": "分阶段使用教程",
-    "tutorial.intro": "按使用阶段阅读教程：先完成一次账号配置，日常按步骤切换，出问题先看日志，超大聊天先复制深度链接新建聊天继续，最后了解本地历史和其他特色功能。当前版本为 v3.0.3。",
+    "tutorial.intro": "按使用阶段阅读教程：先完成一次账号配置，日常按步骤切换，出问题先看日志，超大聊天先复制深度链接新建聊天继续，最后了解本地历史和其他特色功能。当前版本为 v3.0.4。",
     "tutorial.stageNav": "教程阶段",
     "tutorial.stage1.tab": "首次配置",
     "tutorial.stage1.short": "添加账号和模型",
@@ -980,7 +980,7 @@ const translations = {
     "diagnostics.opened": "The local log file was opened.",
     "diagnostics.truncated": "The log is long; only its latest section is shown.",
     "tutorial.title": "Phased usage guide",
-    "tutorial.intro": "Read the guide by stage: configure accounts once, follow the daily switch steps, preserve the scene when something fails, use a deep link to continue oversized chats in a new thread, then learn local history and other features. Current version: v3.0.3.",
+    "tutorial.intro": "Read the guide by stage: configure accounts once, follow the daily switch steps, preserve the scene when something fails, use a deep link to continue oversized chats in a new thread, then learn local history and other features. Current version: v3.0.4.",
     "tutorial.stageNav": "Tutorial stages",
     "tutorial.stage1.tab": "First setup",
     "tutorial.stage1.short": "Accounts and models",
@@ -1440,14 +1440,9 @@ async function openOpenAIStatusDialog() {
 
 function updateStatusBoard() {
   const current = state.profiles.find((profile) => profile.id === state.currentId);
-  const running = state.codexRunning ? t("common.running") : t("common.notRunning");
   $("#statusProfile").textContent = current?.name || t("common.notSelected");
   $("#statusLoginMode").textContent = current ? profileLoginModeLabel(current) : t("common.notSelected");
   $("#statusGateway").textContent = state.gatewayRunning ? t("common.running") : t("common.notRunning");
-  $("#statusCodex").textContent = t("status.codexSummary", {
-    running,
-    provider: state.codexProvider || t("common.providerNotConfigured"),
-  });
   renderOpenAIStatus();
   if ($("#libraryMeta")) {
     $("#libraryMeta").textContent = t("threads.summary", {

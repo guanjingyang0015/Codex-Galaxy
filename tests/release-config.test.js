@@ -29,7 +29,7 @@ test("release identity stays compatible with 0.1.0 upgrades and preserves user d
   const modelCatalog = await fs.readFile(path.join(root, "model-catalog.js"), "utf8");
   const relayTest = await fs.readFile(path.join(root, "relay-connection.js"), "utf8");
   const releaseNotes = await fs.readFile(path.join(root, "release-notes", `v${packageJson.version}.md`), "utf8");
-  assert.equal(packageJson.version, "3.0.3");
+  assert.equal(packageJson.version, "3.0.4");
   assert.equal(packageJson.author, "Guan Jingyang <guanjingyang@gmail.com>");
   assert.equal(packageJson.license, "MIT");
   assert.equal(packageJson.build.appId, "io.github.codex-galaxy.app");
@@ -112,11 +112,11 @@ test("release identity stays compatible with 0.1.0 upgrades and preserves user d
   assert.match(releaseInfo, /c7e0034525e895bbd0f855cc5edd229098e1f938/);
   assert.match(releaseInfo, /33521136697/);
   assert.deepEqual(releaseHistory(packageJson.version)[0], {
-    version: "3.0.3",
-    tag: "v3.0.3",
+    version: "3.0.4",
+    tag: "v3.0.4",
     commit: null,
     actionsRun: null,
-    url: "https://github.com/guanjingyang0015/Codex-Galaxy/releases/tag/v3.0.3",
+    url: "https://github.com/guanjingyang0015/Codex-Galaxy/releases/tag/v3.0.4",
   });
   assert.match(profilesJs, /PROFILE_SCHEMA_VERSION = 6/);
   assert.match(relayTest, /\/models/);
@@ -127,9 +127,11 @@ test("release identity stays compatible with 0.1.0 upgrades and preserves user d
   assert.match(html, /id="openaiTimeline"/);
   assert.match(html, /class="status-overview-panel"/);
   assert.match(html, /class="home-meta-grid"/);
-  assert.match(html, /class="page-heading-summary"/);
-  assert.match(html, /data-i18n="page\.summary\.health"/);
+  assert.doesNotMatch(html, /class="page-heading"|class="page-heading-summary"/);
   assert.match(html, /class="status-runtime-grid"/);
+  assert.match(html, /class="dashboard-layout"/);
+  assert.match(html, /class="audit-head-actions"/);
+  assert.doesNotMatch(html, /id="statusCodex"/);
   assert.match(html, /id="openaiPinnedHint"/);
   assert.match(html, /tutorial\.feature\.healthSelectText/);
   assert.match(html, /tutorial\.feature\.performanceText/);
@@ -240,6 +242,8 @@ test("release identity stays compatible with 0.1.0 upgrades and preserves user d
   assert.match(styles, /\.status-cell\s*\{[^}]*align-self:\s*start/);
   assert.match(styles, /\.status-openai\s*\{[^}]*appearance:\s*none/);
   assert.match(styles, /\.openai-overview-head \.openai-home-history-head > div\s*\{[^}]*min-width:\s*0/);
+  assert.match(styles, /\.dashboard-layout\s*\{[^}]*grid-template-columns:\s*var\(--dashboard-left\) var\(--dashboard-right\)/);
+  assert.match(styles, /\.audit-head-actions\s*\{[^}]*display:\s*flex/);
   assert.match(styles, /prefers-reduced-motion/);
   assert.doesNotMatch(styles, /\.message\.api/);
   assert.doesNotMatch(renderer, /thread\.provider\s*\?\s*"api"/);
