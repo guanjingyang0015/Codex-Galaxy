@@ -33,6 +33,7 @@ def db():
       id integer primary key autoincrement,
       created_at text not null,
       base_host text not null,
+      base_path text not null default '/',
       provider_name text not null,
       homepage text,
       model text not null,
@@ -40,6 +41,7 @@ def db():
       assessment text not null,
       protocol_score integer not null,
       model_score integer not null,
+      fingerprint_score integer not null default 0,
       effort_score integer not null,
       stability_score integer not null,
       speed_score integer not null,
@@ -49,6 +51,10 @@ def db():
       observed_model text,
       model_verdict text,
       matches_desired_model integer,
+      fingerprint_model text,
+      fingerprint_probability real,
+      fingerprint_verdict text,
+      fingerprint_used_outputs integer not null default 0,
       reasoning_levels text not null,
       efforts_json text not null
     )""")
@@ -59,9 +65,15 @@ def db():
     )""")
     for column, definition in (
         ("expected_model", "text"),
+        ("base_path", "text not null default '/'"),
         ("observed_model", "text"),
         ("model_verdict", "text"),
         ("matches_desired_model", "integer"),
+        ("fingerprint_score", "integer not null default 0"),
+        ("fingerprint_model", "text"),
+        ("fingerprint_probability", "real"),
+        ("fingerprint_verdict", "text"),
+        ("fingerprint_used_outputs", "integer not null default 0"),
     ):
         try:
             conn.execute(f"alter table audits add column {column} {definition}")
@@ -87,6 +99,13 @@ def clean_homepage(value):
     if parsed.scheme not in ("http", "https") or not parsed.netloc or parsed.username or parsed.password:
         return ""
     return text
+
+def clean_base_path(value):
+    text = clean_text(value or "/", 300)
+    if not text.startswith("/") or any(char in text for char in ("\r", "\n", "?", "#")):
+        return "/"
+    text = text.rstrip("/")
+    return text or "/"
 
 def normalized_model(value):
     text = clean_text(value, 160).lower()
@@ -132,10 +151,21 @@ def calculate_score(payload):
     models_ok = int(payload.get("models_status") or 0) in range(200, 300)
     model_listed = bool(payload.get("expected_model_listed") if "expected_model_listed" in payload else payload.get("model_listed"))
     efforts = payload.get("efforts") if isinstance(payload.get("efforts"), list) else []
+    fingerprint = payload.get("fingerprint") if isinstance(payload.get("fingerprint"), dict) else None
+    fingerprint_available = bool(
+        fingerprint
+        and fingerprint.get("status") == "ok"
+        and clean_text(fingerprint.get("candidate"), 160)
+    )
     effort_ok = [x for x in efforts if isinstance(x, dict) and x.get("ok") and x.get("canary")]
     model_verdict_value = model_verdict(payload.get("expected_model"), payload.get("observed_model"), model_listed)
     protocol = 10 if models_ok else 0
-    model = 40 if model_verdict_value == "exact" else 34 if model_verdict_value == "compatible" else 24 if model_verdict_value == "listed-only" else 20 if model_verdict_value == "unspecified" else 0
+    if fingerprint_available:
+        model = 25 if model_verdict_value == "exact" else 21 if model_verdict_value == "compatible" else 15 if model_verdict_value == "listed-only" else 13 if model_verdict_value == "unspecified" else 0
+        fingerprint_score = 15 if fingerprint.get("verdict") == "match" else 0
+    else:
+        model = 40 if model_verdict_value == "exact" else 34 if model_verdict_value == "compatible" else 24 if model_verdict_value == "listed-only" else 20 if model_verdict_value == "unspecified" else 0
+        fingerprint_score = 0
     effort = round(len(effort_ok) / max(1, len(efforts)) * 15)
     http_ok = [x for x in efforts if isinstance(x, dict) and x.get("ok")]
     timeouts = sum(1 for x in efforts if isinstance(x, dict) and int(x.get("status") or 0) == 0)
@@ -144,11 +174,13 @@ def calculate_score(payload):
     average = sum(elapsed) / len(elapsed) if elapsed else float("inf")
     speed = 10 if average <= 3000 else 8 if average <= 6000 else 6 if average <= 10000 else 3 if average <= 15000 else 1 if elapsed else 0
     responses = (8 if http_ok else 0) + round(sum(1 for x in efforts if isinstance(x, dict) and x.get("has_response_id")) / max(1, len(efforts)) * 4) + round(sum(1 for x in efforts if isinstance(x, dict) and x.get("usage")) / max(1, len(efforts)) * 3)
-    before_cap = protocol + model + responses + effort + stability + speed
+    before_cap = protocol + model + fingerprint_score + responses + effort + stability + speed
     cap = 49 if model_verdict_value == "mismatch" else 59 if model_verdict_value == "unverified" else 79 if model_verdict_value == "listed-only" else 80 if model_verdict_value == "unspecified" else 100
+    if fingerprint_available and fingerprint.get("verdict") == "different-candidate":
+        cap = min(cap, 79)
     score = max(0, min(cap, before_cap))
-    assessment = "conforming" if model_verdict_value in ("exact", "compatible") and score >= 85 and len(effort_ok) == len(efforts) else "suspicious" if model_verdict_value == "mismatch" or score < 50 else "inconclusive"
-    return score, assessment, [protocol + responses, model, effort, stability, speed], model_verdict_value
+    assessment = "inconclusive" if fingerprint_available and fingerprint.get("verdict") == "different-candidate" else "conforming" if model_verdict_value in ("exact", "compatible") and score >= 85 and len(effort_ok) == len(efforts) else "suspicious" if model_verdict_value == "mismatch" or score < 50 else "inconclusive"
+    return score, assessment, [protocol + responses, model, fingerprint_score, effort, stability, speed], model_verdict_value
 
 def validate_audit(payload):
     if not isinstance(payload, dict):
@@ -162,8 +194,22 @@ def validate_audit(payload):
     efforts = payload.get("efforts") if isinstance(payload.get("efforts"), list) else []
     if len(efforts) > 4:
         raise ValueError("too many efforts")
+    raw_fingerprint = payload.get("fingerprint") if isinstance(payload.get("fingerprint"), dict) else None
+    fingerprint = None
+    if raw_fingerprint and raw_fingerprint.get("status") == "ok":
+        candidate = clean_text(raw_fingerprint.get("candidate"), 160)
+        verdict = clean_text(raw_fingerprint.get("verdict"), 32)
+        if candidate and verdict in ("match", "different-candidate"):
+            fingerprint = {
+                "status": "ok",
+                "candidate": candidate,
+                "probability": max(0.0, min(1.0, float(raw_fingerprint.get("probability") or 0))),
+                "verdict": verdict,
+                "used_outputs": max(0, min(3, int(raw_fingerprint.get("used_outputs") or 0))),
+            }
     return {
         "base_host": host,
+        "base_path": clean_base_path(payload.get("base_path")),
         "provider_name": clean_text(payload.get("provider_name") or host, 100),
         "homepage": fallback_homepage(host),
         "model": model,
@@ -175,6 +221,7 @@ def validate_audit(payload):
         "model_listed": bool(payload.get("model_listed")),
         "expected_model_listed": bool(payload.get("expected_model_listed") if "expected_model_listed" in payload else payload.get("model_listed")),
         "reasoning_levels": json.dumps(payload.get("declared_reasoning_levels") or [], ensure_ascii=False),
+        "fingerprint": fingerprint,
         "efforts": efforts,
     }
 
@@ -263,6 +310,11 @@ class Handler(BaseHTTPRequestHandler):
                     "winning_test": winner.get("created_at"),
                     "protocol_score": int(winner.get("protocol_score") or 0),
                     "model_score": int(winner.get("model_score") or 0),
+                    "fingerprint_score": int(winner.get("fingerprint_score") or 0),
+                    "fingerprint_model": winner.get("fingerprint_model"),
+                    "fingerprint_probability": float(winner.get("fingerprint_probability") or 0),
+                    "fingerprint_verdict": winner.get("fingerprint_verdict"),
+                    "fingerprint_used_outputs": int(winner.get("fingerprint_used_outputs") or 0),
                     "effort_score": int(winner.get("effort_score") or 0),
                     "stability_score": int(winner.get("stability_score") or 0),
                     "speed_score": int(winner.get("speed_score") or 0),
@@ -296,16 +348,21 @@ class Handler(BaseHTTPRequestHandler):
             payload = json.loads(self.rfile.read(length).decode("utf-8"))
             data = validate_audit(payload)
             score, assessment, parts, verified_model_verdict = calculate_score(data)
+            fingerprint = data.get("fingerprint") or {}
             conn = db()
             conn.execute("""insert into audits
-              (created_at,base_host,provider_name,homepage,model,score,assessment,
-               protocol_score,model_score,effort_score,stability_score,speed_score,
-               models_count,model_listed,expected_model,observed_model,model_verdict,matches_desired_model,reasoning_levels,efforts_json)
-              values (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""", (
-                now_iso(), data["base_host"], data["provider_name"], data["homepage"], data["model"],
+              (created_at,base_host,base_path,provider_name,homepage,model,score,assessment,
+               protocol_score,model_score,fingerprint_score,effort_score,stability_score,speed_score,
+               models_count,model_listed,expected_model,observed_model,model_verdict,matches_desired_model,
+               fingerprint_model,fingerprint_probability,fingerprint_verdict,fingerprint_used_outputs,
+               reasoning_levels,efforts_json)
+              values (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""", (
+                now_iso(), data["base_host"], data["base_path"], data["provider_name"], data["homepage"], data["model"],
                 score, assessment, *parts, int(payload.get("models_count") or 0),
                 int(data["expected_model_listed"]), data["expected_model"], data["observed_model"], verified_model_verdict,
                 1 if verified_model_verdict in ("exact", "compatible") else 0 if verified_model_verdict == "mismatch" else None,
+                fingerprint.get("candidate"), fingerprint.get("probability"), fingerprint.get("verdict"),
+                int(fingerprint.get("used_outputs") or 0),
                 data["reasoning_levels"], json.dumps(data["efforts"], ensure_ascii=False)
             ))
             conn.commit()

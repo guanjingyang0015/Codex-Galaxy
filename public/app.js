@@ -1,7 +1,7 @@
 const $ = (selector) => document.querySelector(selector);
 const state = {
   profiles: [],
-  version: "3.0.5",
+  version: "3.1.0",
   openaiStatus: null,
   threads: [],
   currentId: null,
@@ -29,7 +29,7 @@ const state = {
   releases: [],
   update: {
     phase: "idle",
-    currentVersion: "3.0.5",
+    currentVersion: "3.1.0",
     latestVersion: null,
     available: false,
     action: "install",
@@ -292,7 +292,7 @@ const translations = {
     "audit.explain": "检测与评分说明",
     "audit.panelTitle": "API 检测与排名",
     "audit.intro": "已保存 API 可直接检测；临时 API 才需要填写地址和 Key。检测在后台运行，完成后自动保存并提交脱敏排名。",
-    "audit.rubric": "评分：模型核对 40 分、接口协议 25 分、能力探针 15 分、稳定性 10 分、速度 10 分。GPT/o 系列测试推理强度，其他模型测试确定性一致性；模型不匹配时总分最高 49 分。",
+    "audit.rubric": "评分：接口协议 25 分、模型声明 25 分、GPT 行为指纹 15 分、能力探针 15 分、稳定性 10 分、速度 10 分；非 GPT 模型沿用 40 分模型核对。用户无需输入测试内容，检测会在后台自动完成。",
     "audit.rankings": "查看排名",
     "audit.rankingsTitle": "API 中转站测试排名",
     "audit.rankingsNote": "排名代表社区测试表现，不等于官方上游认证。",
@@ -307,7 +307,7 @@ const translations = {
     "audit.history90": "近90天全站最高：{score} 分",
     "audit.historySite90": "本站近90天最高 {score} 分",
     "audit.rankWindow": "排行分取同站点最近7天最高测试分；7天内只有本次测试时使用本次分数。",
-    "audit.scoreBreakdown": "协议 {protocol} · 模型 {model} · 能力 {effort} · 稳定 {stability} · 速度 {speed}",
+    "audit.scoreBreakdown": "协议 {protocol} · 模型 {model} · 指纹 {fingerprint} · 能力 {effort} · 稳定 {stability} · 速度 {speed}",
     "audit.level.excellent": "优秀",
     "audit.level.good": "良好",
     "audit.level.usable": "可用",
@@ -356,6 +356,7 @@ const translations = {
     "audit.check.catalog": "模型目录",
     "audit.check.responses": "Responses 协议",
     "audit.check.model": "模型核对",
+    "audit.check.fingerprint": "GPT 行为指纹",
     "audit.check.reasoning": "能力探针",
     "audit.check.stability": "稳定性",
     "audit.check.performance": "响应速度",
@@ -365,6 +366,10 @@ const translations = {
     "audit.check.catalogDetail": "/models HTTP {status}，返回 {count} 个模型",
     "audit.check.responsesDetail": "{success}/{total} 个请求成功，{ids} 个含 response id，{usage} 个含 usage",
     "audit.check.reasoningDetail": "{success}/{total} 个能力探针返回固定校验词",
+    "audit.check.fingerprintDetail": "更像 {model} · 候选库概率 {score}% · 有效查询 {used}/{total}",
+    "audit.check.fingerprintUnavailable": "未获得足够完整的行为指纹回答，本次不计入该项",
+    "audit.fingerprintCandidate": "行为指纹候选：{model} · {score}%",
+    "audit.fingerprintNote": "行为指纹是候选库相似性，不等于后端身份认证。",
     "audit.check.stabilityDetail": "{success}/{total} 个请求成功，超时 {timeouts} 次",
     "audit.check.performanceDetail": "成功请求平均 {time}",
     "audit.effortTitle": "各次能力实测",
@@ -471,7 +476,7 @@ const translations = {
     "diagnostics.opened": "已打开本地日志文件。",
     "diagnostics.truncated": "日志较长，当前只显示最后一段。",
     "tutorial.title": "分阶段使用教程",
-    "tutorial.intro": "按使用阶段阅读教程：先完成一次账号配置，日常按步骤切换，出问题先看日志，超大聊天先复制深度链接新建聊天继续，最后了解本地历史和其他特色功能。当前版本为 v3.0.5。",
+    "tutorial.intro": "按使用阶段阅读教程：先完成一次账号配置，日常按步骤切换，出问题先看日志，超大聊天先复制深度链接新建聊天继续，最后了解本地历史和其他特色功能。当前版本为 v3.1.0。",
     "tutorial.stageNav": "教程阶段",
     "tutorial.stage1.tab": "首次配置",
     "tutorial.stage1.short": "添加账号和模型",
@@ -539,7 +544,7 @@ const translations = {
     "tutorial.feature.gatewayTitle": "直连与兼容网关",
     "tutorial.feature.gatewayText": "直连模式让 Codex 直接访问 Base URL；兼容网关模式使用本机回环网关，需要 Galaxy 保持运行。",
     "tutorial.feature.auditTitle": "后台 API 检测",
-    "tutorial.feature.auditText": "可并行检测全部已保存 API。报告按模型核对、协议、推理、稳定性和速度逐项显示证据；期望模型不匹配时总分最高 49 分。",
+    "tutorial.feature.auditText": "点击原有 API 检测即可在后台完成全部步骤；GPT 会自动增加三次行为指纹归因，无需复制提示词或粘贴回答。结果仍显示一个总分，详情列出协议、模型声明、行为指纹、能力、稳定性和速度。",
     "tutorial.feature.healthTitle": "OpenAI 健康度时间线",
     "tutorial.feature.healthText": "首页状态区显示最近 24 小时、每小时一格；绿色表示正常，黄色性能下降，橙色部分中断，红色重大中断。鼠标悬停或键盘聚焦色块即可查看时间、状态和原因。",
     "tutorial.feature.healthSelectTitle": "选择正确的健康度项目",
@@ -801,7 +806,7 @@ const translations = {
     "audit.explain": "About audits and scoring",
     "audit.panelTitle": "API audit and ranking",
     "audit.intro": "Saved APIs can be tested directly; only temporary APIs require an address and key. Audits run in the background and automatically submit redacted results.",
-    "audit.rubric": "Score: model identity 40, protocol 25, capability probes 15, stability 10, latency 10. GPT/o models test reasoning efforts; other models test deterministic consistency. A model mismatch caps the total at 49.",
+    "audit.rubric": "Scoring: protocol 25, model declaration 25, GPT behavior fingerprint 15, capability 15, stability 10, latency 10. Non-GPT models retain the 40-point model check. The background audit runs without manual prompt entry.",
     "audit.rankings": "View ranking",
     "audit.rankingsTitle": "API relay test ranking",
     "audit.rankingsNote": "Ranking reflects community test performance, not official upstream certification.",
@@ -816,7 +821,7 @@ const translations = {
     "audit.history90": "90-day network high: {score} pts",
     "audit.historySite90": "Site 90-day high: {score} pts",
     "audit.rankWindow": "Ranking uses each site's highest test in the last 7 days; if only the current test exists, that score is used.",
-    "audit.scoreBreakdown": "Protocol {protocol} · Model {model} · Capability {effort} · Stability {stability} · Latency {speed}",
+    "audit.scoreBreakdown": "Protocol {protocol} · Model {model} · Fingerprint {fingerprint} · Capability {effort} · Stability {stability} · Latency {speed}",
     "audit.level.excellent": "Excellent",
     "audit.level.good": "Good",
     "audit.level.usable": "Usable",
@@ -865,6 +870,7 @@ const translations = {
     "audit.check.catalog": "Model catalog",
     "audit.check.responses": "Responses protocol",
     "audit.check.model": "Model identity",
+    "audit.check.fingerprint": "GPT behavior fingerprint",
     "audit.check.reasoning": "Capability probes",
     "audit.check.stability": "Stability",
     "audit.check.performance": "Latency",
@@ -874,6 +880,10 @@ const translations = {
     "audit.check.catalogDetail": "/models HTTP {status}, {count} models returned",
     "audit.check.responsesDetail": "{success}/{total} requests succeeded, {ids} with response id, {usage} with usage",
     "audit.check.reasoningDetail": "{success}/{total} capability probes returned the exact canary",
+    "audit.check.fingerprintDetail": "Closest to {model} · candidate-bank probability {score}% · valid queries {used}/{total}",
+    "audit.check.fingerprintUnavailable": "Not enough complete fingerprint outputs; this item was not scored",
+    "audit.fingerprintCandidate": "Behavior fingerprint candidate: {model} · {score}%",
+    "audit.fingerprintNote": "The behavior fingerprint is candidate-bank similarity, not backend identity authentication.",
     "audit.check.stabilityDetail": "{success}/{total} requests succeeded, {timeouts} timeouts",
     "audit.check.performanceDetail": "Successful-request average: {time}",
     "audit.effortTitle": "Per-probe observations",
@@ -980,7 +990,7 @@ const translations = {
     "diagnostics.opened": "The local log file was opened.",
     "diagnostics.truncated": "The log is long; only its latest section is shown.",
     "tutorial.title": "Phased usage guide",
-    "tutorial.intro": "Read the guide by stage: configure accounts once, follow the daily switch steps, preserve the scene when something fails, use a deep link to continue oversized chats in a new thread, then learn local history and other features. Current version: v3.0.5.",
+    "tutorial.intro": "Read the guide by stage: configure accounts once, follow the daily switch steps, preserve the scene when something fails, use a deep link to continue oversized chats in a new thread, then learn local history and other features. Current version: v3.1.0.",
     "tutorial.stageNav": "Tutorial stages",
     "tutorial.stage1.tab": "First setup",
     "tutorial.stage1.short": "Accounts and models",
@@ -1048,7 +1058,7 @@ const translations = {
     "tutorial.feature.gatewayTitle": "Direct API and gateway",
     "tutorial.feature.gatewayText": "Direct API connects Codex to the Base URL; Compatibility gateway uses a local loopback gateway and requires Galaxy to run.",
     "tutorial.feature.auditTitle": "Background API audit",
-    "tutorial.feature.auditText": "Audit all saved APIs in parallel. Reports show evidence for model identity, protocol, reasoning, stability, and latency; a model mismatch caps the total at 49.",
+    "tutorial.feature.auditText": "Use the existing API Audit action and let the background workflow finish every step. GPT audits automatically add three behavior-fingerprint probes without prompt copying or pasted answers. The result remains one total score with protocol, model declaration, fingerprint, capability, stability, and latency details.",
     "tutorial.feature.healthTitle": "OpenAI health timeline",
     "tutorial.feature.healthText": "The home status area shows the latest 24 hours with one segment per hour: green operational, yellow degraded, orange partial outage, red major outage. Hover or focus a segment for its time, status, and reason.",
     "tutorial.feature.healthSelectTitle": "Choose the right health component",
@@ -2010,7 +2020,7 @@ function renderRankingItems(items, target = $("#rankingsList"), ranking = {}) {
     const level = rankingScore >= 90 ? "excellent" : rankingScore >= 75 ? "good" : rankingScore >= 60 ? "usable" : rankingScore >= 50 ? "uncertain" : "risky";
     const body = `
     <span class="ranking-number">${item.rank || index + 1}</span>
-    <div class="ranking-main"><strong>${escapeHtml(item.provider_name || item.base_host)}</strong><small>${escapeHtml(item.expected_model || item.model || "")}${item.observed_model ? ` → ${escapeHtml(item.observed_model)}` : ""} · ${escapeHtml(t("audit.tests", { count: item.samples || 0 }))}</small>${detailed ? `<small>${escapeHtml(t("audit.scoreBreakdown", { protocol: item.protocol_score || 0, model: item.model_score || 0, effort: item.effort_score || 0, stability: item.stability_score || 0, speed: item.speed_score || 0 }))}</small><small class="ranking-footer"><span>${escapeHtml(t("audit.historySite90", { score: item.history_90d_max || item.ranking_score || item.score || 0 }))}</span><span>${escapeHtml(t("audit.latest", { time: formatDate(item.last_test) }))}</span></small>` : ""}</div>
+    <div class="ranking-main"><strong>${escapeHtml(item.provider_name || item.base_host)}</strong><small>${escapeHtml(item.expected_model || item.model || "")}${item.observed_model ? ` → ${escapeHtml(item.observed_model)}` : ""} · ${escapeHtml(t("audit.tests", { count: item.samples || 0 }))}</small>${detailed && item.fingerprint_model ? `<small>${escapeHtml(t("audit.fingerprintCandidate", { model: item.fingerprint_model, score: (Number(item.fingerprint_probability) * 100).toFixed(1) }))}</small>` : ""}${detailed ? `<small>${escapeHtml(t("audit.scoreBreakdown", { protocol: item.protocol_score || 0, model: item.model_score || 0, fingerprint: item.fingerprint_score || 0, effort: item.effort_score || 0, stability: item.stability_score || 0, speed: item.speed_score || 0 }))}</small><small class="ranking-footer"><span>${escapeHtml(t("audit.historySite90", { score: item.history_90d_max || item.ranking_score || item.score || 0 }))}</span><span>${escapeHtml(t("audit.latest", { time: formatDate(item.last_test) }))}</span></small>` : ""}</div>
     <b class="ranking-score">${escapeHtml(t("audit.scoreUnit", { score: rankingScore }))}<small>${escapeHtml(t(`audit.level.${level}`))}</small></b>
     <span class="ranking-link">↗</span>`;
     return visitUrl
@@ -2172,6 +2182,11 @@ function checkDetail(check) {
     return `${t("audit.expectedModel")}: ${check.expectedModel || t("common.none")} · ${t("audit.requestedModel")}: ${check.requestedModel || t("common.none")} · ${t("audit.observedModel")}: ${check.observedModel || t("audit.modelUnknown")}`;
   }
   if (check.key === "responses") return t("audit.check.responsesDetail", { success: check.successCount || 0, total: check.total || 0, ids: check.responseIdCount || 0, usage: check.usageCount || 0 });
+  if (check.key === "fingerprint") {
+    return check.prediction
+      ? t("audit.check.fingerprintDetail", { model: check.prediction, score: Number(check.confidenceScore || 0).toFixed(1), used: check.usedOutputs || 0, total: check.total || 3 })
+      : t("audit.check.fingerprintUnavailable");
+  }
   if (check.key === "reasoning") return t("audit.check.reasoningDetail", { success: check.successCount || 0, total: check.total || 0 });
   if (check.key === "stability") return t("audit.check.stabilityDetail", { success: check.successCount || 0, total: check.total || 0, timeouts: check.timeoutCount || 0 });
   return t("audit.check.performanceDetail", { time: check.averageMs == null ? t("common.unknown") : `${check.averageMs} ms` });
@@ -2184,9 +2199,13 @@ function renderAuditReport(item) {
   const result = item.result;
   const checks = Array.isArray(result.checks) ? result.checks : [];
   const score = result.score?.total ?? 0;
+  const fingerprint = result.fingerprint?.status === "ok"
+    ? `<div class="audit-model-verdict ${escapeHtml(result.fingerprint.fingerprintVerdict === "match" ? "exact" : "listed-only")}"><strong>${escapeHtml(t("audit.fingerprintCandidate", { model: result.fingerprint.predictionName || result.fingerprint.prediction, score: Number(result.fingerprint.confidenceScore || 0).toFixed(1) }))}</strong><span>${escapeHtml(t("audit.fingerprintNote"))}</span></div>`
+    : "";
   return `<article class="audit-report ${escapeHtml(result.assessment || "")}">
     <div class="audit-report-head"><div><strong>${escapeHtml(item.name || result.profile?.name || result.baseHost || "API")}</strong><small>${escapeHtml(result.baseHost || "")}</small></div><b>${escapeHtml(t("audit.scoreUnit", { score }))}</b></div>
     <div class="audit-model-verdict ${escapeHtml(result.modelVerdict || "unverified")}"><strong>${escapeHtml(modelVerdictLabel(result.modelVerdict))}</strong><span>${escapeHtml(`${t("audit.expectedModel")}: ${result.expectedModel || t("common.none")} · ${t("audit.observedModel")}: ${result.observedModel || t("audit.modelUnknown")}`)}</span></div>
+    ${fingerprint}
     <div class="audit-check-grid">${checks.map((check) => `<div class="audit-check ${escapeHtml(check.status || "warn")}"><span>${escapeHtml(t(`audit.check.${check.key}`))}</span><b>${escapeHtml(t("audit.checkScore", { score: check.score || 0, max: check.maxScore }))}</b><small>${escapeHtml(t(`audit.check.${check.status || "warn"}`))} · ${escapeHtml(checkDetail(check))}</small></div>`).join("")}</div>
     <details><summary>${escapeHtml(t("audit.effortTitle"))}</summary><div class="audit-effort-list">${(result.efforts || []).map((effort) => `<div>${escapeHtml(t("audit.effortRow", { effort: effort.effort, status: effort.status || 0, time: `${effort.elapsedMs || 0} ms`, result: effort.ok && effort.canary ? t("audit.check.pass") : t("audit.check.fail"), model: effort.observedModels?.[0] || t("audit.modelUnknown") }))}</div>`).join("")}</div></details>
     <p>${escapeHtml((result.findings || []).join("；"))}</p>

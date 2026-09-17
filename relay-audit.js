@@ -1,9 +1,12 @@
 import { modelsUrl } from "./responses-gateway.js";
 import { profileForSwitch, recordProfileTest } from "./profiles.js";
+import { analyzeGptModelTrace, generateModelTraceChallenges, isGptModel, parseNumbers } from "./modeltrace.js";
 
 const DEFAULT_TIMEOUT_MS = 12_000;
 const MAX_RESPONSE_BYTES = 512 * 1024;
 const EFFORTS = ["low", "medium", "high", "xhigh"];
+const MODELTRACE_MAX_RESPONSE_BYTES = 512 * 1024;
+const MODELTRACE_TIMEOUT_MS = 120_000;
 
 function classifyHttp(status) {
   if (status === 401 || status === 403) return "auth";
@@ -97,6 +100,145 @@ function findJsonObjects(text) {
     if (parsed) values.push(parsed);
   }
   return values;
+}
+
+function modelTraceText(bodyText, payloads) {
+  const direct = payloads.find((payload) => typeof payload?.output_text === "string");
+  if (direct) return direct.output_text;
+  const deltas = payloads
+    .filter((payload) => /output_text\.delta/i.test(String(payload?.type || "")) && typeof payload?.delta === "string")
+    .map((payload) => payload.delta);
+  if (deltas.length) return deltas.join("");
+  for (const payload of payloads) {
+    const choices = Array.isArray(payload?.choices) ? payload.choices : [];
+    for (const choice of choices) {
+      const content = choice?.message?.content ?? choice?.delta?.content;
+      if (typeof content === "string") return content;
+      if (Array.isArray(content)) {
+        const text = content.map((part) => typeof part === "string" ? part : part?.text || "").join("");
+        if (text) return text;
+      }
+    }
+    const output = Array.isArray(payload?.output) ? payload.output : [];
+    const text = output.flatMap((item) => Array.isArray(item?.content) ? item.content : [])
+      .map((part) => typeof part === "string" ? part : part?.text || "")
+      .join("");
+    if (text) return text;
+  }
+  return bodyText;
+}
+
+async function probeModelTrace(baseUrl, apiKey, model, challenge, reasoningEffort, fetcher, timeoutMs) {
+  const started = Date.now();
+  try {
+    const response = await fetchWithTimeout(fetcher, new URL("responses", `${baseUrl.toString().replace(/\/+$/, "")}/`).toString(), {
+      method: "POST",
+      headers: {
+        authorization: `Bearer ${apiKey}`,
+        "content-type": "application/json",
+        accept: "application/json, text/event-stream",
+      },
+      body: JSON.stringify({
+        model,
+        input: challenge.prompt,
+        ...(EFFORTS.includes(reasoningEffort) ? { reasoning: { effort: reasoningEffort } } : {}),
+        max_output_tokens: 4096,
+        store: false,
+      }),
+    }, Math.max(MODELTRACE_TIMEOUT_MS, Number(timeoutMs) || 0));
+    const body = await readLimited(response, MODELTRACE_MAX_RESPONSE_BYTES);
+    const payloads = [parseJson(body.text), ...findJsonObjects(body.text)].filter(Boolean);
+    const text = modelTraceText(body.text, payloads);
+    const numbers = parseNumbers(text);
+    return {
+      expectedCount: challenge.expectedCount,
+      parsedNumbers: numbers.length,
+      text,
+      status: response.status,
+      elapsedMs: Date.now() - started,
+      ok: response.status >= 200 && response.status < 300,
+      error: messageOf(payloads),
+    };
+  } catch (error) {
+    return {
+      expectedCount: challenge.expectedCount,
+      parsedNumbers: 0,
+      text: "",
+      status: 0,
+      elapsedMs: Date.now() - started,
+      ok: false,
+      error: { type: error?.name || "fetch_error", code: error?.code || "", message: safeError(error) },
+    };
+  }
+}
+
+function fingerprintEffort(declaredLevels) {
+  const supported = new Set(Array.isArray(declaredLevels) ? declaredLevels : []);
+  return ["xhigh", "high", "medium", "low"].find((effort) => supported.has(effort)) || null;
+}
+
+async function runGptFingerprint({ baseUrl, apiKey, model, declaredLevels, fetcher, timeoutMs, onProgress }) {
+  if (!isGptModel(model)) return { status: "skipped", reason: "仅对 GPT 模型运行行为指纹测试" };
+  const effort = fingerprintEffort(declaredLevels);
+  const challenges = generateModelTraceChallenges(3);
+  const attempts = [];
+  for (const challenge of challenges) {
+    const result = await probeModelTrace(baseUrl, apiKey, model, challenge, effort, fetcher, timeoutMs);
+    attempts.push(result);
+    onProgress?.({
+      challenge: attempts.length,
+      total: challenges.length,
+      effort,
+      parsedNumbers: result.parsedNumbers,
+      status: result.status,
+      elapsedMs: result.elapsedMs,
+    });
+  }
+  const outputs = attempts
+    .filter((item) => item.ok)
+    .map((item) => ({ text: item.text, expected_count: item.expectedCount }));
+  try {
+    const analysis = analyzeGptModelTrace(outputs);
+    const top = analysis.results.slice(0, 6).map((item) => ({
+      model: item.model,
+      displayName: item.display_name,
+      probability: item.probability,
+      profileSimilarity: item.profile_similarity,
+    }));
+    const prediction = analysis.prediction;
+    const relation = modelRelation(model, prediction);
+    return {
+      status: "ok",
+      method: "modeltrace-gpt",
+      prediction,
+      predictionName: analysis.prediction_name,
+      probability: analysis.probability,
+      confidenceScore: Math.round(analysis.probability * 1000) / 10,
+      usedOutputs: analysis.used_outputs,
+      totalChallenges: challenges.length,
+      effort,
+      fingerprintVerdict: relation === "exact" || relation === "compatible" ? "match" : "different-candidate",
+      candidates: top,
+      diagnostics: analysis.diagnostics.map((item) => ({
+        parsedNumbers: item.parsed_numbers,
+        minimumNumbers: item.minimum_numbers,
+        accepted: item.accepted,
+      })),
+    };
+  } catch (error) {
+    return {
+      status: "unavailable",
+      method: "modeltrace-gpt",
+      reason: safeError(error) || "行为指纹测试没有获得足够完整的回答",
+      usedOutputs: outputs.length,
+      totalChallenges: challenges.length,
+      effort,
+      diagnostics: attempts.map((item) => ({
+        parsedNumbers: item.parsedNumbers,
+        accepted: false,
+      })),
+    };
+  }
 }
 
 function outputContainsCanary(text, payload) {
@@ -213,20 +355,32 @@ function modelVerdictFor(expectedModel, requestedModel, modelIds, observedModels
   };
 }
 
-function buildScore({ modelsResponse, modelVerdict, results }) {
+function fingerprintScore(fingerprint) {
+  if (fingerprint?.status !== "ok") return { score: 0, maxScore: 0, available: false };
+  return {
+    score: fingerprint.fingerprintVerdict === "match" ? 15 : 0,
+    maxScore: 15,
+    available: true,
+  };
+}
+
+function buildScore({ modelsResponse, modelVerdict, results, fingerprint }) {
   const total = Math.max(1, results.length);
   const httpSuccess = results.filter((item) => item.ok).length;
   const canarySuccess = results.filter((item) => item.ok && item.canary).length;
   const responseIds = results.filter((item) => item.hasResponseId).length;
   const usageResults = results.filter((item) => item.usage).length;
   const timeouts = results.filter((item) => item.status === 0 && item.error?.type === "AbortError").length;
+  const fingerprintPart = fingerprintScore(fingerprint);
   const catalog = modelsResponse.status >= 200 && modelsResponse.status < 300 ? 10 : 0;
   const responses = (httpSuccess ? 8 : 0) + Math.round((responseIds / total) * 4) + Math.round((usageResults / total) * 3);
+  const modelScale = fingerprintPart.available ? 25 / 40 : 1;
+  const model = Math.round(modelVerdict.score * modelScale);
   const reasoning = Math.round((canarySuccess / total) * 15);
   const stability = Math.max(0, Math.round((httpSuccess / total) * 10) - Math.min(3, timeouts));
   const performance = performanceScore(results);
-  const beforeCap = catalog + modelVerdict.score + responses + reasoning + stability + performance;
-  const cap = modelVerdict.verdict === "mismatch"
+  const beforeCap = catalog + responses + model + fingerprintPart.score + reasoning + stability + performance;
+  let cap = modelVerdict.verdict === "mismatch"
     ? 49
     : modelVerdict.verdict === "unverified"
       ? 59
@@ -235,12 +389,17 @@ function buildScore({ modelsResponse, modelVerdict, results }) {
       : modelVerdict.verdict === "unspecified"
         ? 80
         : 100;
+  if (fingerprintPart.available && fingerprint?.fingerprintVerdict === "different-candidate") {
+    cap = Math.min(cap, 79);
+  }
   return {
     total: Math.max(0, Math.min(cap, beforeCap)),
     catalog,
     protocol: catalog + responses,
     responses,
-    model: modelVerdict.score,
+    model,
+    fingerprint: fingerprintPart.score,
+    fingerprintMax: fingerprintPart.maxScore,
     effort: reasoning,
     reasoning,
     stability,
@@ -250,7 +409,7 @@ function buildScore({ modelsResponse, modelVerdict, results }) {
   };
 }
 
-function checksFor({ modelsResponse, modelVerdict, results, score }) {
+function checksFor({ modelsResponse, modelVerdict, results, score, fingerprint }) {
   const total = Math.max(1, results.length);
   const httpSuccess = results.filter((item) => item.ok).length;
   const canarySuccess = results.filter((item) => item.ok && item.canary).length;
@@ -259,24 +418,48 @@ function checksFor({ modelsResponse, modelVerdict, results, score }) {
   const timeouts = results.filter((item) => item.status === 0 && item.error?.type === "AbortError").length;
   const elapsed = results.filter((item) => item.ok && item.canary).map((item) => item.elapsedMs);
   const averageMs = elapsed.length ? Math.round(elapsed.reduce((sum, value) => sum + value, 0) / elapsed.length) : null;
-  return [
+  const checks = [
     { key: "catalog", status: score.catalog === 10 ? "pass" : "fail", score: score.catalog, maxScore: 10, httpStatus: modelsResponse.status || 0, modelsCount: modelsResponse.entries.length },
-    { key: "model", status: modelVerdict.matchesDesired === true ? "pass" : modelVerdict.matchesDesired === false ? "fail" : "warn", score: score.model, maxScore: 40, ...modelVerdict },
+    { key: "model", status: modelVerdict.matchesDesired === true ? "pass" : modelVerdict.matchesDesired === false ? "fail" : "warn", score: score.model, maxScore: score.fingerprintMax ? 25 : 40, ...modelVerdict },
     { key: "responses", status: httpSuccess === total && responseIds === total && usageResults === total ? "pass" : httpSuccess ? "warn" : "fail", score: score.responses, maxScore: 15, successCount: httpSuccess, responseIdCount: responseIds, usageCount: usageResults, total },
     { key: "reasoning", status: canarySuccess === total ? "pass" : canarySuccess ? "warn" : "fail", score: score.reasoning, maxScore: 15, successCount: canarySuccess, total },
     { key: "stability", status: httpSuccess === total ? "pass" : httpSuccess ? "warn" : "fail", score: score.stability, maxScore: 10, successCount: httpSuccess, timeoutCount: timeouts, total },
     { key: "performance", status: score.performance >= 8 ? "pass" : score.performance > 0 ? "warn" : "fail", score: score.performance, maxScore: 10, averageMs },
   ];
+  if (fingerprint?.status === "ok") {
+    checks.splice(2, 0, {
+      key: "fingerprint",
+      status: fingerprint.fingerprintVerdict === "match" ? "pass" : "warn",
+      score: score.fingerprint,
+      maxScore: 15,
+      prediction: fingerprint.predictionName || fingerprint.prediction,
+      confidenceScore: fingerprint.confidenceScore,
+      usedOutputs: fingerprint.usedOutputs,
+      total: fingerprint.totalChallenges,
+    });
+  } else if (fingerprint && fingerprint.status !== "skipped") {
+    checks.splice(2, 0, {
+      key: "fingerprint",
+      status: "warn",
+      score: 0,
+      maxScore: 0,
+      reason: fingerprint.reason || "行为指纹不可用",
+      usedOutputs: fingerprint.usedOutputs || 0,
+      total: fingerprint.totalChallenges || 3,
+    });
+  }
+  return checks;
 }
 
-function assessmentFor({ modelVerdict, score, results }) {
+function assessmentFor({ modelVerdict, score, results, fingerprint }) {
   const allCanaries = results.length > 0 && results.every((item) => item.ok && item.canary);
+  if (fingerprint?.status === "ok" && fingerprint.fingerprintVerdict === "different-candidate") return "inconclusive";
   if ((modelVerdict.verdict === "exact" || modelVerdict.verdict === "compatible") && score.total >= 85 && allCanaries) return "conforming";
   if (modelVerdict.verdict === "mismatch" || score.total < 50) return "suspicious";
   return "inconclusive";
 }
 
-function findingsFor({ modelsResponse, modelVerdict, results, score, probeMode }) {
+function findingsFor({ modelsResponse, modelVerdict, results, score, probeMode, fingerprint }) {
   const findings = [];
   if (modelsResponse.status !== 200) findings.push(`模型列表返回 HTTP ${modelsResponse.status || "网络错误"}`);
   if (modelVerdict.verdict === "exact") findings.push(`响应声明的模型与期望模型一致：${modelVerdict.observedModel}`);
@@ -290,6 +473,12 @@ function findingsFor({ modelsResponse, modelVerdict, results, score, probeMode }
   const failed = results.filter((item) => !item.ok || !item.canary);
   if (failed.length) findings.push(`未通过的能力测试：${failed.map((item) => item.effort).join("、")}`);
   if (results.some((item) => item.status === 0 && item.error?.type === "AbortError")) findings.push("至少一个能力测试请求超时");
+  if (fingerprint?.status === "ok") {
+    findings.push(`GPT 行为指纹第一候选：${fingerprint.predictionName || fingerprint.prediction}（候选库概率 ${fingerprint.confidenceScore}%）`);
+    if (fingerprint.fingerprintVerdict === "different-candidate") findings.push("请求模型与行为指纹第一候选不同；该结果是候选库相似性线索，不是后端身份认证");
+  } else if (fingerprint && fingerprint.status !== "skipped") {
+    findings.push(`GPT 行为指纹未计分：${fingerprint.reason || "没有获得足够完整的输出"}`);
+  }
   if (score.cap < 100) findings.push(`模型核对结论触发总分上限：${score.cap} 分`);
   findings.push("黑盒测试只能验证接口声明与行为一致性，不能证明中转站一定连接官方上游");
   return findings;
@@ -449,11 +638,36 @@ export async function auditRelay(input, {
     total = steps.length + 1;
     estimateMs = Math.max(1000, total * Math.max(1000, Number(timeoutMs) || DEFAULT_TIMEOUT_MS));
   }
+  const fingerprintEnabled = isGptModel(effectiveModel);
+  const fingerprintQueries = fingerprintEnabled ? 3 : 0;
+  total += fingerprintQueries;
+  estimateMs = Math.max(
+    1000,
+    (steps.length + 1) * Math.max(1000, Number(timeoutMs) || DEFAULT_TIMEOUT_MS)
+      + fingerprintQueries * MODELTRACE_TIMEOUT_MS,
+  );
   const results = [];
   for (const [index, effort] of steps.entries()) {
     report(index + 1, effort, probeMode === "reasoning" ? `正在测试 ${effort} 推理强度` : `正在进行第 ${index + 1} 次一致性测试`);
     results.push(await probeEffort(baseUrl, apiKey, effectiveModel, effort, fetcher, timeoutMs));
     report(index + 2, effort, probeMode === "reasoning" ? `${effort} 推理强度测试完成` : `第 ${index + 1} 次一致性测试完成`);
+  }
+  let fingerprint = { status: "skipped", reason: "仅对 GPT 模型运行行为指纹测试" };
+  if (fingerprintEnabled) {
+    const fingerprintStart = steps.length + 1;
+    report(fingerprintStart, "fingerprint", "正在分析 GPT 行为指纹");
+    fingerprint = await runGptFingerprint({
+      baseUrl,
+      apiKey,
+      model: effectiveModel,
+      declaredLevels: modelsResponse.declaredReasoningLevels,
+      fetcher,
+      timeoutMs,
+      onProgress: ({ challenge, total: challengeTotal, effort }) => {
+        const completed = steps.length + challenge;
+        report(completed, "fingerprint", `正在分析 GPT 行为指纹（${challenge}/${challengeTotal}${effort ? ` · ${effort}` : ""}）`);
+      },
+    });
   }
   const successful = results.filter((item) => item.ok && item.canary);
   const modelIds = modelsResponse.entries.map(modelId).filter(Boolean);
@@ -466,13 +680,14 @@ export async function auditRelay(input, {
       : modelsResponse.status >= 500
         ? "server"
         : "network";
-  const score = buildScore({ modelsResponse, modelVerdict, results });
-  const checks = checksFor({ modelsResponse, modelVerdict, results, score });
+  const score = buildScore({ modelsResponse, modelVerdict, results, fingerprint });
+  const checks = checksFor({ modelsResponse, modelVerdict, results, score, fingerprint });
   const result = {
     status,
     testedAt,
     httpStatus: modelsResponse.status || null,
     baseHost: baseUrl.host,
+    basePath: baseUrl.pathname || "/",
     model: effectiveModel,
     requestedModel: effectiveModel,
     expectedModel: expectedModel || null,
@@ -487,6 +702,7 @@ export async function auditRelay(input, {
     modelListed: selectedFound,
     declaredReasoningLevels: modelsResponse.declaredReasoningLevels,
     contextWindow: modelsResponse.contextWindow,
+    fingerprint,
     efforts: results.map(({ effort: name, status: responseStatus, elapsedMs, ok, canary, hasResponseId, observedModels: effortModels, usage, error }) => ({
       effort: name,
       status: responseStatus,
@@ -500,8 +716,8 @@ export async function auditRelay(input, {
     })),
     score,
     checks,
-    assessment: assessmentFor({ modelVerdict, score, results }),
-    findings: findingsFor({ modelsResponse, modelVerdict, results, score, probeMode }),
+    assessment: assessmentFor({ modelVerdict, score, results, fingerprint }),
+    findings: findingsFor({ modelsResponse, modelVerdict, results, score, probeMode, fingerprint }),
     message: modelsOk
       ? `已完成 ${results.length} 个能力测试，综合分 ${score.total}/100`
       : modelsResponse.error?.message || "中转站测试未完成",

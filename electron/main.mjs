@@ -661,7 +661,7 @@ function sendAuditProgress(sender, taskId, progress) {
 }
 
 function auditEstimateMs() {
-  return 5 * 12_000 + 8_000;
+  return 5 * 12_000 + 3 * 120_000 + 8_000;
 }
 
 function auditNotification(title, body) {

@@ -60,46 +60,84 @@ def now_iso():
 
 def ranking_sites():
     conn = db()
-    audits = conn.execute(
-        """select a.base_host, a.provider_name, a.model, a.expected_model, a.created_at,
-                  count(distinct coalesce(nullif(b.expected_model, ''), b.model)) as model_count
-           from audits a
-           inner join (
-             select base_host, coalesce(nullif(expected_model, ''), model) as model_key, max(id) as id
-             from audits
-             group by base_host, coalesce(nullif(expected_model, ''), model)
-           ) latest on latest.id = a.id
-           left join audits b on b.base_host = a.base_host
-           group by a.base_host, a.provider_name, a.model, a.expected_model, a.created_at
-           order by lower(coalesce(a.provider_name, a.base_host)), a.base_host"""
-    ).fetchall()
+    audits = [dict(row) for row in conn.execute("select * from audits order by id asc").fetchall()]
     overrides = {
         row["base_host"]: row["homepage"]
         for row in conn.execute("select base_host, homepage from link_overrides").fetchall()
     }
     conn.close()
-    hosts = {row["base_host"] for row in audits}
+    grouped = {}
+    for audit in audits:
+        grouped.setdefault(audit["base_host"], []).append(audit)
+    rows = []
+    for host, host_rows in grouped.items():
+        latest = max(host_rows, key=lambda row: int(row.get("id") or 0))
+        models = sorted(set(
+            str(row.get("expected_model") or row.get("model") or "").strip()
+            for row in host_rows
+            if row.get("expected_model") or row.get("model")
+        ))
+        fingerprint_counts = {}
+        for row in host_rows:
+            candidate = str(row.get("fingerprint_model") or "").strip()
+            if candidate:
+                fingerprint_counts[candidate] = fingerprint_counts.get(candidate, 0) + 1
+        scores = [int(row.get("score") or 0) for row in host_rows]
+        base_paths = sorted(set(
+            str(row.get("base_path") or "/").strip() or "/"
+            for row in host_rows
+        ))
+        rows.append({
+            "base_host": host,
+            "provider_name": latest.get("provider_name") or host,
+            "model": latest.get("expected_model") or latest.get("model") or "",
+            "models": models,
+            "model_count": len(models),
+            "created_at": latest.get("created_at") or "",
+            "sample_count": len(host_rows),
+            "latest_score": int(latest.get("score") or 0),
+            "highest_score": max(scores or [0]),
+            "average_score": round(sum(scores) / len(scores), 1) if scores else 0,
+            "fingerprint_counts": fingerprint_counts,
+            "base_paths": base_paths,
+        })
+    rows.sort(key=lambda row: ((row["provider_name"] or row["base_host"]).lower(), row["base_host"]))
+    hosts = set(grouped)
     for host in overrides:
         if host not in hosts:
-            audits.append({
+            rows.append({
                 "base_host": host,
                 "provider_name": host,
                 "model": "",
+                "models": [],
                 "expected_model": "",
                 "created_at": "",
                 "model_count": 0,
+                "sample_count": 0,
+                "latest_score": 0,
+                "highest_score": 0,
+                "average_score": 0,
+                "fingerprint_counts": {},
+                "base_paths": ["/"],
             })
     return [
         {
             "base_host": row["base_host"],
             "provider_name": row["provider_name"] or row["base_host"],
-            "model": row["expected_model"] or row["model"] or "",
+            "model": row.get("expected_model") or row.get("model") or "",
             "model_count": int(row["model_count"] or 0),
+            "models": row.get("models") or [],
+            "sample_count": int(row.get("sample_count") or 0),
+            "latest_score": int(row.get("latest_score") or 0),
+            "highest_score": int(row.get("highest_score") or 0),
+            "average_score": row.get("average_score") or 0,
+            "fingerprint_counts": row.get("fingerprint_counts") or {},
+            "base_paths": row.get("base_paths") or ["/"],
             "created_at": row["created_at"] or "",
             "customized": row["base_host"] in overrides,
             "homepage": overrides.get(row["base_host"]) or "https://" + row["base_host"] + "/",
         }
-        for row in audits
+        for row in rows
     ]
 
 def site_row(row, csrf):
@@ -110,6 +148,22 @@ def site_row(row, csrf):
         model_text = f"<br><small>本站共 {row['model_count']} 个模型，链接共用</small>"
     elif row["model"]:
         model_text = f"<br><small>{esc(row['model'])}</small>"
+    model_list = "、".join(row.get("models") or []) or "暂无模型"
+    fingerprint_text = "、".join(
+        f"{model} × {count}"
+        for model, count in sorted((row.get("fingerprint_counts") or {}).items())
+    ) or "暂无指纹样本"
+    api_urls = "、".join(
+        f"https://{row['base_host']}{path}"
+        for path in row.get("base_paths") or ["/"]
+    )
+    stats = (
+        f"<br><small>API 地址：{esc(api_urls)}</small>"
+        f"<br><small>样本 {row.get('sample_count', 0)} · 最新 {row.get('latest_score', 0)} 分"
+        f" · 最高 {row.get('highest_score', 0)} 分 · 平均 {esc(row.get('average_score', 0))} 分</small>"
+        f"<br><small>模型：{esc(model_list)}</small>"
+        f"<br><small>GPT 指纹候选：{esc(fingerprint_text)}</small>"
+    )
     restore = "<small>尚未自定义</small>"
     if row["customized"]:
         restore = (
@@ -120,7 +174,7 @@ def site_row(row, csrf):
             "<button>恢复默认</button></form>"
         )
     return (
-        f"<tr><td><strong>{esc(row['provider_name'])}</strong><br><code>{esc(row['base_host'])}</code>{model_text}</td>"
+        f"<tr><td><strong>{esc(row['provider_name'])}</strong><br><code>{esc(row['base_host'])}</code>{model_text}{stats}</td>"
         f"<td><span class='status {status_class}'>{status_text}</span>"
         "<form method='post' action='/admin/set'>"
         f"<input type='hidden' name='csrf' value='{esc(csrf)}'>"
@@ -190,7 +244,7 @@ a{{color:#79b7ff;overflow-wrap:anywhere}}code{{color:#d9e2ea}}.ok{{color:#67d39b
 <label>跳转网址</label><input name="homepage" type="url" placeholder="https://example.com/" required>
 <p><button>保存链接</button></p></form></div>
 <div class="card"><h2>排行榜网站链接</h2>
-<p><small>这里会显示所有已经出现在排行榜中的站点和模型条目。绿色“已自定义”表示当前使用的是你设置的链接；灰色表示仍使用默认 API 域名。同一网站的多个模型共用同一个跳转链接。</small></p>
+<p><small>这里会显示所有已经参与排名的 API 地址、模型、样本数、分数和 GPT 指纹候选统计。绿色“已自定义”表示当前使用的是你设置的链接；灰色表示仍使用默认 API 域名。同一网站的多个模型共用同一个跳转链接。排名服务从不接收或保存 API Key。</small></p>
 <div class="table-wrap"><table><thead><tr><th>网站 / 模型</th><th>状态与编辑</th><th>当前生效链接</th><th>恢复</th></tr></thead>
 <tbody>{rows_html or '<tr><td colspan="4"><small>排行榜暂时没有网站记录。</small></td></tr>'}</tbody>
 </table></div></div></section><section class="panel-content topup-panel">{topup_editor}</section></div>

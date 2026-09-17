@@ -241,6 +241,13 @@ export async function recordProfileTest(id, result, paths = runtimePaths()) {
       matchesDesiredModel: result.matchesDesiredModel === true ? true : result.matchesDesiredModel === false ? false : null,
       modelsCount: Math.max(0, Number(result.modelsCount) || 0),
       modelListed: result.modelListed === true,
+      fingerprintModel: String(result.fingerprint?.predictionName || result.fingerprint?.prediction || "").slice(0, 160),
+      fingerprintProbability: result.fingerprint?.status === "ok"
+        ? Math.max(0, Math.min(1, Number(result.fingerprint.probability) || 0))
+        : null,
+      fingerprintVerdict: ["match", "different-candidate"].includes(result.fingerprint?.fingerprintVerdict)
+        ? result.fingerprint.fingerprintVerdict
+        : null,
     };
   } else {
     profile.lastAudit = null;

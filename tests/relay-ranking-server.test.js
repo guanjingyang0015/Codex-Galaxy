@@ -180,6 +180,43 @@ test("ranking server stores only safe aggregate observations and returns scored 
     const mismatchRanking = recent.items.find((item) => item.base_host === "mismatch.example");
     assert.equal(mismatchRanking.homepage, "https://mismatch.example/");
     assert.equal(mismatchRanking.observed_model, "gpt-5.6-sol");
+    const fingerprintMismatch = await fetch(`${url}/api/v1/audits`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        provider_name: "Fingerprint Relay",
+        base_host: "fingerprint.example",
+        model: "gpt-5.6-sol",
+        expected_model: "gpt-5.6-sol",
+        observed_model: "gpt-5.6-sol",
+        model_verdict: "exact",
+        expected_model_listed: true,
+        models_status: 200,
+        model_listed: true,
+        fingerprint: {
+          status: "ok",
+          candidate: "gpt-5.6-luna",
+          probability: 0.999,
+          verdict: "different-candidate",
+          used_outputs: 3,
+        },
+        efforts: [
+          { effort: "low", status: 200, elapsed_ms: 1000, ok: true, canary: true, has_response_id: true, usage: { total_tokens: 2 } },
+          { effort: "medium", status: 200, elapsed_ms: 1000, ok: true, canary: true, has_response_id: true, usage: { total_tokens: 2 } },
+          { effort: "high", status: 200, elapsed_ms: 1000, ok: true, canary: true, has_response_id: true, usage: { total_tokens: 2 } },
+          { effort: "xhigh", status: 200, elapsed_ms: 1000, ok: true, canary: true, has_response_id: true, usage: { total_tokens: 2 } },
+        ],
+      }),
+    });
+    const fingerprintBody = await fingerprintMismatch.json();
+    assert.equal(fingerprintBody.score, 79);
+    assert.equal(fingerprintBody.assessment, "inconclusive");
+    const fingerprintRankings = await (await fetch(`${url}/api/v1/rankings?model=gpt-5.6-sol`)).json();
+    const fingerprintItem = fingerprintRankings.items.find((item) => item.base_host === "fingerprint.example");
+    assert.equal(fingerprintItem.fingerprint_model, "gpt-5.6-luna");
+    assert.equal(fingerprintItem.fingerprint_probability, 0.999);
+    assert.equal(fingerprintItem.fingerprint_score, 0);
+    assert.equal(fingerprintItem.fingerprint_used_outputs, 3);
     const filtered = await (await fetch(`${url}/api/v1/rankings?model=gpt-6-test`)).json();
     assert.equal(filtered.items.length, 1);
     assert.equal(filtered.items[0].expected_model, "gpt-6-test");
@@ -332,6 +369,9 @@ test("web admin requires login and CSRF before changing ranking links", async ()
     assert.match(dashboardBody, /使用默认链接/);
     assert.match(dashboardBody, /已自定义/);
     assert.match(dashboardBody, /排行榜网站链接/);
+    assert.match(dashboardBody, /API 地址：https:\/\/admin\.example\//);
+    assert.match(dashboardBody, /样本 2/);
+    assert.match(dashboardBody, /排名服务从不接收或保存 API Key/);
     assert.match(dashboardBody, /本站共 2 个模型，链接共用/);
     assert.match(dashboardBody, /GPT 代充展示页/);
     assert.match(dashboardBody, /name="topup_products"/);

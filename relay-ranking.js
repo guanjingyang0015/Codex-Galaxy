@@ -4,6 +4,12 @@ function safeText(value, limit = 160) {
   return String(value || "").trim().slice(0, limit);
 }
 
+function safeBasePath(value) {
+  const text = safeText(value || "/", 300);
+  if (!text.startsWith("/") || /[\r\n?#]/.test(text)) return "/";
+  return text.replace(/\/+$/, "") || "/";
+}
+
 export function publicHomepage(value) {
   const text = safeText(value, 500);
   if (!text) return "";
@@ -38,9 +44,19 @@ export function homepageMatchesBaseHost(homepage, baseHost) {
 export function sanitizeAuditForRanking(result, { providerName = "", homepage = "" } = {}) {
   const safeHomepage = homepageMatchesBaseHost(homepage, result?.baseHost) ? publicHomepage(homepage) : "";
   const efforts = Array.isArray(result?.efforts) ? result.efforts : [];
+  const fingerprint = result?.fingerprint?.status === "ok"
+    ? {
+      status: "ok",
+      candidate: safeText(result.fingerprint.predictionName || result.fingerprint.prediction, 160),
+      probability: Math.max(0, Math.min(1, Number(result.fingerprint.probability) || 0)),
+      verdict: safeText(result.fingerprint.fingerprintVerdict, 32),
+      used_outputs: Math.max(0, Math.min(3, Number(result.fingerprint.usedOutputs) || 0)),
+    }
+    : null;
   return {
     provider_name: safeText(providerName || result?.baseHost || "未命名中转站", 100),
     base_host: safeText(result?.baseHost, 255).toLowerCase(),
+    base_path: safeBasePath(result?.basePath),
     homepage: safeHomepage,
     model: safeText(result?.model, 160),
     expected_model: safeText(result?.expectedModel, 160),
@@ -57,6 +73,7 @@ export function sanitizeAuditForRanking(result, { providerName = "", homepage = 
     declared_reasoning_levels: Array.isArray(result?.declaredReasoningLevels)
       ? result.declaredReasoningLevels.map((item) => safeText(item, 20)).filter(Boolean).slice(0, 8)
       : [],
+    fingerprint,
     efforts: efforts.slice(0, 4).map((item) => ({
       effort: safeText(item?.effort, 20),
       status: Number.isInteger(item?.status) ? item.status : 0,
