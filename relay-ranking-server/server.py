@@ -161,7 +161,7 @@ def calculate_score(payload):
     model_verdict_value = model_verdict(payload.get("expected_model"), payload.get("observed_model"), model_listed)
     protocol = 10 if models_ok else 0
     if fingerprint_available:
-        model = 25 if model_verdict_value == "exact" else 21 if model_verdict_value == "compatible" else 15 if model_verdict_value == "listed-only" else 13 if model_verdict_value == "unspecified" else 0
+        model = 25 if model_verdict_value == "exact" else 21 if model_verdict_value == "compatible" else 15 if model_verdict_value == "listed-only" else 20 if model_verdict_value == "unspecified" else 0
         fingerprint_score = 15 if fingerprint.get("verdict") == "match" else 0
     else:
         model = 40 if model_verdict_value == "exact" else 34 if model_verdict_value == "compatible" else 24 if model_verdict_value == "listed-only" else 20 if model_verdict_value == "unspecified" else 0
@@ -175,7 +175,7 @@ def calculate_score(payload):
     speed = 10 if average <= 3000 else 8 if average <= 6000 else 6 if average <= 10000 else 3 if average <= 15000 else 1 if elapsed else 0
     responses = (8 if http_ok else 0) + round(sum(1 for x in efforts if isinstance(x, dict) and x.get("has_response_id")) / max(1, len(efforts)) * 4) + round(sum(1 for x in efforts if isinstance(x, dict) and x.get("usage")) / max(1, len(efforts)) * 3)
     before_cap = protocol + model + fingerprint_score + responses + effort + stability + speed
-    cap = 49 if model_verdict_value == "mismatch" else 59 if model_verdict_value == "unverified" else 79 if model_verdict_value == "listed-only" else 80 if model_verdict_value == "unspecified" else 100
+    cap = 49 if model_verdict_value == "mismatch" else 59 if model_verdict_value == "unverified" else 79 if model_verdict_value == "listed-only" else 100 if model_verdict_value == "unspecified" and fingerprint_available and fingerprint.get("verdict") == "match" else 80 if model_verdict_value == "unspecified" else 100
     if fingerprint_available and fingerprint.get("verdict") == "different-candidate":
         cap = min(cap, 79)
     score = max(0, min(cap, before_cap))

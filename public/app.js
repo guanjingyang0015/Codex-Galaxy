@@ -1,7 +1,7 @@
 const $ = (selector) => document.querySelector(selector);
 const state = {
   profiles: [],
-  version: "3.1.0",
+  version: "3.1.1",
   openaiStatus: null,
   threads: [],
   currentId: null,
@@ -29,7 +29,7 @@ const state = {
   releases: [],
   update: {
     phase: "idle",
-    currentVersion: "3.1.0",
+    currentVersion: "3.1.1",
     latestVersion: null,
     available: false,
     action: "install",
@@ -313,6 +313,7 @@ const translations = {
     "audit.level.usable": "可用",
     "audit.level.uncertain": "证据不足",
     "audit.level.risky": "高风险",
+    "audit.tryNow": "立即试用",
     "audit.summaryTitle": "最近排名参考",
     "audit.rankingsLoading": "正在读取排名…",
     "audit.rankingsUnavailable": "排名服务暂时不可用",
@@ -476,7 +477,7 @@ const translations = {
     "diagnostics.opened": "已打开本地日志文件。",
     "diagnostics.truncated": "日志较长，当前只显示最后一段。",
     "tutorial.title": "分阶段使用教程",
-    "tutorial.intro": "按使用阶段阅读教程：先完成一次账号配置，日常按步骤切换，出问题先看日志，超大聊天先复制深度链接新建聊天继续，最后了解本地历史和其他特色功能。当前版本为 v3.1.0。",
+    "tutorial.intro": "按使用阶段阅读教程：先完成一次账号配置，日常按步骤切换，出问题先看日志，超大聊天先复制深度链接新建聊天继续，最后了解本地历史和其他特色功能。当前版本为 v3.1.1。",
     "tutorial.stageNav": "教程阶段",
     "tutorial.stage1.tab": "首次配置",
     "tutorial.stage1.short": "添加账号和模型",
@@ -827,6 +828,7 @@ const translations = {
     "audit.level.usable": "Usable",
     "audit.level.uncertain": "Inconclusive",
     "audit.level.risky": "High risk",
+    "audit.tryNow": "Try now",
     "audit.summaryTitle": "Recent ranking reference",
     "audit.rankingsLoading": "Loading ranking…",
     "audit.rankingsUnavailable": "Ranking service is temporarily unavailable",
@@ -990,7 +992,7 @@ const translations = {
     "diagnostics.opened": "The local log file was opened.",
     "diagnostics.truncated": "The log is long; only its latest section is shown.",
     "tutorial.title": "Phased usage guide",
-    "tutorial.intro": "Read the guide by stage: configure accounts once, follow the daily switch steps, preserve the scene when something fails, use a deep link to continue oversized chats in a new thread, then learn local history and other features. Current version: v3.1.0.",
+    "tutorial.intro": "Read the guide by stage: configure accounts once, follow the daily switch steps, preserve the scene when something fails, use a deep link to continue oversized chats in a new thread, then learn local history and other features. Current version: v3.1.1.",
     "tutorial.stageNav": "Tutorial stages",
     "tutorial.stage1.tab": "First setup",
     "tutorial.stage1.short": "Accounts and models",
@@ -2021,7 +2023,7 @@ function renderRankingItems(items, target = $("#rankingsList"), ranking = {}) {
     const body = `
     <span class="ranking-number">${item.rank || index + 1}</span>
     <div class="ranking-main"><strong>${escapeHtml(item.provider_name || item.base_host)}</strong><small>${escapeHtml(item.expected_model || item.model || "")}${item.observed_model ? ` → ${escapeHtml(item.observed_model)}` : ""} · ${escapeHtml(t("audit.tests", { count: item.samples || 0 }))}</small>${detailed && item.fingerprint_model ? `<small>${escapeHtml(t("audit.fingerprintCandidate", { model: item.fingerprint_model, score: (Number(item.fingerprint_probability) * 100).toFixed(1) }))}</small>` : ""}${detailed ? `<small>${escapeHtml(t("audit.scoreBreakdown", { protocol: item.protocol_score || 0, model: item.model_score || 0, fingerprint: item.fingerprint_score || 0, effort: item.effort_score || 0, stability: item.stability_score || 0, speed: item.speed_score || 0 }))}</small><small class="ranking-footer"><span>${escapeHtml(t("audit.historySite90", { score: item.history_90d_max || item.ranking_score || item.score || 0 }))}</span><span>${escapeHtml(t("audit.latest", { time: formatDate(item.last_test) }))}</span></small>` : ""}</div>
-    <b class="ranking-score">${escapeHtml(t("audit.scoreUnit", { score: rankingScore }))}<small>${escapeHtml(t(`audit.level.${level}`))}</small></b>
+    <b class="ranking-score">${escapeHtml(t("audit.scoreUnit", { score: rankingScore }))}<small>${escapeHtml(t(`audit.level.${level}`))}</small><small class="ranking-try">${escapeHtml(t("audit.tryNow"))}</small></b>
     <span class="ranking-link">↗</span>`;
     return visitUrl
       ? `<a class="ranking-item" href="${escapeHtml(visitUrl)}" target="_blank" rel="noreferrer">${body}</a>`

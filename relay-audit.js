@@ -374,8 +374,17 @@ function buildScore({ modelsResponse, modelVerdict, results, fingerprint }) {
   const fingerprintPart = fingerprintScore(fingerprint);
   const catalog = modelsResponse.status >= 200 && modelsResponse.status < 300 ? 10 : 0;
   const responses = (httpSuccess ? 8 : 0) + Math.round((responseIds / total) * 4) + Math.round((usageResults / total) * 3);
-  const modelScale = fingerprintPart.available ? 25 / 40 : 1;
-  const model = Math.round(modelVerdict.score * modelScale);
+  const model = fingerprintPart.available
+    ? modelVerdict.verdict === "exact"
+      ? 25
+      : modelVerdict.verdict === "compatible"
+        ? 21
+        : modelVerdict.verdict === "listed-only"
+          ? 15
+          : modelVerdict.verdict === "unspecified"
+            ? 20
+            : 0
+    : modelVerdict.score;
   const reasoning = Math.round((canarySuccess / total) * 15);
   const stability = Math.max(0, Math.round((httpSuccess / total) * 10) - Math.min(3, timeouts));
   const performance = performanceScore(results);
@@ -387,7 +396,7 @@ function buildScore({ modelsResponse, modelVerdict, results, fingerprint }) {
       : modelVerdict.verdict === "listed-only"
         ? 79
       : modelVerdict.verdict === "unspecified"
-        ? 80
+        ? fingerprintPart.available && fingerprint?.fingerprintVerdict === "match" ? 100 : 80
         : 100;
   if (fingerprintPart.available && fingerprint?.fingerprintVerdict === "different-candidate") {
     cap = Math.min(cap, 79);
@@ -420,7 +429,7 @@ function checksFor({ modelsResponse, modelVerdict, results, score, fingerprint }
   const averageMs = elapsed.length ? Math.round(elapsed.reduce((sum, value) => sum + value, 0) / elapsed.length) : null;
   const checks = [
     { key: "catalog", status: score.catalog === 10 ? "pass" : "fail", score: score.catalog, maxScore: 10, httpStatus: modelsResponse.status || 0, modelsCount: modelsResponse.entries.length },
-    { key: "model", status: modelVerdict.matchesDesired === true ? "pass" : modelVerdict.matchesDesired === false ? "fail" : "warn", score: score.model, maxScore: score.fingerprintMax ? 25 : 40, ...modelVerdict },
+    { key: "model", status: modelVerdict.matchesDesired === true ? "pass" : modelVerdict.matchesDesired === false ? "fail" : "warn", ...modelVerdict, score: score.model, maxScore: score.fingerprintMax ? 25 : 40 },
     { key: "responses", status: httpSuccess === total && responseIds === total && usageResults === total ? "pass" : httpSuccess ? "warn" : "fail", score: score.responses, maxScore: 15, successCount: httpSuccess, responseIdCount: responseIds, usageCount: usageResults, total },
     { key: "reasoning", status: canarySuccess === total ? "pass" : canarySuccess ? "warn" : "fail", score: score.reasoning, maxScore: 15, successCount: canarySuccess, total },
     { key: "stability", status: httpSuccess === total ? "pass" : httpSuccess ? "warn" : "fail", score: score.stability, maxScore: 10, successCount: httpSuccess, timeoutCount: timeouts, total },

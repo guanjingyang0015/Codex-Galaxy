@@ -179,6 +179,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, [tabindex]:focu
 .ranking-main small { color: var(--muted); font-size: 9px; }
 .ranking-score { display: grid; gap: 1px; color: var(--accent); font-size: 15px; text-align: right; white-space: nowrap; }
 .ranking-score small { color: var(--muted); font-size: 8px; font-weight: 600; }
+.ranking-score .ranking-try { color: var(--blue); font-weight: 800; text-decoration: underline; text-underline-offset: 2px; }
 .ranking-link { color: var(--blue); font-size: 14px; text-decoration: none; }
 .ranking-link:hover { color: var(--text); }
 .panel-head { display: flex; min-height: 50px; flex: 0 0 50px; align-items: flex-start; justify-content: space-between; padding: 10px 14px 8px; border-bottom: 1px solid var(--line-soft); }
@@ -447,6 +448,7 @@ dialog::backdrop { background: rgba(0, 0, 0, 0.72); }
 .audit-panel .ranking-main small { font-size: 12px; line-height: 1.5; color: #bac6cc; white-space: normal; overflow-wrap: anywhere; }
 .audit-panel .ranking-score { grid-column: 3; grid-row: 1; font-size: 21px; line-height: 1.25; }
 .audit-panel .ranking-score small { font-size: 12px; line-height: 1.5; }
+.audit-panel .ranking-score .ranking-try { color: var(--blue); font-size: 11px; }
 .audit-panel .ranking-footer { display: flex; flex-wrap: wrap; gap: 4px 16px; }
 .audit-panel .ranking-link { grid-column: 4; grid-row: 1; font-size: 16px; }
 .audit-panel .rankings-toolbar select, .audit-panel .rankings-toolbar .button { font-size: 13px; padding: 8px 10px; }

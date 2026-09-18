@@ -217,6 +217,34 @@ test("ranking server stores only safe aggregate observations and returns scored 
     assert.equal(fingerprintItem.fingerprint_probability, 0.999);
     assert.equal(fingerprintItem.fingerprint_score, 0);
     assert.equal(fingerprintItem.fingerprint_used_outputs, 3);
+    const autoDiscovered = await fetch(`${url}/api/v1/audits`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        provider_name: "Auto Discovered",
+        base_host: "auto.example",
+        model: "gpt-5.6-sol",
+        expected_model: "",
+        observed_model: "gpt-5.6-sol",
+        models_status: 200,
+        model_listed: true,
+        fingerprint: {
+          status: "ok",
+          candidate: "gpt-5.6-sol",
+          probability: 1,
+          verdict: "match",
+          used_outputs: 3,
+        },
+        efforts: [
+          { effort: "low", status: 200, elapsed_ms: 1000, ok: true, canary: true, has_response_id: true, usage: { total_tokens: 2 } },
+          { effort: "medium", status: 200, elapsed_ms: 1000, ok: true, canary: true, has_response_id: true, usage: { total_tokens: 2 } },
+          { effort: "high", status: 200, elapsed_ms: 1000, ok: true, canary: true, has_response_id: true, usage: { total_tokens: 2 } },
+          { effort: "xhigh", status: 200, elapsed_ms: 1000, ok: true, canary: true, has_response_id: true, usage: { total_tokens: 2 } },
+        ],
+      }),
+    });
+    const autoBody = await autoDiscovered.json();
+    assert.equal(autoBody.score, 95);
     const filtered = await (await fetch(`${url}/api/v1/rankings?model=gpt-6-test`)).json();
     assert.equal(filtered.items.length, 1);
     assert.equal(filtered.items[0].expected_model, "gpt-6-test");

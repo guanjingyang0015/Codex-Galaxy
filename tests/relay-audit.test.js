@@ -159,6 +159,52 @@ test("GPT audit runs hidden fingerprint probes and caps a different candidate wi
   assert.equal(JSON.stringify(result).includes("synthetic-secret"), false);
 });
 
+test("auto-discovered GPT with a matching fingerprint scores the visible 95-point sum", async () => {
+  const sequence = Array.from({ length: 320 }, (_, index) => ((index * 37) % 355) + 1).join(", ");
+  const result = await auditRelay({
+    baseUrl: "https://relay.example/v1",
+    apiKey: "synthetic-secret",
+    model: "gpt-5.6-sol",
+    expectedModel: "",
+  }, {
+    timeoutMs: 1000,
+    fetcher: async (url, options) => {
+      if (url.endsWith("/models")) {
+        return new Response(JSON.stringify({
+          data: [{ id: "gpt-5.6-sol", supported_reasoning_levels: [{ effort: "high", description: "high" }] }],
+        }), { status: 200 });
+      }
+      const body = JSON.parse(options.body);
+      if (String(body.input).includes("RELAY-CANARY-OK")) {
+        return new Response(JSON.stringify({
+          id: `canary-${body.reasoning?.effort || "default"}`,
+          model: "gpt-5.6-sol",
+          output_text: "RELAY-CANARY-OK",
+          usage: { input_tokens: 1, output_tokens: 1, total_tokens: 2 },
+        }), { status: 200 });
+      }
+      return new Response(JSON.stringify({
+        id: "fingerprint",
+        model: "gpt-5.6-sol",
+        output_text: sequence,
+        usage: { input_tokens: 1, output_tokens: 320, total_tokens: 321 },
+      }), { status: 200 });
+    },
+  });
+  assert.equal(result.modelVerdict, "unspecified");
+  assert.equal(result.fingerprint.fingerprintVerdict, "match");
+  assert.equal(result.score.protocol, 25);
+  assert.equal(result.score.model, 20);
+  assert.equal(result.score.fingerprint, 15);
+  assert.equal(result.score.reasoning, 15);
+  assert.equal(result.score.stability, 10);
+  assert.equal(result.score.speed, 10);
+  assert.equal(result.score.total, 95);
+  const modelCheck = result.checks.find((check) => check.key === "model");
+  assert.equal(modelCheck.score, 20);
+  assert.equal(modelCheck.maxScore, 25);
+});
+
 test("ranking payload strips credentials, response text, and unsafe homepage URLs", () => {
   const payload = sanitizeAuditForRanking({
     baseHost: "relay.example",
