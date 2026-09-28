@@ -6,7 +6,7 @@
 
 Codex Galaxy is a local desktop utility for switching between Codex accounts and compatible APIs while continuing project tasks saved on the same computer.
 
-**Current version: Codex Galaxy 3.1.1**
+**Current version: Codex Galaxy 3.1.2**
 
 The in-app guide is now organized by stage: **first account setup → daily account switching → failure recovery → features**. Open **Guide** and choose only the stage you need instead of reading one long page.
 
@@ -99,7 +99,7 @@ Galaxy can install local plugins, add marketplaces supported by the Codex CLI, a
 
 ## Updates and platforms
 
-GitHub Releases provides Windows x64, macOS Intel, and macOS Apple Silicon packages. Current builds are unsigned, so the operating system may show an unknown-developer warning. Download releases from this repository and follow the platform prompt. Install over the existing version; manual uninstall is unnecessary, and local accounts, projects, and history are retained.
+GitHub Releases provides Windows x64, macOS Intel, and macOS Apple Silicon packages. macOS builds now run native-architecture checks and ad hoc signature verification in CI. On the first browser download, if Gatekeeper says the developer cannot be verified, right-click the app in Finder, choose Open, and confirm. If it still says the app is damaged, delete the old download, download the matching DMG again, or run `xattr -dr com.apple.quarantine "/Applications/Codex Galaxy.app"` before opening. A fully trusted first launch requires an Apple Developer ID signature and notarization; the public package does not use a personal developer certificate.
 
 Every release updates the version surfaces, both READMEs, the Chinese and English in-app guide, release notes, release metadata, regression tests, and installer artifacts together. A version is not considered released until the documentation consistency check and the GitHub publication checks pass.
 
@@ -154,6 +154,8 @@ MIT License. Codex Galaxy is an independent local utility and is not an official
 2.2.0 adds a softly animated GPT Top-up button to the app header. It opens the Codex Galaxy plan page with current plans, prices, availability, consultation steps, and the contact QR code; the page has no login, cart, order lookup, or online checkout.
 
 2.2.1 changes the web admin into switchable API Ranking and GPT Top-up panels, preserving the active panel after saves. The public plan page adds a prominent OpenAI knot mark, a `GPT × CODEX` service visual, a technical grid, and an AI orbit motif.
+
+3.1.2 repairs the macOS release path: Apple Silicon and Intel packages build on native runners, the published app is checked for its signature and CPU architecture, and ad hoc signing reduces Gatekeeper false “damaged app” reports. The first download may still require Finder’s right-click Open flow; public packages are not notarized with an Apple Developer certificate.
 
 3.1.1 fixes the stale 80-point cap when an auto-discovered GPT has a matching behavior fingerprint, so a visible 95-point breakdown now reports 95. The ranking score also shows a “Try now” call to action while the existing page and interaction flow stay unchanged; the ranking service continues to receive safe aggregates only and does not collect or store API keys.
 

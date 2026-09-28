@@ -1,6 +1,6 @@
 {
   "name": "codex-galaxy",
-  "version": "3.1.1",
+  "version": "3.1.2",
   "private": true,
   "author": "Guan Jingyang <guanjingyang@gmail.com>",
   "description": "Codex Galaxy: local account switching and cross-model project continuity for Codex.",
@@ -108,6 +108,7 @@
         }
       ],
       "category": "public.app-category.developer-tools",
+      "identity": "-",
       "artifactName": "Codex-Galaxy-${version}-macOS-${arch}.${ext}"
     }
   }

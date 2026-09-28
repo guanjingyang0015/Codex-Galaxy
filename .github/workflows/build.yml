@@ -66,6 +66,18 @@ jobs:
       - run: npm run icons
       - run: npm run stamp:release
       - run: npx electron-builder --mac dmg --${{ matrix.arch }} --publish never
+      - name: Verify macOS bundle signature and architecture
+        shell: bash
+        run: |
+          app="$(find dist -type d -name '*.app' -print -quit)"
+          test -n "$app"
+          codesign --verify --deep --strict --verbose=2 "$app"
+          file "$app/Contents/MacOS/Codex Galaxy"
+          arch="$(file -b "$app/Contents/MacOS/Codex Galaxy")"
+          case "${{ matrix.arch }}" in
+            arm64) echo "$arch" | grep -Eq 'arm64|Apple Silicon' ;;
+            x64) echo "$arch" | grep -Eq 'x86_64|Intel' ;;
+          esac
       - uses: actions/upload-artifact@v7
         with:
           name: codex-galaxy-macos-${{ matrix.arch }}

@@ -6,7 +6,7 @@
 
 Codex Galaxy 是一款本地桌面工具，帮助你在不同 Codex 账号和兼容 API 之间切换，并继续本机保存的项目任务。
 
-**当前版本：Codex Galaxy 3.1.1**
+**当前版本：Codex Galaxy 3.1.2**
 
 使用教程已按使用阶段重新整理：**第一次添加账号配置 → 日常使用切换账号 → 异常故障处理 → 特色功能**。打开应用内“使用教程”后，点击对应阶段查看，不需要一次读完全部内容。
 
@@ -99,7 +99,7 @@ Galaxy 支持安装本地插件、添加 Codex CLI 支持的插件市场，以�
 
 ## 更新与平台
 
-GitHub Releases 提供 Windows x64、macOS Intel 和 macOS Apple Silicon 安装包。当前构建未配置代码签名，系统可能显示未知开发者提示；请从本项目 Releases 下载并按系统提示确认。直接覆盖安装即可，不需要先卸载旧版；账号配置、本地项目和聊天记录会保留。
+GitHub Releases 提供 Windows x64、macOS Intel 和 macOS Apple Silicon 安装包。macOS 包会在 CI 中执行原生架构检查和 ad hoc 签名校验；首次从浏览器下载时，若 Gatekeeper 显示“无法验证开发者”，请在 Finder 中右键应用选择“打开”，再确认打开。若仍显示“文件损坏”，先删除旧下载并重新下载对应架构的 DMG，或在终端执行 `xattr -dr com.apple.quarantine "/Applications/Codex Galaxy.app"` 后再打开。完全不显示安全提示需要 Apple Developer ID 签名和公证，当前公开包未使用个人开发者证书。
 
 每次版本更新都会同步更新版本号、README、中英文应用内教程、发布说明、发布记录、测试断言和安装包。发布检查未通过时，不会把版本标记为正式发布。
 
@@ -154,6 +154,8 @@ npm run dist:mac
 2.2.0 在软件顶部新增带柔和光效的“GPT 代充”入口，打开 Codex Galaxy 套餐展示页。页面展示全部套餐、价格、状态、咨询步骤和联系二维码，不包含登录、购物车、查单或在线购买。
 
 2.2.1 将 Web 管理后台改为“API 排行榜 / GPT 代充展示页”双板块切换，保存后停留在当前板块；代充价格页加入醒目的 OpenAI 结形标志、`GPT × CODEX` 主视觉、点阵网格与 AI 核心光环。
+
+3.1.2 修复 macOS 发布流程：Apple Silicon 与 Intel 包分别在原生 runner 构建，发布前验证应用签名和 CPU 架构，并使用 ad hoc 签名减少 Gatekeeper 将应用误报为“文件损坏”的情况。首次下载仍可能需要 Finder 右键“打开”；公开包未使用 Apple Developer 证书公证。
 
 3.1.1 修复自动发现 GPT 且行为指纹一致时总分仍被旧上限压到 80 分的问题；详情分项合计 95 分时总分同步显示 95 分，并在排行榜分数下增加“立即试用”引导。页面和操作流程保持不变，排名服务继续只接收安全汇总数据，不收集或保存 API Key。
 
