@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { syncConversations, readLibrary, readThreadDetail } from "../sync.js";
+import { syncConversations, readLibrary, readLocalProjects, readThreadDetail } from "../sync.js";
 
 test("sync groups rollout events by session_meta thread id", async () => {
   const home = await fs.mkdtemp(path.join(os.tmpdir(), "codex-galaxy-codex-"));
@@ -366,4 +366,85 @@ test("provider-scoped catalog gaps preserve local project records when requested
   assert.ok(library.threads.some((thread) => thread.id === "official-hidden"));
   assert.ok(library.threads.some((thread) => thread.id === "api-only"));
   assert.equal(result.removed, 0);
+});
+
+test("local project inventory is read from project roots independently of account renderer state", async () => {
+  const home = await fs.mkdtemp(path.join(os.tmpdir(), "codex-galaxy-project-roots-"));
+  const { DatabaseSync } = await import("node:sqlite");
+  const database = new DatabaseSync(path.join(home, "state_5.sqlite"));
+  database.exec("create table projects (id text primary key, name text, metadata text, position integer, created_at_ms integer, updated_at_ms integer)");
+  database.exec("create table project_roots (project_id text, position integer, path text, primary key (project_id, position))");
+  database.prepare("insert into projects values (?, ?, ?, ?, ?, ?)").run("project-b", "B 项目", "{}", 1, 1, 3);
+  database.prepare("insert into projects values (?, ?, ?, ?, ?, ?)").run("project-a", "A 项目", "{}", 0, 1, 2);
+  database.prepare("insert into project_roots values (?, ?, ?)").run("project-a", 1, "C:\\work\\a-secondary");
+  database.prepare("insert into project_roots values (?, ?, ?)").run("project-a", 0, "C:\\work\\a");
+  database.prepare("insert into project_roots values (?, ?, ?)").run("project-b", 0, "C:\\work\\b");
+  database.close();
+
+  const projects = await readLocalProjects(home);
+  assert.deepEqual(projects, [
+    { id: "project-a", name: "A 项目", roots: ["C:\\work\\a", "C:\\work\\a-secondary"] },
+    { id: "project-b", name: "B 项目", roots: ["C:\\work\\b"] },
+  ]);
+
+  const verify = new DatabaseSync(path.join(home, "state_5.sqlite"), { readOnly: true });
+  assert.equal(verify.prepare("select count(*) as count from projects").get().count, 2);
+  verify.close();
+});
+
+test("local project registry links sessions by SQLite project_id even when cwd differs from the registered root", async () => {
+  const home = await fs.mkdtemp(path.join(os.tmpdir(), "codex-galaxy-project-assignment-"));
+  const sessions = path.join(home, "sessions");
+  await fs.mkdir(sessions, { recursive: true });
+  await fs.writeFile(path.join(sessions, "assigned.jsonl"), [
+    JSON.stringify({ type: "session_meta", payload: { id: "assigned-thread", thread_name: "Mapped chat", cwd: "C:\\work\\repo\\subfolder", model_provider: "relay-b" } }),
+    JSON.stringify({ type: "event_msg", payload: { type: "user_message", message: "mapped through project id" } }),
+  ].join("\n") + "\n");
+  const { DatabaseSync } = await import("node:sqlite");
+  const database = new DatabaseSync(path.join(home, "state_5.sqlite"));
+  database.exec("create table projects (id text primary key, name text, metadata text, position integer, created_at_ms integer, updated_at_ms integer)");
+  database.exec("create table project_roots (project_id text, position integer, path text, primary key (project_id, position))");
+  database.exec("create table threads (id text primary key, title text, cwd text, model_provider text, project_id text, rollout_path text, updated_at_ms integer, archived integer, has_user_event integer, thread_source text)");
+  database.prepare("insert into projects values (?, ?, ?, ?, ?, ?)").run("project-id", "Repository", "{}", 0, 1, 3);
+  database.prepare("insert into project_roots values (?, ?, ?)").run("project-id", 0, "C:\\work\\repo");
+  database.prepare("insert into threads values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)").run("assigned-thread", "Mapped chat", "C:\\work\\repo\\subfolder", "relay-b", "project-id", "sessions/assigned.jsonl", 1780000000000, 0, 1, "user");
+  database.close();
+
+  const libraryFile = path.join(home, "library.json");
+  const projectList = await readLocalProjects(home);
+  await syncConversations({ codexHome: home, libraryFile, preserveLocalProjects: true });
+  const library = await readLibrary(libraryFile);
+  assert.equal(projectList[0].id, "project-id");
+  assert.equal(library.threads[0].projectId, "project-id");
+});
+
+test("session files recover projects missing from a provider-scoped root catalog without reviving archived or subagent threads", async () => {
+  const home = await fs.mkdtemp(path.join(os.tmpdir(), "codex-galaxy-session-fallback-"));
+  const sessions = path.join(home, "sessions");
+  await fs.mkdir(sessions, { recursive: true });
+  const writeSession = (name, id, extra = {}) => fs.writeFile(path.join(sessions, name), [
+    JSON.stringify({ type: "session_meta", payload: { id, thread_name: name, cwd: `C:\\work\\${id}`, model_provider: "openai", ...extra } }),
+    JSON.stringify({ type: "event_msg", payload: { type: "user_message", message: `session ${id}` } }),
+  ].join("\n") + "\n");
+  await writeSession("hidden-official.jsonl", "hidden-official");
+  await writeSession("visible-api.jsonl", "visible-api", { model_provider: "relay-b" });
+  await writeSession("archived.jsonl", "archived-session");
+  await writeSession("subagent.jsonl", "subagent-session", { source: { subagent: "worker" } });
+
+  const { DatabaseSync } = await import("node:sqlite");
+  const root = new DatabaseSync(path.join(home, "state_5.sqlite"));
+  root.exec("create table threads (id text primary key, title text, cwd text, model_provider text, project_id text, rollout_path text, updated_at_ms integer, archived integer, has_user_event integer, thread_source text)");
+  const insert = root.prepare("insert into threads values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+  insert.run("visible-api", "visible-api.jsonl", "C:\\work\\visible-api", "relay-b", null, "sessions/visible-api.jsonl", 1780000000000, 0, 1, "user");
+  insert.run("archived-session", "archived.jsonl", "C:\\work\\archived-session", "openai", null, "sessions/archived.jsonl", 1770000000000, 1, 1, "user");
+  root.close();
+
+  const libraryFile = path.join(home, "library.json");
+  const result = await syncConversations({ codexHome: home, libraryFile, accountId: "api-b", preserveLocalProjects: true });
+  const library = await readLibrary(libraryFile);
+  assert.equal(result.threads, 2);
+  assert.deepEqual(new Set(library.threads.map((thread) => thread.id)), new Set(["visible-api", "hidden-official"]));
+  assert.equal(library.threads.find((thread) => thread.id === "hidden-official").provider, "openai");
+  assert.equal(library.threads.some((thread) => thread.id === "archived-session"), false);
+  assert.equal(library.threads.some((thread) => thread.id === "subagent-session"), false);
 });

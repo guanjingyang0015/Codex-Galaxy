@@ -6,7 +6,7 @@
 
 Codex Galaxy is a local desktop utility for switching between Codex accounts and compatible APIs while continuing project tasks saved on the same computer.
 
-**Current version: Codex Galaxy 3.2.2**
+**Current version: Codex Galaxy 3.3.1**
 
 The in-app guide is now organized by stage: **first account setup → daily account switching → failure recovery → features**. Open **Guide** and choose only the stage you need instead of reading one long page.
 
@@ -17,7 +17,7 @@ The in-app guide is now organized by stage: **first account setup → daily acco
 - Resume existing local tasks with less repeated setup
 - List unfinished chats and scheduled tasks before switching so they can be opened and completed
 - Continue projects and chat history stored on this computer across accounts and APIs
-- Browse the local thread library from Local projects; if Codex Desktop hides official projects while a relay API provider is active, search and resume local threads through Galaxy
+- Read the machine-wide local project catalog from Local projects across Plus, Pro, and API profiles; recover local chats omitted from the active account/provider index by scanning active session files
 - Check old session format and safely restore it from a verified backup when needed
 - Manage local plugins, downloaded marketplaces, and project data
 - Record a timestamped redacted local log so switch failures can be inspected and reported
@@ -156,7 +156,9 @@ MIT License. Codex Galaxy is an independent local utility and is not an official
 
 2.2.1 changes the web admin into switchable API Ranking and GPT Top-up panels, preserving the active panel after saves. The public plan page adds a prominent OpenAI knot mark, a `GPT × CODEX` service visual, a technical grid, and an AI orbit motif.
 
-3.2.2 guarantees that local project records are not removed because an API provider filters the active index: while the project folder or session file remains on the computer, Galaxy preserves the record and supports direct recovery, search, and resume. The 3.2.1 guidance and 3.2.0 Local projects window remain included.
+3.3.1 clarifies that Plus and Pro are separate login identities, so local project registrations may be account-scoped; this is not a plan entitlement difference. Galaxy's Local projects reads the shared machine catalog and keeps thread authentication separate.
+
+3.3.0 adds the machine-wide `state_5.sqlite` project catalog and root paths to Local projects. It scans active session files for chats omitted by the current provider index, filters chats by project, and uses local `project_id` associations where available. It does not alter authentication or Codex private global state.
 
 3.1.2 repairs the macOS release path: Apple Silicon and Intel packages build on native runners, the published app is checked for its signature and CPU architecture, and ad hoc signing reduces Gatekeeper false “damaged app” reports. The first download may still require Finder’s right-click Open flow; public packages are not notarized with an Apple Developer certificate.
 

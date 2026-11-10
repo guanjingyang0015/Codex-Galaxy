@@ -1,6 +1,8 @@
 import fs from "node:fs/promises";
+import { createReadStream } from "node:fs";
 import path from "node:path";
 import crypto from "node:crypto";
+import { createInterface } from "node:readline";
 import { readJson, writeJson } from "./vault.js";
 
 const ignored = new Set(["node_modules", ".git", "cache", "tmp", ".tmp", "backups", "backups_state"]);
@@ -75,10 +77,49 @@ function parseRecord(record, source) {
   };
 }
 
+async function readSessionFile(file) {
+  const input = createReadStream(file, { encoding: "utf8" });
+  const lines = createInterface({ input, crlfDelay: Infinity });
+  let session = { id: null, title: null, cwd: null, provider: null, startedAt: null, source: null };
+  const messages = [];
+  try {
+    for await (const line of lines) {
+      if (!line) continue;
+      let record;
+      try { record = JSON.parse(line); } catch { continue; }
+      if (record.type === "session_meta" && record.payload) {
+        session = {
+          id: record.payload.id || session.id,
+          title: record.payload.thread_name || record.payload.title || session.title,
+          cwd: record.payload.cwd || session.cwd,
+          provider: record.payload.model_provider || session.provider,
+          startedAt: record.payload.timestamp || session.startedAt,
+          source: record.payload.source || session.source,
+        };
+        continue;
+      }
+      const parsed = parseRecord({ ...record, id: record.id || session.id, thread_id: record.thread_id || session.id }, file);
+      if (parsed) {
+        messages.push({ parsed, cwd: record.payload?.cwd || record.cwd || session.cwd || null });
+        if (messages.length > 200) messages.shift();
+      }
+    }
+    return { session, messages };
+  } finally {
+    lines.close();
+    input.destroy();
+  }
+}
+
 export async function syncConversations({ codexHome, libraryFile, accountId, preserveLocalProjects = false, onProgress = null }) {
   const historyMessages = await readThreadHistoryMessages(codexHome);
-  const catalog = await readThreadCatalog(codexHome, new Set(historyMessages.keys()));
-  const files = catalog.length ? catalog.map((item) => item.source).filter(Boolean) : await walk(path.join(codexHome, "sessions"));
+  const catalogResult = await readThreadCatalog(codexHome, new Set(historyMessages.keys()));
+  const catalog = catalogResult.threads;
+  const files = await rolloutFilesForSync(codexHome, {
+    catalog,
+    archivedIds: catalogResult.archivedIds,
+    preserveLocalProjects,
+  });
   const index = await readJsonLines(path.join(codexHome, "session_index.jsonl"));
   const prior = await readJson(libraryFile, { version: 2, threads: [] });
   if (!catalog.length && !files.length && !historyMessages.size && Array.isArray(prior.threads)) {
@@ -89,7 +130,7 @@ export async function syncConversations({ codexHome, libraryFile, accountId, pre
   }
   const priorById = new Map(prior.threads.map((thread) => [thread.id, thread]));
   const byId = new Map();
-  const total = catalog.length + index.length + (catalog.length ? 0 : files.length);
+  const total = catalog.length + index.length + files.length;
   let completed = 0;
   const report = (phase = "scan") => onProgress?.({ phase, completed, total });
   report();
@@ -102,6 +143,7 @@ export async function syncConversations({ codexHome, libraryFile, accountId, pre
     existing.cwd = item.cwd || existing.cwd;
     existing.project = item.cwd || existing.project;
     existing.provider = item.provider || existing.provider;
+    existing.projectId = item.projectId || existing.projectId || null;
     existing.updatedAt = item.updatedAt || existing.updatedAt;
     existing.source = item.source || existing.source;
     if (accountId && !existing.accounts.includes(accountId)) existing.accounts.push(accountId);
@@ -128,55 +170,40 @@ export async function syncConversations({ codexHome, libraryFile, accountId, pre
   }
   let imported = 0;
 
-  if (!catalog.length) for (const file of files) {
-    let content;
+  for (const file of files) {
+    let scan;
     try {
-      content = await fs.readFile(file, "utf8");
+      scan = await readSessionFile(file);
     } catch {
       completed += 1;
       report();
       continue;
     }
-    const lines = content.split(/\r?\n/).filter(Boolean);
-    let session = { id: null, title: null, cwd: null, provider: null, startedAt: null };
-    for (const line of lines) {
-      let record;
-      try { record = JSON.parse(line); } catch { continue; }
-      if (record.type === "session_meta" && record.payload) {
-        session = {
-          id: record.payload.id || session.id,
-          title: record.payload.thread_name || record.payload.title || session.title,
-          cwd: record.payload.cwd || session.cwd,
-          provider: record.payload.model_provider || session.provider,
-          startedAt: record.payload.timestamp || session.startedAt,
-        };
-        if (session.id) {
-          const id = String(session.id);
-          const previous = byId.get(id) || priorById.get(id);
-          const active = previous
-            ? { ...previous, messages: [...(previous.messages || [])], accounts: [...(previous.accounts || [])] }
-            : { id, title: session.title || "未命名线程", project: session.cwd || null, cwd: session.cwd || null, provider: session.provider || null, messages: [], accounts: [], updatedAt: session.startedAt, source: file };
-          active.title = session.title || active.title || "未命名线程";
-          active.cwd = session.cwd || active.cwd;
-          active.project = session.cwd || active.project;
-          active.provider = session.provider || active.provider;
-          active.source = file;
-          active.updatedAt = active.updatedAt || session.startedAt;
-          if (accountId && !active.accounts.includes(accountId)) active.accounts.push(accountId);
-          byId.set(id, active);
-        }
-        continue;
-      }
-      const parsed = parseRecord({ ...record, id: record.id || session.id, thread_id: record.thread_id || session.id }, file);
-      if (!parsed) continue;
+    const { session, messages } = scan;
+    if (session.id) {
+      const id = String(session.id);
+      const previous = byId.get(id) || priorById.get(id);
+      const active = previous
+        ? { ...previous, messages: [...(previous.messages || [])], accounts: [...(previous.accounts || [])] }
+        : { id, title: session.title || "未命名线程", project: session.cwd || null, cwd: session.cwd || null, provider: session.provider || null, messages: [], accounts: [], updatedAt: session.startedAt, source: file };
+      active.title = session.title || active.title || "未命名线程";
+      active.cwd = session.cwd || active.cwd;
+      active.project = session.cwd || active.project;
+      active.provider = session.provider || active.provider;
+      active.source = file;
+      active.updatedAt = active.updatedAt || session.startedAt;
+      if (accountId && !active.accounts.includes(accountId)) active.accounts.push(accountId);
+      byId.set(id, active);
+    }
+    for (const { parsed, cwd } of messages) {
       const previous = byId.get(parsed.id) || priorById.get(parsed.id);
       const existing = previous
         ? { ...previous, messages: [...(previous.messages || [])], accounts: [...(previous.accounts || [])] }
         : {
             id: parsed.id,
             title: session.title || parsed.content.replace(/\s+/g, " ").slice(0, 80),
-            project: record.payload?.cwd || record.cwd || session.cwd || null,
-            cwd: record.payload?.cwd || record.cwd || session.cwd || null,
+            project: cwd,
+            cwd,
             provider: session.provider,
             messages: [],
             accounts: [],
@@ -191,7 +218,7 @@ export async function syncConversations({ codexHome, libraryFile, accountId, pre
       if (accountId && !existing.accounts.includes(accountId)) existing.accounts.push(accountId);
       existing.updatedAt = parsed.timestamp || existing.updatedAt;
       existing.source = file;
-      if (!existing.cwd && record.payload?.cwd) existing.cwd = record.payload.cwd;
+      if (!existing.cwd && cwd) existing.cwd = cwd;
       byId.set(parsed.id, existing);
     }
     completed += 1;
@@ -241,7 +268,7 @@ export async function syncConversations({ codexHome, libraryFile, accountId, pre
 
 async function readThreadCatalog(codexHome, historyThreadIds = new Set()) {
   let DatabaseSync;
-  try { ({ DatabaseSync } = await import("node:sqlite")); } catch { return []; }
+  try { ({ DatabaseSync } = await import("node:sqlite")); } catch { return { threads: [], archivedIds: new Set() }; }
   const byId = new Map();
   const archivedIds = new Set();
   let authoritativeRoot = false;
@@ -268,7 +295,7 @@ async function readThreadCatalog(codexHome, historyThreadIds = new Set()) {
       if (columns.includes("thread_source")) filters.push("lower(coalesce(thread_source, '')) not in ('subagent', 'sub_agent', 'internal')");
       const where = filters.length ? ` where ${filters.join(" and ")}` : "";
       const updated = pick("updated_at_ms", pick("updated_at", "0"));
-      const rows = db.prepare(`select "id" as id, ${pick("title", "''")} as title, ${pick("cwd", "''")} as cwd, ${pick("model_provider", "''")} as provider, ${pick("rollout_path", "''")} as rollout_path, ${pick("has_user_event", "0")} as has_user_event, ${pick("thread_source", "''")} as thread_source, ${updated} as updated_at from "threads"${where}`).all();
+      const rows = db.prepare(`select "id" as id, ${pick("title", "''")} as title, ${pick("cwd", "''")} as cwd, ${pick("model_provider", "''")} as provider, ${pick("project_id", "NULL")} as project_id, ${pick("rollout_path", "''")} as rollout_path, ${pick("has_user_event", "0")} as has_user_event, ${pick("thread_source", "''")} as thread_source, ${updated} as updated_at from "threads"${where}`).all();
       for (const row of rows) {
         const id = String(row.id || "").trim();
         if (!id) continue;
@@ -280,6 +307,7 @@ async function readThreadCatalog(codexHome, historyThreadIds = new Set()) {
           title: row.title || "未命名线程",
           cwd: row.cwd || null,
           provider: row.provider || null,
+          projectId: row.project_id || null,
           updatedAt: row.updated_at ? new Date(Number(row.updated_at) < 10_000_000_000 ? Number(row.updated_at) * 1000 : Number(row.updated_at)).toISOString() : null,
           source: resolveRolloutPath(codexHome, row.rollout_path),
         };
@@ -345,7 +373,91 @@ async function readThreadCatalog(codexHome, historyThreadIds = new Set()) {
       catalogDb.close();
     }
   }
-  return [...byId.values()].map(({ sourceTable, ...item }) => item).sort((a, b) => String(b.updatedAt).localeCompare(String(a.updatedAt)));
+  return {
+    threads: [...byId.values()].map(({ sourceTable, ...item }) => item).sort((a, b) => String(b.updatedAt).localeCompare(String(a.updatedAt))),
+    archivedIds,
+  };
+}
+
+async function rolloutFilesForSync(codexHome, { catalog, archivedIds, preserveLocalProjects }) {
+  if (!catalog.length && !preserveLocalProjects) return walk(path.join(codexHome, "sessions"));
+  if (catalog.length && !preserveLocalProjects) return catalog.map((item) => item.source).filter(Boolean);
+
+  const catalogIds = new Set(catalog.map((item) => item.id));
+  const files = [];
+  for (const file of await walk(path.join(codexHome, "sessions"))) {
+    const meta = await readSessionMetadata(file).catch(() => null);
+    const id = String(meta?.id || "").trim();
+    if (!id || catalogIds.has(id) || archivedIds.has(id) || internalSessionSource(meta.source)) continue;
+    files.push(file);
+  }
+  return files;
+}
+
+async function readSessionMetadata(file) {
+  const input = createReadStream(file, { encoding: "utf8" });
+  const lines = createInterface({ input, crlfDelay: Infinity });
+  try {
+    for await (const line of lines) {
+      let record;
+      try { record = JSON.parse(line); } catch { continue; }
+      if (record?.type === "session_meta" && record.payload && typeof record.payload === "object") return record.payload;
+    }
+    return null;
+  } finally {
+    lines.close();
+    input.destroy();
+  }
+}
+
+function internalSessionSource(source) {
+  if (source && typeof source === "object") return ["subagent", "sub_agent", "internal"].some((key) => Object.hasOwn(source, key));
+  const value = String(source || "").trim().toLowerCase();
+  return value === "subagent" || value === "sub_agent" || value === "internal" || value.startsWith("subagent_") || value.startsWith("internal_");
+}
+
+export async function readLocalProjects(codexHome) {
+  let DatabaseSync;
+  try { ({ DatabaseSync } = await import("node:sqlite")); } catch { return []; }
+  let db;
+  try { db = new DatabaseSync(path.join(codexHome, "state_5.sqlite"), { readOnly: true }); } catch { return []; }
+  try {
+    const tables = new Set(db.prepare("select name from sqlite_master where type='table'").all().map((row) => row.name));
+    if (!tables.has("projects") || !tables.has("project_roots")) return [];
+    const columnsFor = (table) => new Set(db.prepare(`pragma table_info("${table}")`).all().map((row) => row.name));
+    const projectColumns = columnsFor("projects");
+    const rootColumns = columnsFor("project_roots");
+    const projectId = ["id", "project_id", "uuid"].find((column) => projectColumns.has(column));
+    const projectName = ["name", "title", "display_name"].find((column) => projectColumns.has(column));
+    const rootProjectId = ["project_id", "project_uuid", "id"].find((column) => rootColumns.has(column));
+    const rootPath = ["path", "root_path", "root", "cwd", "folder_path", "directory"].find((column) => rootColumns.has(column));
+    if (!projectId || !projectName || !rootProjectId || !rootPath) return [];
+    const projectPosition = projectColumns.has("position") ? '"position"' : `"${projectName}"`;
+    const rootPosition = rootColumns.has("position") ? '"position"' : `"${rootPath}"`;
+    const projects = db.prepare(`select "${projectId}" as id, "${projectName}" as name, ${projectPosition} as position from projects order by position asc`).all();
+    const roots = db.prepare(`select "${rootProjectId}" as project_id, "${rootPath}" as path, ${rootPosition} as position from project_roots order by position asc`).all();
+    const rootsByProject = new Map();
+    for (const root of roots) {
+      const projectKey = String(root.project_id || "");
+      const value = String(root.path || "").trim();
+      if (!projectKey || !value) continue;
+      const list = rootsByProject.get(projectKey) || [];
+      if (!list.includes(value)) list.push(value);
+      rootsByProject.set(projectKey, list);
+    }
+    return projects
+      .map((project) => {
+        const id = String(project.id || "");
+        return id && rootsByProject.has(id)
+          ? { id, name: String(project.name || id), roots: rootsByProject.get(id) }
+          : null;
+      })
+      .filter(Boolean);
+  } catch {
+    return [];
+  } finally {
+    db.close();
+  }
 }
 
 function resolveRolloutPath(codexHome, value) {

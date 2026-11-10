@@ -6,7 +6,7 @@ import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { defaultPaths, inspectCodex, captureCurrent, liveProfileMatch, setOfficialWindowsSandboxFallback, switchProfile as applyProfile } from "../codex.js";
 import { runtimePaths, loadProfiles, publicProfiles, saveProfile, profileForSwitch, recordProfileTest, setCurrent, setResolvedModel, setModelCatalog, deleteProfile, clearApiKey, reorderProfiles } from "../profiles.js";
-import { syncConversations, readLibrary, readThreadDetail } from "../sync.js";
+import { syncConversations, readLibrary, readLocalProjects, readThreadDetail } from "../sync.js";
 import { setPlatformSecretProvider } from "../vault.js";
 import { buildMacTerminalArgs, buildResumeArgs, formatResumeCommand, waitForSpawn } from "../launcher.js";
 import { findCodexCli } from "../cli-discovery.js";
@@ -111,6 +111,7 @@ async function getState() {
     library: {
       syncedAt: library.syncedAt,
       threads: library.threads.map(({ messages, ...thread }) => thread),
+      projects: await readLocalProjects(codexPaths.home),
     },
     gateway: { ...responsesGateway.status, error: gatewayStartupError },
     plugins,

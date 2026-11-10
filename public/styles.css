@@ -153,7 +153,19 @@ button:focus-visible, input:focus-visible, select:focus-visible, [tabindex]:focu
 .thread-toolbar { display: grid; grid-template-columns: minmax(180px, 1fr) minmax(120px, 0.8fr) auto auto; align-items: center; gap: 8px; padding: 12px 18px; border-bottom: 1px solid var(--line-soft); }
 .thread-toolbar input, .thread-toolbar select { min-width: 0; margin: 0; padding: 8px 9px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface-3); color: var(--text); font-size: 11px; }
 .thread-toolbar .count { white-space: nowrap; }
-.local-project-thread-list { display: grid; min-height: 100px; max-height: min(62vh, 620px); gap: 6px; overflow: auto; padding: 10px 18px; }
+.local-project-catalog-heading, .local-project-threads-heading { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 8px 18px 5px; color: var(--text); font-size: 11px; }
+.local-project-catalog-heading small { color: var(--muted); font-size: 9px; }
+.local-project-registry { display: grid; max-height: min(24vh, 220px); gap: 5px; overflow: auto; padding: 4px 18px 8px; }
+.local-project-card { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 10px; padding: 7px 9px; border: 1px solid var(--line-soft); border-radius: 6px; background: #141719; }
+.local-project-card.selected { border-color: #568270; background: #1a2923; }
+.local-project-card-main { display: grid; min-width: 0; gap: 3px; }
+.local-project-card-main strong { overflow: hidden; color: var(--text); font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
+.local-project-card-main span, .local-project-card-main small { color: var(--muted); font-size: 9px; }
+.local-project-card-main small { overflow-wrap: anywhere; }
+.local-project-card .button { min-height: 29px; padding: 5px 8px; font-size: 10px; white-space: nowrap; }
+.local-project-threads-heading { border-top: 1px solid var(--line-soft); }
+.local-project-threads-heading .button { min-height: 27px; padding: 4px 8px; font-size: 9px; }
+.local-project-thread-list { display: grid; min-height: 80px; max-height: min(36vh, 360px); gap: 6px; overflow: auto; padding: 6px 18px 10px; }
 .thread-item { display: grid; grid-template-columns: 22px minmax(0, 1fr) auto; align-items: center; gap: 10px; padding: 9px 10px; border: 1px solid var(--line-soft); border-radius: 7px; background: #141719; }
 .thread-icon { color: var(--accent); font-size: 14px; text-align: center; }
 .thread-body { min-width: 0; }
@@ -429,6 +441,8 @@ dialog::backdrop { background: rgba(0, 0, 0, 0.72); }
   .audit-form { grid-template-columns: 1fr; }
   .thread-toolbar { grid-template-columns: 1fr 1fr; }
   .thread-toolbar input { grid-column: 1 / -1; }
+  .local-project-registry { max-height: 22vh; }
+  .local-project-thread-list { max-height: 34vh; }
   .thread-item { grid-template-columns: 20px minmax(0, 1fr); }
   .thread-actions { grid-column: 2; flex-direction: row; }
 }

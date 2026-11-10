@@ -1,9 +1,11 @@
 const $ = (selector) => document.querySelector(selector);
 const state = {
   profiles: [],
-  version: "3.2.2",
+  version: "3.3.1",
   openaiStatus: null,
   threads: [],
+  projects: [],
+  projectRootFilter: null,
   currentId: null,
   selectedProfileId: null,
   selectedThread: null,
@@ -29,7 +31,7 @@ const state = {
   releases: [],
   update: {
     phase: "idle",
-    currentVersion: "3.2.2",
+    currentVersion: "3.3.1",
     latestVersion: null,
     available: false,
     action: "install",
@@ -262,7 +264,15 @@ const translations = {
     "threads.count": "条线程",
     "threads.summary": "{count} 条 · {time}",
     "threads.title": "项目继续入口",
-    "threads.providerNotice": "Codex Desktop 在自定义 API provider 下可能隐藏官方项目/聊天。Galaxy 会保留仍存在于本机项目目录或会话文件中的记录，你可以从这里绝对恢复并继续；切回官方账号后原生列表也可重新同步。",
+    "threads.providerNotice": "Plus 与 Pro 是不同登录身份，因此 Codex Desktop 的本机项目目录列表可能各自独立；这是账号范围差异，不是套餐权限差异。Galaxy 直接读取同一台电脑的本机项目数据库，API 模式也可浏览全部已登记项目，并从本地会话读取项目聊天，不更改登录状态。",
+    "threads.localProjectCatalog": "本机注册项目",
+    "threads.projectCount": "{count} 个项目",
+    "threads.localConversations": "本机聊天记录",
+    "threads.projectThreads": "{count} 条本地会话",
+    "threads.projectFilterAction": "查看会话",
+    "threads.projectFilterActive": "已筛选：{name}",
+    "threads.clearProjectFilter": "清除筛选",
+    "threads.projectCatalogEmpty": "本机数据库中未找到已登记的项目目录。",
     "threads.search": "按项目、标题或账号搜索",
     "threads.allProjects": "全部项目",
     "threads.detailTitle": "仅查看本机线程详情，不会切换账号",
@@ -479,7 +489,7 @@ const translations = {
     "diagnostics.opened": "已打开本地日志文件。",
     "diagnostics.truncated": "日志较长，当前只显示最后一段。",
     "tutorial.title": "分阶段使用教程",
-    "tutorial.intro": "按使用阶段阅读教程：先完成一次账号配置，日常按步骤切换，出问题先看日志，超大聊天先复制深度链接新建聊天继续，最后了解本地历史和其他特色功能。当前版本为 v3.2.2。",
+    "tutorial.intro": "按使用阶段阅读教程：先完成一次账号配置，日常按步骤切换，出问题先看日志，超大聊天先复制深度链接新建聊天继续，最后了解本地历史和其他特色功能。当前版本为 v3.3.1。",
     "tutorial.stageNav": "教程阶段",
     "tutorial.stage1.tab": "首次配置",
     "tutorial.stage1.short": "添加账号和模型",
@@ -536,12 +546,12 @@ const translations = {
     "tutorial.recovery.configTitle": "2 · 看到 config_load / Windows 设置",
     "tutorial.recovery.configText": "这通常是旧配置格式问题。1.9.8 起 Galaxy 会自动清理保留 provider 覆盖；不要删除 config.toml。",
     "tutorial.recovery.switchTitle": "3 · 账号没有切过去",
-    "tutorial.recovery.switchText": "如果进度未到 100% 或发生自动回滚，说明切换没有成功；先看日志，再重试。Codex Desktop 在自定义 API provider 下可能隐藏官方项目/聊天侧栏，但本地数据仍保留；打开 Galaxy 顶部“本地项目”可搜索并继续，切回官方账号后原生列表应恢复。两个官方账号需要分别完成登录和捕获；登录失效时需重新登录对应账号。",
+    "tutorial.recovery.switchText": "如果进度未到 100% 或发生自动回滚，说明切换没有成功；先看日志，再重试。Plus、Pro 是不同登录身份，Codex Desktop 会分别保存本机项目目录登记；API 模式没有官方账号目录。Galaxy 的“本地项目”读取机器共享目录并从本地会话恢复，官方账号认证和云端会话仍各自隔离。",
     "tutorial.recovery.windowsTitle": "4 · 只有真正的 Windows 沙盒故障",
     "tutorial.recovery.windowsText": "如果 Galaxy 明确提示 elevated 沙盒被本机策略阻止，才选择“兼容模式重试”；它不是日常切换步骤。",
     "tutorial.recovery.never": "不要删除 config.toml、~/.codex、~/.codex-galaxy，也不要为了“清空状态”手动退出官方账号。若自动恢复不完整，停止继续操作并提交脱敏日志。",
     "tutorial.feature.historyTitle": "本地历史连续",
-    "tutorial.feature.historyText": "打开顶部“本地项目”可浏览本机线程库，选择官方或 API 账号继续；Codex Desktop 侧栏在自定义 API provider 下可能隐藏旧项目，切回官方账号可尝试恢复，若仍缺失可从此处继续。",
+    "tutorial.feature.historyText": "本地项目窗口读取机器共享的项目目录数据库，并从会话文件恢复缺失聊天；Plus、Pro 或 API 账号登录都可查看本机目录。官方账号认证与云端会话仍各自隔离。",
     "tutorial.feature.modelsTitle": "模型目录",
     "tutorial.feature.modelsText": "API 模型 ID 可留空自动发现；填写具体 GPT 型号时仍会读取完整目录，并保留你的型号作为默认值。",
     "tutorial.feature.gatewayTitle": "直连与兼容网关",
@@ -779,7 +789,15 @@ const translations = {
     "threads.count": "threads",
     "threads.summary": "{count} threads · {time}",
     "threads.title": "Resume a project",
-    "threads.providerNotice": "Codex Desktop may hide official projects/chats under a custom API provider. Galaxy preserves records whose local project folder or session file still exists, so you can always recover and resume them here; switching back to the official account can resync the native list.",
+    "threads.providerNotice": "Plus and Pro are separate login identities, so Codex Desktop may keep their local project-folder lists separately; this is account scope, not a plan entitlement. Galaxy reads the same computer's local project database directly, lists registered folders in API mode too, and reads their chats from local sessions without changing login state.",
+    "threads.localProjectCatalog": "Registered local projects",
+    "threads.projectCount": "{count} projects",
+    "threads.localConversations": "Local conversations",
+    "threads.projectThreads": "{count} local conversations",
+    "threads.projectFilterAction": "View conversations",
+    "threads.projectFilterActive": "Filtered: {name}",
+    "threads.clearProjectFilter": "Clear filter",
+    "threads.projectCatalogEmpty": "No registered local project folders were found in the on-device database.",
     "threads.search": "Search by project, title, or account",
     "threads.allProjects": "All projects",
     "threads.detailTitle": "Only view local thread details; does not switch accounts",
@@ -996,7 +1014,7 @@ const translations = {
     "diagnostics.opened": "The local log file was opened.",
     "diagnostics.truncated": "The log is long; only its latest section is shown.",
     "tutorial.title": "Phased usage guide",
-    "tutorial.intro": "Read the guide by stage: configure accounts once, follow the daily switch steps, preserve the scene when something fails, use a deep link to continue oversized chats in a new thread, then learn local history and other features. Current version: v3.2.2.",
+    "tutorial.intro": "Read the guide by stage: configure accounts once, follow the daily switch steps, preserve the scene when something fails, use a deep link to continue oversized chats in a new thread, then learn local history and other features. Current version: v3.3.1.",
     "tutorial.stageNav": "Tutorial stages",
     "tutorial.stage1.tab": "First setup",
     "tutorial.stage1.short": "Accounts and models",
@@ -1053,12 +1071,12 @@ const translations = {
     "tutorial.recovery.configTitle": "2 · config_load / Windows setup appears",
     "tutorial.recovery.configText": "This is usually an old configuration-format problem. Since 1.9.8, Galaxy removes the stale provider override automatically; never delete config.toml.",
     "tutorial.recovery.switchTitle": "3 · The account did not switch",
-    "tutorial.recovery.switchText": "If progress did not reach 100% or the transaction rolled back, the switch did not succeed; read Log before retrying. Codex Desktop may hide official projects/chats in its sidebar under a custom API provider, while local data remains. Open Local projects in Galaxy to search and resume them; switching back to the official account should restore the native list. Capture each official account after its own login; sign in to that account again if its login expires.",
+    "tutorial.recovery.switchText": "If progress did not reach 100% or the transaction rolled back, read Log before retrying. Plus and Pro are separate login identities, and Codex Desktop stores local folder registrations per account; API profiles have no official account catalog. Galaxy's Local projects reads machine-wide folders and recovers local sessions, while official authentication and cloud conversations remain isolated.",
     "tutorial.recovery.windowsTitle": "4 · Only a genuine Windows sandbox failure",
     "tutorial.recovery.windowsText": "Choose Compatibility retry only when Galaxy explicitly says the elevated sandbox is blocked by a machine policy; it is not a daily switching step.",
     "tutorial.recovery.never": "Do not delete config.toml, ~/.codex, or ~/.codex-galaxy, and do not manually log out of the official account just to clear state. Stop and submit the redacted log if recovery is incomplete.",
     "tutorial.feature.historyTitle": "Local history continuity",
-    "tutorial.feature.historyText": "Open Local projects to browse the on-device thread library and continue with an official or API account. Codex Desktop may hide older projects in its sidebar under a custom API provider; switching back to the official account may restore the native list, otherwise continue from Local projects.",
+    "tutorial.feature.historyText": "Local projects reads the machine-wide project-root catalog and recovers project chats from local session files; Plus, Pro, and API profiles can all view these registered local folders. Official authentication and cloud conversation state remain separate.",
     "tutorial.feature.modelsTitle": "Model catalog",
     "tutorial.feature.modelsText": "Leave the API model ID blank for discovery; an exact GPT ID still loads the full catalog and remains the default.",
     "tutorial.feature.gatewayTitle": "Direct API and gateway",
@@ -1128,6 +1146,7 @@ function applyLanguage() {
   $("#languageSelect").value = currentLanguage;
   renderProfiles();
   populateProjects();
+  renderLocalProjectRegistry();
   renderThreads();
   renderPlugins();
   updateStatusBoard();
@@ -1183,6 +1202,7 @@ function updateOperationControls() {
   $("#profileForm").querySelectorAll("button, input, select").forEach((control) => { control.disabled = busy; });
   renderProfiles();
   renderThreads();
+  renderLocalProjectRegistry();
   if (state.selectedThread && $("#threadDialog").open) renderThreadDialog(state.selectedThread);
 }
 
@@ -1462,8 +1482,8 @@ function updateStatusBoard() {
   $("#statusGateway").textContent = state.gatewayRunning ? t("common.running") : t("common.notRunning");
   const projectNotice = $("#localProjectsProviderNotice");
   if (projectNotice) {
-    projectNotice.hidden = current?.kind !== "api";
-    projectNotice.textContent = current?.kind === "api" ? t("threads.providerNotice") : "";
+    projectNotice.hidden = false;
+    projectNotice.textContent = t("threads.providerNotice");
   }
   renderOpenAIStatus();
   if ($("#libraryMeta")) {
@@ -1578,12 +1598,21 @@ function renderThreads() {
   if (!$("#threads") || !$("#search") || !$("#projectFilter")) return;
   const query = $("#search").value.trim().toLowerCase();
   const project = $("#projectFilter").value;
+  const projectFilter = state.projectRootFilter;
   const disabled = operationBusy() ? " disabled" : "";
   const filtered = state.threads.filter((thread) => {
     const text = `${thread.title} ${thread.cwd || ""} ${thread.provider || ""} ${(thread.accounts || []).join(" ")}`.toLowerCase();
-    return (!query || text.includes(query)) && (!project || (thread.cwd || "") === project);
+    const matchesProject = projectFilter
+      ? thread.projectId === projectFilter.projectId || projectFilter.roots.some((rootPath) => localPathContains(rootPath, thread.cwd))
+      : !project || (thread.cwd || "") === project;
+    return (!query || text.includes(query)) && matchesProject;
   });
   $("#threadCount").textContent = `${filtered.length} ${t("threads.count")}`;
+  const selectedProject = state.projects.find((item) => item.id === projectFilter?.projectId);
+  $("#localProjectThreadsTitle").textContent = selectedProject
+    ? t("threads.projectFilterActive", { name: selectedProject.name })
+    : t("threads.localConversations");
+  $("#clearProjectFilter").hidden = !selectedProject;
   const root = $("#threads");
   if (!filtered.length) {
     root.innerHTML = `<div class="empty">${t("threads.empty")}</div>`;
@@ -1594,6 +1623,38 @@ function renderThreads() {
     <div class="thread-body"><p class="thread-title">${escapeHtml(thread.title || t("common.unnamedThread"))}</p><div class="thread-meta"><span>${escapeHtml(thread.cwd || t("common.noProjectDir"))}</span><span>${escapeHtml(thread.provider || t("common.providerUnrecorded"))}</span><span>${formatDate(thread.updatedAt)}</span></div></div>
     <div class="thread-actions"><button data-action="detail" data-id="${escapeHtml(thread.id)}" title="${t("threads.detailTitle")}" aria-label="${t("threads.detailTitle")}"${disabled}>${t("threads.detail")}</button><button data-action="launch" data-id="${escapeHtml(thread.id)}" title="${t("threads.launchTitle")}" aria-label="${t("threads.launchDetail")}"${disabled}>${t("threads.launch")}</button></div>
   </article>`).join("");
+}
+
+function localPathContains(rootPath, candidatePath) {
+  const normalize = (value) => {
+    let input = String(value || "");
+    if (/^\\\\\?\\UNC\\/i.test(input)) input = `\\\\${input.slice(8)}`;
+    else input = input.replace(/^\\\\\?\\/i, "");
+    return input.replace(/\\/g, "/").replace(/\/+/g, "/").replace(/\/$/, "").toLowerCase();
+  };
+  const root = normalize(rootPath);
+  const candidate = normalize(candidatePath);
+  return Boolean(root && candidate && (candidate === root || candidate.startsWith(`${root}/`)));
+}
+
+function renderLocalProjectRegistry() {
+  const root = $("#localProjectRegistry");
+  if (!root) return;
+  const query = $("#search").value.trim().toLowerCase();
+  const projects = state.projects.filter((project) => `${project.name} ${project.roots.join(" ")}`.toLowerCase().includes(query));
+  $("#localProjectRegistryCount").textContent = t("threads.projectCount", { count: projects.length });
+  if (!projects.length) {
+    root.innerHTML = `<div class="empty">${t("threads.projectCatalogEmpty")}</div>`;
+    return;
+  }
+  root.innerHTML = projects.map((project) => {
+    const count = state.threads.filter((thread) => thread.projectId === project.id || project.roots.some((rootPath) => localPathContains(rootPath, thread.cwd))).length;
+    const selected = state.projectRootFilter?.projectId === project.id;
+    return `<article class="local-project-card${selected ? " selected" : ""}">
+      <div class="local-project-card-main"><strong>${escapeHtml(project.name)}</strong><span>${escapeHtml(t("threads.projectThreads", { count }))}</span><small>${project.roots.map(escapeHtml).join("<br>")}</small></div>
+      <button class="button secondary" data-project-id="${escapeHtml(project.id)}"${operationBusy() || !count ? " disabled" : ""}>${t("threads.projectFilterAction")}</button>
+    </article>`;
+  }).join("");
 }
 
 function populateProjects() {
@@ -1607,6 +1668,7 @@ function populateProjects() {
 function openLocalProjects() {
   if (operationBusy()) return;
   populateProjects();
+  renderLocalProjectRegistry();
   renderThreads();
   $("#localProjectsDialog").showModal();
 }
@@ -1618,6 +1680,7 @@ async function refresh() {
   state.currentId = snapshot.profiles.currentId;
   state.profiles = snapshot.profiles.profiles;
   state.threads = snapshot.library.threads;
+  state.projects = snapshot.library.projects || [];
   state.plugins = snapshot.plugins || [];
   state.automation = snapshot.automation || state.automation;
   state.releases = Array.isArray(snapshot.releases) ? snapshot.releases : [];
@@ -2458,8 +2521,32 @@ $("#closeDialog").addEventListener("click", () => $("#threadDialog").close());
 $("#localProjectsBtn").addEventListener("click", openLocalProjects);
 $("#closeLocalProjects").addEventListener("click", () => $("#localProjectsDialog").close());
 $("#closeLocalProjectsFooter").addEventListener("click", () => $("#localProjectsDialog").close());
-$("#search").addEventListener("input", renderThreads);
-$("#projectFilter").addEventListener("change", renderThreads);
+$("#search").addEventListener("input", () => {
+  renderLocalProjectRegistry();
+  renderThreads();
+});
+$("#projectFilter").addEventListener("change", () => {
+  state.projectRootFilter = null;
+  renderLocalProjectRegistry();
+  renderThreads();
+});
+$("#localProjectRegistry").addEventListener("click", (event) => {
+  const button = event.target.closest("button[data-project-id]");
+  if (!button || operationBusy()) return;
+  const project = state.projects.find((item) => item.id === button.dataset.projectId);
+  if (!project) return;
+  $("#search").value = "";
+  state.projectRootFilter = { projectId: project.id, roots: project.roots };
+  $("#projectFilter").value = "";
+  renderLocalProjectRegistry();
+  renderThreads();
+});
+$("#clearProjectFilter").addEventListener("click", () => {
+  state.projectRootFilter = null;
+  $("#projectFilter").value = "";
+  renderLocalProjectRegistry();
+  renderThreads();
+});
 $("#threads").addEventListener("click", (event) => {
   const action = event.target.closest("[data-action]");
   if (!action || operationBusy()) return;
