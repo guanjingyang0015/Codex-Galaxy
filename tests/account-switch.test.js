@@ -115,6 +115,54 @@ test("official switching bootstraps first and resumes the latest local thread af
   assert.match(refreshedOfficial.auth, /refreshed-token/);
 });
 
+test("local official projects remain in Galaxy's library and can resume through an API profile", async () => {
+  const item = await fixture();
+  const sessions = path.join(item.codexHome, "sessions");
+  const sessionFile = path.join(sessions, "official-project.jsonl");
+  await fs.mkdir(sessions, { recursive: true });
+  await fs.writeFile(sessionFile, [
+    JSON.stringify({ type: "session_meta", payload: { id: "official-project-thread", thread_name: "官方工作项目", cwd: item.root, model_provider: "openai" } }),
+    JSON.stringify({ type: "event_msg", payload: { type: "user_message", message: "保留官方项目" } }),
+  ].join("\n") + "\n");
+
+  let resumedThreadId = null;
+  const common = {
+    codexPaths: item.codexPaths,
+    dataPaths: item.dataPaths,
+    stopCodexDesktop: async () => ({ stopped: 0, processIds: [] }),
+  };
+  await switchAccountTransaction({
+    ...common,
+    profileId: item.api.id,
+    launch: async (_profile, threadId) => {
+      resumedThreadId = threadId;
+      return { method: "test" };
+    },
+  });
+
+  const libraryAfterApiSwitch = JSON.parse(await fs.readFile(item.dataPaths.library, "utf8"));
+  const apiThread = libraryAfterApiSwitch.threads.find((thread) => thread.id === "official-project-thread");
+  assert.ok(apiThread);
+  assert.equal(apiThread.title, "官方工作项目");
+  assert.equal(apiThread.cwd, item.root);
+  assert.ok(apiThread.accounts.includes(item.api.id));
+  assert.equal(resumedThreadId, "official-project-thread");
+  assert.equal(JSON.parse((await fs.readFile(sessionFile, "utf8")).split("\n")[0]).payload.model_provider, item.api.providerKey);
+
+  await switchAccountTransaction({
+    ...common,
+    profileId: item.official.id,
+    launch: async (_profile, threadId) => {
+      resumedThreadId = threadId;
+      return { method: "test" };
+    },
+  });
+  const officialThread = JSON.parse(await fs.readFile(item.dataPaths.library, "utf8")).threads.find((thread) => thread.id === "official-project-thread");
+  assert.ok(officialThread);
+  assert.equal(resumedThreadId, "official-project-thread");
+  assert.equal(JSON.parse((await fs.readFile(sessionFile, "utf8")).split("\n")[0]).payload.model_provider, "openai");
+});
+
 test("an uncaptured official profile enters manual bootstrap and captures the new official login", async () => {
   const item = await fixture();
   const vault = JSON.parse(await fs.readFile(item.dataPaths.vault, "utf8"));

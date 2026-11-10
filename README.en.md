@@ -6,7 +6,7 @@
 
 Codex Galaxy is a local desktop utility for switching between Codex accounts and compatible APIs while continuing project tasks saved on the same computer.
 
-**Current version: Codex Galaxy 3.1.2**
+**Current version: Codex Galaxy 3.2.0**
 
 The in-app guide is now organized by stage: **first account setup → daily account switching → failure recovery → features**. Open **Guide** and choose only the stage you need instead of reading one long page.
 
@@ -17,6 +17,7 @@ The in-app guide is now organized by stage: **first account setup → daily acco
 - Resume existing local tasks with less repeated setup
 - List unfinished chats and scheduled tasks before switching so they can be opened and completed
 - Continue projects and chat history stored on this computer across accounts and APIs
+- Browse the local thread library from Local projects; if Codex Desktop hides official projects while a relay API provider is active, Galaxy can still resume the local thread with an official or API profile
 - Check old session format and safely restore it from a verified backup when needed
 - Manage local plugins, downloaded marketplaces, and project data
 - Record a timestamped redacted local log so switch failures can be inspected and reported
@@ -154,6 +155,8 @@ MIT License. Codex Galaxy is an independent local utility and is not an official
 2.2.0 adds a softly animated GPT Top-up button to the app header. It opens the Codex Galaxy plan page with current plans, prices, availability, consultation steps, and the contact QR code; the page has no login, cart, order lookup, or online checkout.
 
 2.2.1 changes the web admin into switchable API Ranking and GPT Top-up panels, preserving the active panel after saves. The public plan page adds a prominent OpenAI knot mark, a `GPT × CODEX` service visual, a technical grid, and an AI orbit motif.
+
+3.2.0 adds a Local projects window to browse the on-device thread library, search titles/paths, filter by project, and continue with an official or API profile. Codex Desktop may hide official project/chat listings under a custom API provider; local data remains, switching back to the official account restores its native listing, and Galaxy provides a local resume entry.
 
 3.1.2 repairs the macOS release path: Apple Silicon and Intel packages build on native runners, the published app is checked for its signature and CPU architecture, and ad hoc signing reduces Gatekeeper false “damaged app” reports. The first download may still require Finder’s right-click Open flow; public packages are not notarized with an Apple Developer certificate.
 

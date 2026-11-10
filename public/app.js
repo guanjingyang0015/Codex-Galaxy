@@ -1,7 +1,7 @@
 const $ = (selector) => document.querySelector(selector);
 const state = {
   profiles: [],
-  version: "3.1.2",
+  version: "3.2.0",
   openaiStatus: null,
   threads: [],
   currentId: null,
@@ -29,7 +29,7 @@ const state = {
   releases: [],
   update: {
     phase: "idle",
-    currentVersion: "3.1.2",
+    currentVersion: "3.2.0",
     latestVersion: null,
     available: false,
     action: "install",
@@ -85,6 +85,7 @@ const translations = {
     "common.refreshTitle": "重新扫描本机 Codex 项目记录",
     "actions.plugins": "插件",
     "actions.cleanup": "清理数据",
+    "actions.localProjects": "本地项目",
     "actions.tutorial": "使用教程",
     "actions.topup": "GPT 代充",
     "actions.topupHint": "套餐与价格",
@@ -261,6 +262,7 @@ const translations = {
     "threads.count": "条线程",
     "threads.summary": "{count} 条 · {time}",
     "threads.title": "项目继续入口",
+    "threads.providerNotice": "Codex Desktop 当前可能按 API provider 过滤侧栏项目；此处读取本机项目记录，切回官方账号后，官方项目应在 Codex Desktop 中恢复显示。列表与文件都不会因打开此窗口而删除。",
     "threads.search": "按项目、标题或账号搜索",
     "threads.allProjects": "全部项目",
     "threads.detailTitle": "仅查看本机线程详情，不会切换账号",
@@ -477,7 +479,7 @@ const translations = {
     "diagnostics.opened": "已打开本地日志文件。",
     "diagnostics.truncated": "日志较长，当前只显示最后一段。",
     "tutorial.title": "分阶段使用教程",
-    "tutorial.intro": "按使用阶段阅读教程：先完成一次账号配置，日常按步骤切换，出问题先看日志，超大聊天先复制深度链接新建聊天继续，最后了解本地历史和其他特色功能。当前版本为 v3.1.2。",
+    "tutorial.intro": "按使用阶段阅读教程：先完成一次账号配置，日常按步骤切换，出问题先看日志，超大聊天先复制深度链接新建聊天继续，最后了解本地历史和其他特色功能。当前版本为 v3.2.0。",
     "tutorial.stageNav": "教程阶段",
     "tutorial.stage1.tab": "首次配置",
     "tutorial.stage1.short": "添加账号和模型",
@@ -534,12 +536,12 @@ const translations = {
     "tutorial.recovery.configTitle": "2 · 看到 config_load / Windows 设置",
     "tutorial.recovery.configText": "这通常是旧配置格式问题。1.9.8 起 Galaxy 会自动清理保留 provider 覆盖；不要删除 config.toml。",
     "tutorial.recovery.switchTitle": "3 · 账号没有切过去",
-    "tutorial.recovery.switchText": "如果进度未到 100% 或发生自动回滚，说明切换没有成功；先看日志，再重试。升级到最新版后，等待当前回复结束，在 Galaxy 重新选择目标账号并切换，完成后重新打开原任务。两个官方账号需要分别完成登录和捕获；登录失效时需重新登录对应账号。",
+    "tutorial.recovery.switchText": "如果进度未到 100% 或发生自动回滚，说明切换没有成功；先看日志，再重试。Codex Desktop 在自定义 API provider 下可能隐藏官方项目/聊天侧栏，但本地数据仍保留；打开 Galaxy 顶部“本地项目”可搜索并继续，切回官方账号后原生列表应恢复。两个官方账号需要分别完成登录和捕获；登录失效时需重新登录对应账号。",
     "tutorial.recovery.windowsTitle": "4 · 只有真正的 Windows 沙盒故障",
     "tutorial.recovery.windowsText": "如果 Galaxy 明确提示 elevated 沙盒被本机策略阻止，才选择“兼容模式重试”；它不是日常切换步骤。",
     "tutorial.recovery.never": "不要删除 config.toml、~/.codex、~/.codex-galaxy，也不要为了“清空状态”手动退出官方账号。若自动恢复不完整，停止继续操作并提交脱敏日志。",
     "tutorial.feature.historyTitle": "本地历史连续",
-    "tutorial.feature.historyText": "本机保存的项目与聊天历史可在不同账号和 API 之间继续使用。",
+    "tutorial.feature.historyText": "打开顶部“本地项目”可浏览本机线程库，选择官方或 API 账号继续；Codex Desktop 侧栏在自定义 API provider 下可能隐藏旧项目，切回官方账号可恢复原生显示。",
     "tutorial.feature.modelsTitle": "模型目录",
     "tutorial.feature.modelsText": "API 模型 ID 可留空自动发现；填写具体 GPT 型号时仍会读取完整目录，并保留你的型号作为默认值。",
     "tutorial.feature.gatewayTitle": "直连与兼容网关",
@@ -600,6 +602,7 @@ const translations = {
     "common.refreshTitle": "Rescan local Codex project records",
     "actions.plugins": "Plugins",
     "actions.cleanup": "Clean data",
+    "actions.localProjects": "Local projects",
     "actions.tutorial": "Guide",
     "actions.topup": "GPT Top-up",
     "actions.topupHint": "Plans & pricing",
@@ -776,6 +779,7 @@ const translations = {
     "threads.count": "threads",
     "threads.summary": "{count} threads · {time}",
     "threads.title": "Resume a project",
+    "threads.providerNotice": "Codex Desktop may filter its sidebar by the active API provider. This list reads local project records; switching back to the official account should restore them in Codex Desktop. Opening this list does not delete records or files.",
     "threads.search": "Search by project, title, or account",
     "threads.allProjects": "All projects",
     "threads.detailTitle": "Only view local thread details; does not switch accounts",
@@ -992,7 +996,7 @@ const translations = {
     "diagnostics.opened": "The local log file was opened.",
     "diagnostics.truncated": "The log is long; only its latest section is shown.",
     "tutorial.title": "Phased usage guide",
-    "tutorial.intro": "Read the guide by stage: configure accounts once, follow the daily switch steps, preserve the scene when something fails, use a deep link to continue oversized chats in a new thread, then learn local history and other features. Current version: v3.1.2.",
+    "tutorial.intro": "Read the guide by stage: configure accounts once, follow the daily switch steps, preserve the scene when something fails, use a deep link to continue oversized chats in a new thread, then learn local history and other features. Current version: v3.2.0.",
     "tutorial.stageNav": "Tutorial stages",
     "tutorial.stage1.tab": "First setup",
     "tutorial.stage1.short": "Accounts and models",
@@ -1049,12 +1053,12 @@ const translations = {
     "tutorial.recovery.configTitle": "2 · config_load / Windows setup appears",
     "tutorial.recovery.configText": "This is usually an old configuration-format problem. Since 1.9.8, Galaxy removes the stale provider override automatically; never delete config.toml.",
     "tutorial.recovery.switchTitle": "3 · The account did not switch",
-    "tutorial.recovery.switchText": "If progress did not reach 100% or the transaction rolled back, the switch did not succeed; read Log before retrying. Upgrade to the latest version, wait for the current reply to finish, select the target account in Galaxy, switch, and then reopen the task. Capture each official account after its own login; sign in to that account again if its login expires.",
+    "tutorial.recovery.switchText": "If progress did not reach 100% or the transaction rolled back, the switch did not succeed; read Log before retrying. Codex Desktop may hide official projects/chats in its sidebar under a custom API provider, while local data remains. Open Local projects in Galaxy to search and resume them; switching back to the official account should restore the native list. Capture each official account after its own login; sign in to that account again if its login expires.",
     "tutorial.recovery.windowsTitle": "4 · Only a genuine Windows sandbox failure",
     "tutorial.recovery.windowsText": "Choose Compatibility retry only when Galaxy explicitly says the elevated sandbox is blocked by a machine policy; it is not a daily switching step.",
     "tutorial.recovery.never": "Do not delete config.toml, ~/.codex, or ~/.codex-galaxy, and do not manually log out of the official account just to clear state. Stop and submit the redacted log if recovery is incomplete.",
     "tutorial.feature.historyTitle": "Local history continuity",
-    "tutorial.feature.historyText": "Projects and chat history saved on this computer remain available across accounts and APIs.",
+    "tutorial.feature.historyText": "Open Local projects to browse the on-device thread library and continue with an official or API account. Codex Desktop may hide older projects in its sidebar under a custom API provider; switching back to the official account restores their native listing.",
     "tutorial.feature.modelsTitle": "Model catalog",
     "tutorial.feature.modelsText": "Leave the API model ID blank for discovery; an exact GPT ID still loads the full catalog and remains the default.",
     "tutorial.feature.gatewayTitle": "Direct API and gateway",
@@ -1168,6 +1172,7 @@ function updateOperationControls() {
   const busy = operationBusy();
   if ($("#syncBtn")) $("#syncBtn").disabled = busy;
   $("#cleanupBtn").disabled = busy;
+  if ($("#localProjectsBtn")) $("#localProjectsBtn").disabled = busy;
   $("#pluginBtn").disabled = busy;
   $("#diagnosticsBtn").disabled = busy;
   $("#addProfileBtn").disabled = busy;
@@ -1455,6 +1460,11 @@ function updateStatusBoard() {
   $("#statusProfile").textContent = current?.name || t("common.notSelected");
   $("#statusLoginMode").textContent = current ? profileLoginModeLabel(current) : t("common.notSelected");
   $("#statusGateway").textContent = state.gatewayRunning ? t("common.running") : t("common.notRunning");
+  const projectNotice = $("#localProjectsProviderNotice");
+  if (projectNotice) {
+    projectNotice.hidden = current?.kind !== "api";
+    projectNotice.textContent = current?.kind === "api" ? t("threads.providerNotice") : "";
+  }
   renderOpenAIStatus();
   if ($("#libraryMeta")) {
     $("#libraryMeta").textContent = t("threads.summary", {
@@ -1592,6 +1602,13 @@ function populateProjects() {
   const values = [...new Set(state.threads.map((thread) => thread.cwd).filter(Boolean))].sort();
   $("#projectFilter").innerHTML = `<option value="">${t("common.allProjects")}</option>` + values.map((value) => `<option value="${escapeHtml(value)}">${escapeHtml(value)}</option>`).join("");
   if (values.includes(previous)) $("#projectFilter").value = previous;
+}
+
+function openLocalProjects() {
+  if (operationBusy()) return;
+  populateProjects();
+  renderThreads();
+  $("#localProjectsDialog").showModal();
 }
 
 async function refresh() {
@@ -2438,6 +2455,21 @@ $("#cancelProfileBtn").addEventListener("click", closeProfileForm);
 $("#profileForm [name=kind]").addEventListener("change", updateProfileFields);
 $("#switchOpenBtn").addEventListener("click", () => state.selectedProfileId && switchAccount(state.selectedProfileId));
 $("#closeDialog").addEventListener("click", () => $("#threadDialog").close());
+$("#localProjectsBtn").addEventListener("click", openLocalProjects);
+$("#closeLocalProjects").addEventListener("click", () => $("#localProjectsDialog").close());
+$("#closeLocalProjectsFooter").addEventListener("click", () => $("#localProjectsDialog").close());
+$("#search").addEventListener("input", renderThreads);
+$("#projectFilter").addEventListener("change", renderThreads);
+$("#threads").addEventListener("click", (event) => {
+  const action = event.target.closest("[data-action]");
+  if (!action || operationBusy()) return;
+  const id = action.dataset.id;
+  if (action.dataset.action === "detail") return showThread(id);
+  if (action.dataset.action === "launch") {
+    $("#localProjectsDialog").close();
+    launch(id);
+  }
+});
 $("#activeTasks").addEventListener("click", async event => {
   const button = event.target.closest("[data-task-id]");
   if (!button) return;
@@ -2473,10 +2505,22 @@ $("#copyContinuationPromptBtn").addEventListener("click", async () => {
 });
 $("#repairThreadBtn").addEventListener("click", repairSelectedThread);
 
-$("#launchBtn").addEventListener("click", () => state.selectedThread && launch(state.selectedThread.id));
+$("#launchBtn").addEventListener("click", () => {
+  if (!state.selectedThread) return;
+  const id = state.selectedThread.id;
+  $("#threadDialog").close();
+  if ($("#localProjectsDialog").open) $("#localProjectsDialog").close();
+  launch(id);
+});
 $("#resumeProfiles").addEventListener("click", (event) => {
   const button = event.target.closest("button[data-profile-id]");
-  if (button && state.selectedThread && !threadHealthBlocksResume(state.selectedThread)) switchAccount(button.dataset.profileId, state.selectedThread.id);
+  if (button && state.selectedThread && !threadHealthBlocksResume(state.selectedThread)) {
+    const profileId = button.dataset.profileId;
+    const threadId = state.selectedThread.id;
+    $("#threadDialog").close();
+    if ($("#localProjectsDialog").open) $("#localProjectsDialog").close();
+    switchAccount(profileId, threadId);
+  }
 });
 
 $("#profileForm").addEventListener("submit", async (event) => {
