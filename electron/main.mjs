@@ -95,6 +95,7 @@ async function getState() {
       codexHome: codexPaths.home,
       libraryFile: dataPaths.library,
       accountId: profiles.currentId,
+      preserveLocalProjects: true,
     });
     initialLibrarySyncDone = true;
     library = await readLibrary(dataPaths.library);
@@ -926,6 +927,7 @@ function registerHandlers() {
       codexHome: codexPaths.home,
       libraryFile: dataPaths.library,
       accountId: data.currentId,
+      preserveLocalProjects: true,
       onProgress: ({ phase, completed, total }) => {
         const percent = phase === "complete" ? 100 : phase === "write" ? 96 : total ? 5 + Math.floor((completed / total) * 88) : 5;
         const message = phase === "complete"

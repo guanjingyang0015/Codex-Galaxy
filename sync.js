@@ -75,7 +75,7 @@ function parseRecord(record, source) {
   };
 }
 
-export async function syncConversations({ codexHome, libraryFile, accountId, onProgress = null }) {
+export async function syncConversations({ codexHome, libraryFile, accountId, preserveLocalProjects = false, onProgress = null }) {
   const historyMessages = await readThreadHistoryMessages(codexHome);
   const catalog = await readThreadCatalog(codexHome, new Set(historyMessages.keys()));
   const files = catalog.length ? catalog.map((item) => item.source).filter(Boolean) : await walk(path.join(codexHome, "sessions"));
@@ -209,8 +209,27 @@ export async function syncConversations({ codexHome, libraryFile, accountId, onP
     report();
   }
 
+  if (preserveLocalProjects && prior.threads.length) {
+    for (const previous of prior.threads) {
+      if (byId.has(previous.id)) continue;
+      const sourceExists = previous.source
+        ? await fs.stat(previous.source).then((item) => item.isFile()).catch(() => false)
+        : false;
+      const projectExists = previous.cwd
+        ? await fs.stat(previous.cwd).then((item) => item.isDirectory()).catch(() => false)
+        : false;
+      if (!sourceExists && !projectExists) continue;
+      byId.set(previous.id, {
+        ...previous,
+        messages: [...(previous.messages || [])],
+        accounts: [...(previous.accounts || [])],
+        preservedLocalProject: true,
+      });
+    }
+  }
+
   const threads = [...byId.values()]
-    .map((thread) => ({ ...thread, messages: thread.messages.slice(-200) }))
+    .map(({ preservedLocalProject, ...thread }) => ({ ...thread, messages: thread.messages.slice(-200) }))
     .sort((a, b) => String(b.updatedAt).localeCompare(String(a.updatedAt)));
   const removed = prior.threads.filter((thread) => !byId.has(thread.id)).length;
   report("write");

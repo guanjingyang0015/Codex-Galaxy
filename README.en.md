@@ -6,7 +6,7 @@
 
 Codex Galaxy is a local desktop utility for switching between Codex accounts and compatible APIs while continuing project tasks saved on the same computer.
 
-**Current version: Codex Galaxy 3.2.1**
+**Current version: Codex Galaxy 3.2.2**
 
 The in-app guide is now organized by stage: **first account setup → daily account switching → failure recovery → features**. Open **Guide** and choose only the stage you need instead of reading one long page.
 
@@ -156,7 +156,7 @@ MIT License. Codex Galaxy is an independent local utility and is not an official
 
 2.2.1 changes the web admin into switchable API Ranking and GPT Top-up panels, preserving the active panel after saves. The public plan page adds a prominent OpenAI knot mark, a `GPT × CODEX` service visual, a technical grid, and an AI orbit motif.
 
-3.2.1 clarifies the recovery guidance: switching back to the official account is the path to try for restoring Codex Desktop's native list; if the sidebar remains incomplete, search and resume directly from Galaxy's Local projects window. The 3.2.0 local thread browser and official/API resume flow remain unchanged.
+3.2.2 guarantees that local project records are not removed because an API provider filters the active index: while the project folder or session file remains on the computer, Galaxy preserves the record and supports direct recovery, search, and resume. The 3.2.1 guidance and 3.2.0 Local projects window remain included.
 
 3.1.2 repairs the macOS release path: Apple Silicon and Intel packages build on native runners, the published app is checked for its signature and CPU architecture, and ad hoc signing reduces Gatekeeper false “damaged app” reports. The first download may still require Finder’s right-click Open flow; public packages are not notarized with an Apple Developer certificate.
 

@@ -342,3 +342,28 @@ test("an empty transient scan preserves the existing local library", async () =>
   assert.equal(library.threads[0].id, "keep-thread");
   assert.equal(library.threads[0].messages[0].content, "GitHub 发布记录");
 });
+
+test("provider-scoped catalog gaps preserve local project records when requested", async () => {
+  const home = await fs.mkdtemp(path.join(os.tmpdir(), "codex-galaxy-provider-gap-"));
+  const projectDir = path.join(home, "workspace");
+  await fs.mkdir(projectDir, { recursive: true });
+  const libraryFile = path.join(home, "library.json");
+  await fs.writeFile(libraryFile, `${JSON.stringify({
+    version: 2,
+    catalogVersion: 5,
+    syncedAt: "2026-09-01T00:00:00.000Z",
+    threads: [{ id: "official-hidden", title: "官方项目", cwd: projectDir, messages: [], accounts: ["official-a"] }],
+  })}\n`);
+  const { DatabaseSync } = await import("node:sqlite");
+  const db = new DatabaseSync(path.join(home, "state_5.sqlite"));
+  db.exec("create table threads (id text primary key, title text, cwd text, model_provider text, rollout_path text, updated_at_ms integer, archived integer, has_user_event integer, thread_source text)");
+  db.prepare("insert into threads values (?, ?, ?, ?, ?, ?, ?, ?, ?)").run("api-only", "API 项目", home, "relay-b", null, 1780000000000, 0, 1, "user");
+  db.close();
+
+  const result = await syncConversations({ codexHome: home, libraryFile, accountId: "api-b", preserveLocalProjects: true });
+  const library = await readLibrary(libraryFile);
+  assert.equal(result.threads, 2);
+  assert.ok(library.threads.some((thread) => thread.id === "official-hidden"));
+  assert.ok(library.threads.some((thread) => thread.id === "api-only"));
+  assert.equal(result.removed, 0);
+});

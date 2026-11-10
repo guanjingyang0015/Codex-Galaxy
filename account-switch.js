@@ -151,6 +151,7 @@ export async function switchAccountTransaction({
       codexHome: codexPaths.home,
       libraryFile: dataPaths.library,
       accountId: currentMatch.matches ? data.currentId : null,
+      preserveLocalProjects: true,
       onProgress: conversationProgress(report, { start: 16, end: 24, stage: "pre-sync", label: "正在保存最新本地记录" }),
     });
 
@@ -261,6 +262,7 @@ export async function switchAccountTransaction({
       codexHome: codexPaths.home,
       libraryFile: dataPaths.library,
       accountId: profileId,
+      preserveLocalProjects: true,
       onProgress: conversationProgress(report, { start: 83, end: 91, stage: "library", label: "正在为目标账号刷新项目" }),
     });
     await setCurrent(profileId, dataPaths);
@@ -301,6 +303,7 @@ export async function switchAccountTransaction({
       codexHome: codexPaths.home,
       libraryFile: dataPaths.library,
       accountId: data.currentId,
+      preserveLocalProjects: true,
     }).catch((rollbackError) => rollbackErrors.push(rollbackError));
     if (previousProfile && typeof restoreLaunch === "function") {
       await restoreLaunch(previousProfile, resumeThreadId).catch((rollbackError) => rollbackErrors.push(rollbackError));
