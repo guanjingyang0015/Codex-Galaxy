@@ -3,6 +3,7 @@ import https from "node:https";
 import crypto from "node:crypto";
 import { once } from "node:events";
 import { catalogEntries, catalogModelIds, isGptFamily } from "./model-catalog.js";
+import { createRelayTransport } from "./relay-protocol.js";
 
 const DEFAULT_PORT = 43821;
 const MAX_REQUEST_BYTES = 128 * 1024 * 1024;
@@ -424,6 +425,7 @@ function validateProfile(profile) {
     modelCandidates: singleModel ? [] : modelCandidates,
     modelCatalog: selectedCatalog,
     singleModel,
+    relayProtocol: profile.relayProtocol === "auto" ? "auto" : "responses",
   };
 }
 
@@ -443,12 +445,16 @@ export class ResponsesGateway {
       : 0;
     this.server = null;
     this.active = null;
+    this.relayTransport = null;
     this.inFlight = 0;
     this.idleWaiters = new Set();
   }
 
   configure(profile) {
     this.active = validateProfile(profile);
+    this.relayTransport = this.active.relayProtocol === "auto"
+      ? createRelayTransport({ baseUrl: this.active.baseUrl, apiKey: this.active.apiKey, fetcher: this.fetchUpstream || globalThis.fetch, state: profile.relayState })
+      : null;
   }
 
   async resolveProfile(profile, { preferredModels = [] } = {}) {
@@ -489,11 +495,14 @@ export class ResponsesGateway {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), MODEL_CATALOG_TIMEOUT_MS);
     try {
-      const response = await transport(modelsUrl(active.baseUrl).toString(), {
+      const options = {
         method: "GET",
         headers: { authorization: `Bearer ${active.apiKey}`, accept: "application/json", "accept-encoding": "identity" },
         signal: controller.signal,
-      });
+      };
+      const response = active.relayProtocol === "auto"
+        ? await createRelayTransport({ baseUrl: active.baseUrl, apiKey: active.apiKey, fetcher: transport }).models({ signal: controller.signal })
+        : await transport(modelsUrl(active.baseUrl).toString(), options);
       if (!response?.ok) {
         if (fallback) return fallback;
         throw new Error("中转站未提供可读取的模型列表，请编辑账号并填写模型 ID。");
@@ -550,7 +559,7 @@ export class ResponsesGateway {
 
   snapshot() {
     return {
-      active: this.active ? { ...this.active } : null,
+      active: this.active ? { ...this.active, ...(this.relayTransport ? { relayState: this.relayTransport.snapshot() } : {}) } : null,
       running: Boolean(this.server?.listening),
       runtimeMode: this.active?.runtimeMode || null,
     };
@@ -558,6 +567,9 @@ export class ResponsesGateway {
 
   async restore(snapshot) {
     this.active = snapshot?.active ? { ...snapshot.active } : null;
+    this.relayTransport = this.active?.relayProtocol === "auto"
+      ? createRelayTransport({ baseUrl: this.active.baseUrl, apiKey: this.active.apiKey, fetcher: this.fetchUpstream || globalThis.fetch, state: this.active.relayState })
+      : null;
     if (snapshot?.running) await this.start();
     else await this.stop();
   }
@@ -679,7 +691,7 @@ export class ResponsesGateway {
 
     const target = upstreamUrl(active.baseUrl, endpoint, request.url);
     try {
-      if (this.fetchUpstream) {
+      if (this.fetchUpstream || this.relayTransport) {
         const controller = new AbortController();
         const abort = () => {
           if (!response.writableEnded) controller.abort();
@@ -688,22 +700,16 @@ export class ResponsesGateway {
         try {
           const headers = outboundHeaders(request.headers, active.apiKey, null);
           headers["accept-encoding"] = "identity";
-          let upstreamResponse = await this.fetchUpstream(target.toString(), {
-            method: "POST",
-            headers,
-            body: outboundBody,
-            signal: controller.signal,
-          });
+          const transport = this.relayTransport;
+          const fetchRequest = (payload) => transport
+            ? transport.request(JSON.parse(payload.toString("utf8")), { endpoint, headers, signal: controller.signal })
+            : this.fetchUpstream(target.toString(), { method: "POST", headers, body: payload, signal: controller.signal });
+          let upstreamResponse = await fetchRequest(outboundBody);
           if (await responseSuggestsModelAccessFailure(upstreamResponse)) {
             for (const candidate of active.modelCandidates.filter((model) => model !== outboundModel).slice(0, 4)) {
               await upstreamResponse.body?.cancel?.().catch?.(() => {});
               const retryBody = Buffer.from(JSON.stringify({ ...body, model: candidate }));
-              const retryResponse = await this.fetchUpstream(target.toString(), {
-                method: "POST",
-                headers,
-                body: retryBody,
-                signal: controller.signal,
-              });
+              const retryResponse = await fetchRequest(retryBody);
               upstreamResponse = retryResponse;
               if (retryResponse.status >= 200 && retryResponse.status < 400) {
                 if (this.active?.id === active.id) this.active.model = candidate;
@@ -755,6 +761,7 @@ export class ResponsesGateway {
         else response.end();
         return;
       }
+      if (error?.publicMessage && error?.statusCode) throw error;
       const wrapped = new Error(upstreamFailureMessage(error));
       wrapped.publicMessage = wrapped.message;
       wrapped.statusCode = 502;

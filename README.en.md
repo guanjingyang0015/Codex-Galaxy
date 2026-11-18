@@ -6,7 +6,7 @@
 
 Codex Galaxy is a local desktop utility for switching between Codex accounts and compatible APIs while continuing project tasks saved on the same computer.
 
-**Current version: Codex Galaxy 3.3.1**
+**Current version: Codex Galaxy 3.4.0**
 
 The in-app guide is now organized by stage: **first account setup → daily account switching → failure recovery → features**. Open **Guide** and choose only the stage you need instead of reading one long page.
 
@@ -36,7 +36,7 @@ The in-app guide is now organized by stage: **first account setup → daily acco
 6. After switching, reopen the project. Local Codex files, SQLite data, and chat history remain in place; Galaxy never repairs this by deleting `config.toml`.
 7. If switching fails, open **Log** at the top to inspect or copy the redacted reason; never delete configuration or chat data.
 
-API profiles must support the OpenAI Responses API. API keys stay in encrypted local settings and are not written to project documents or logs.
+API profiles can use Auto compatibility: Galaxy locally translates common OpenAI Chat Completions, Anthropic Claude Messages, and native Gemini `generateContent` into Codex Responses; native Responses services can use direct mode. API keys stay in encrypted local settings and are not written to project documents or logs.
 
 ## API relay audit and ranking
 
@@ -73,10 +73,10 @@ API profiles must support the OpenAI Responses API. API keys stay in encrypted l
 
 ### official → API
 
-1. Add or edit the API profile with Base URL and API Key. The model ID is optional; Direct API mode is recommended.
+1. Add or edit the API profile with Base URL, API key and exact model ID, using Auto compatibility. Existing direct Responses profiles need not change; discovery can be attempted when the model is blank.
 2. Select the API profile and choose **Switch and open Codex**.
 3. Galaxy closes an idle Codex gracefully, saves the official login snapshot, removes official OAuth from the live `auth.json`, keeps only the API provider's own credential, synchronizes provider/project records, and opens Codex again.
-4. Wait for progress to reach 100%, then choose **Continue in Codex**. Direct API mode can run after Galaxy exits; Compatibility gateway mode requires Galaxy to remain running.
+4. Wait for 100%, then choose **Continue in Codex**. Auto compatibility needs the local gateway: closing the window keeps the background service; explicit exit can hand it to an owned helper. Direct Responses requires no gateway.
 5. If switching fails, open **Log** at the top and copy the redacted log and error text. The default file is `~/.codex-galaxy/logs/galaxy.log`; each record contains UTC and local time.
 
 ### API → API
@@ -105,6 +105,8 @@ GitHub Releases provides Windows x64, macOS Intel, and macOS Apple Silicon packa
 Every release updates the version surfaces, both READMEs, the Chinese and English in-app guide, release notes, release metadata, regression tests, and installer artifacts together. A version is not considered released until the documentation consistency check and the GitHub publication checks pass.
 
 ## Local data and safety
+
+Auto compatibility accepts a service root, `/v1`, `/v1/chat/completions`, `/v1/messages` or `/v1beta/models`, normalizing protocol paths. Models, balance and client-side tool capability must be available upstream. Unsupported remote Responses compaction, hosted search and special file/audio inputs fail explicitly; native Gemini images currently require inline base64. Tool signatures use bounded memory: after a full gateway restart, if the provider requires old signatures, start a new chat or use native Responses. Audit scores describe current-route compatibility, not official model identity or native-protocol certification.
 
 - Codex data: `~/.codex`
 - Galaxy data: `~/.codex-galaxy`
@@ -155,6 +157,8 @@ MIT License. Codex Galaxy is an independent local utility and is not an official
 2.2.0 adds a softly animated GPT Top-up button to the app header. It opens the Codex Galaxy plan page with current plans, prices, availability, consultation steps, and the contact QR code; the page has no login, cart, order lookup, or online checkout.
 
 2.2.1 changes the web admin into switchable API Ranking and GPT Top-up panels, preserving the active panel after saves. The public plan page adds a prominent OpenAI knot mark, a `GPT × CODEX` service visual, a technical grid, and an AI orbit motif.
+
+3.4.0 adds automatic compatibility for Responses, Chat Completions, Claude Messages, and native Gemini, including text, streaming, and tool-result rounds. Authentication failures, rate limits, timeouts and server errors never trigger protocol retries; unsupported remote compaction, hosted search and special content fail clearly.
 
 3.3.1 clarifies that Plus and Pro are separate login identities, so local project registrations may be account-scoped; this is not a plan entitlement difference. Galaxy's Local projects reads the shared machine catalog and keeps thread authentication separate.
 

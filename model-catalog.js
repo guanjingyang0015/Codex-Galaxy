@@ -101,7 +101,8 @@ export function isGptFamily(ids) {
 }
 
 function normalizeEntry(item, providerName = "Codex Galaxy") {
-  const rawId = typeof item === "string" ? item : item?.id || item?.slug || item?.model || item?.sourceId;
+  const nativeId = !Object.hasOwn(item || {}, "id") && String(item?.name || "").startsWith("models/") ? item.name.slice(7) : "";
+  const rawId = typeof item === "string" ? item : item?.id || item?.slug || item?.model || item?.sourceId || nativeId;
   const id = modelId(rawId);
   if (!id) return null;
   const source = typeof item === "object" && item ? item : {};

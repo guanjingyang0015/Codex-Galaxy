@@ -193,6 +193,15 @@ export async function switchProfile(paths, profile, vaultFile, { allowUncaptured
       ? buildSingleModelCatalog(selectedEntry, { providerName: profile.name || profile.providerKey || "API", platformLabel: profile.providerKey || profile.name || "API" })
       : buildModelCatalog(gptCatalog.length ? gptCatalog : [activeModel].filter(Boolean), { providerName: profile.name || profile.providerKey || "API" })
     : null;
+  if (catalog && profile.relayProtocol === "auto") {
+    // Translated protocols accept client-side tools, not OpenAI-only hosted
+    // search or encrypted reasoning state. Do not advertise those features.
+    for (const model of catalog.models) {
+      model.supports_search_tool = false;
+      model.supports_reasoning_summaries = false;
+      model.support_verbosity = false;
+    }
+  }
   const config = profile.kind === "api"
     ? buildApiConfig(profile, liveConfig, modelCatalogPath(paths))
     : selectProfileModel(

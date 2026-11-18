@@ -6,7 +6,7 @@
 
 Codex Galaxy 是一款本地桌面工具，帮助你在不同 Codex 账号和兼容 API 之间切换，并继续本机保存的项目任务。
 
-**当前版本：Codex Galaxy 3.3.1**
+**当前版本：Codex Galaxy 3.4.0**
 
 使用教程已按使用阶段重新整理：**第一次添加账号配置 → 日常使用切换账号 → 异常故障处理 → 特色功能**。打开应用内“使用教程”后，点击对应阶段查看，不需要一次读完全部内容。
 
@@ -36,7 +36,7 @@ Codex Galaxy 是一款本地桌面工具，帮助你在不同 Codex 账号和兼
 6. 切换完成后重新打开项目，历史记录从本机 Codex 数据恢复；Galaxy 不删除 `config.toml`、项目文件、SQLite 数据库或聊天文件。
 7. 如果切换失败，点击顶部“日志”，查看或复制脱敏日志；不要删除配置和聊天数据。
 
-API 账号需要兼容 OpenAI Responses API。API Key 只保存在本机加密配置中，不会写入项目文档或日志。
+API 账号可选择“自动适配”：Galaxy 在本机把常见 OpenAI Chat Completions、Anthropic Claude Messages、Gemini `generateContent` 转换为 Codex Responses；Responses 原生服务也可使用直连。API Key 只保存在本机加密配置中，不会写入项目文档或日志。
 
 ## API 中转站检测与排名
 
@@ -73,10 +73,10 @@ API 账号需要兼容 OpenAI Responses API。API Key 只保存在本机加密�
 
 ### 官方 → API
 
-1. 添加或编辑 API 账号，填写 Base URL、API Key；模型 ID 可留空自动发现，优先选择“API 直连”。
+1. 添加或编辑 API 账号，填写 Base URL、API Key 和准确模型名，优先选择“自动适配”。已有 Responses 直连配置不强制更改；无模型名时可尝试目录发现。
 2. 选中 API 账号，点击“切换并打开 Codex”。
 3. Galaxy 会正常关闭空闲的 Codex、保存官方登录快照，然后从实时 `auth.json` 中移除官方 OAuth，只保留 API provider 自己的凭据，再同步 provider 和项目记录并重新打开 Codex。
-4. 等进度到 100%，从项目列表点击“在 Codex 中继续”。API 直连模式完成后可以退出 Galaxy；兼容网关模式需要保持 Galaxy 运行。
+4. 等进度到 100%，从项目列表点击“在 Codex 中继续”。自动适配需要本机网关服务：普通关窗保留后台，明确退出时可交接给受控助手。Responses 直连不依赖网关。
 5. 如果失败，打开顶部“日志”，复制脱敏日志和错误文字。日志文件默认位于 `~/.codex-galaxy/logs/galaxy.log`，每条记录包含 UTC 时间和本地时间。
 
 ### API → API
@@ -105,6 +105,8 @@ GitHub Releases 提供 Windows x64、macOS Intel 和 macOS Apple Silicon 安装�
 每次版本更新都会同步更新版本号、README、中英文应用内教程、发布说明、发布记录、测试断言和安装包。发布检查未通过时，不会把版本标记为正式发布。
 
 ## 本地数据与安全
+
+自动适配接受站点根地址、`/v1`、完整 `/v1/chat/completions`、`/v1/messages` 或 `/v1beta/models`，会规范化协议路径；需要服务商提供可用模型、余额和客户端工具能力。不支持的远程 Responses 压缩、托管搜索、文件/音频等特殊输入会明确报错；Gemini 原生图片目前只支持内嵌 base64。工具签名为有上限的内存缓存，完全重启网关后如上游要求旧签名，应新建会话或改用原生 Responses。检测总分衡量当前通道的兼容表现，不是原生协议或模型身份的官方认证。
 
 - Codex 数据：`~/.codex`
 - Galaxy 数据：`~/.codex-galaxy`
@@ -155,6 +157,8 @@ npm run dist:mac
 2.2.0 在软件顶部新增带柔和光效的“GPT 代充”入口，打开 Codex Galaxy 套餐展示页。页面展示全部套餐、价格、状态、咨询步骤和联系二维码，不包含登录、购物车、查单或在线购买。
 
 2.2.1 将 Web 管理后台改为“API 排行榜 / GPT 代充展示页”双板块切换，保存后停留在当前板块；代充价格页加入醒目的 OpenAI 结形标志、`GPT × CODEX` 主视觉、点阵网格与 AI 核心光环。
+
+3.4.0 新增常见中转协议自动适配：Responses、Chat Completions、Claude Messages 和 Gemini 原生接口统一交给 Codex；支持文本、流式和工具结果回传。鉴权失败、限流、超时和服务器错误不会换协议重试；不支持的远程压缩、托管搜索和特殊内容明确报错。
 
 3.3.1 澄清 Plus/Pro 是不同登录身份，本机项目登记可能按账号隔离，差异不是套餐权限造成的；Galaxy 的本地项目入口读取共享目录库，Plus、Pro 和 API 配置均可浏览本机目录，线程认证仍独立。
 

@@ -10,6 +10,8 @@ Do not include real API keys, OAuth tokens, `auth.json`, browser cookies, comple
 
 Codex Galaxy stores its profile data locally and uses Electron `safeStorage` for API keys and captured official-account snapshots. The API gateway listens only on `127.0.0.1`.
 
+Auto compatibility converts common relay protocols locally. Credentials are sent only to the configured relay and authenticated upstream redirects are refused. Endpoint negotiation does not retry authentication failures, rate limits, server errors or timeouts. Gemini tool signatures stay in a bounded in-memory cache and can be passed through stdin to the owned background gateway; they are never written to the host-state file or diagnostics. Unsupported input/tool types fail explicitly rather than being silently dropped.
+
 The optional public relay ranking service receives only bounded, redacted compatibility metrics after a successful audit. API keys, OAuth data, prompts, complete outputs, request bodies, and chat history are rejected or omitted before submission. The public endpoint is isolated behind its own Cloudflare Tunnel and does not reuse another project's tunnel or port.
 
 The public top-up information page is read-only. It does not accept Codex credentials, payment details, orders, account registration, or login data.

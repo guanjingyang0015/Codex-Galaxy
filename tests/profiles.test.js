@@ -18,6 +18,20 @@ test("profiles persist API keys in the encrypted vault only", async () => {
   assert.equal(vaultText.includes("sk-private-value"), false);
 });
 
+test("auto compatibility uses the gateway and survives editing without storing keys in metadata", async () => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), "codex-galaxy-auto-protocol-"));
+  const paths = { root, profiles: path.join(root, "profiles.json"), vault: path.join(root, "vault.json") };
+  const profile = await saveProfile({ name: "Gemini", kind: "api", runtimeMode: "auto", baseUrl: "https://relay.test/v1beta/models", model: "gemini-test", apiKey: "synthetic-only" }, paths);
+  assert.equal(profile.runtimeMode, "gateway");
+  assert.equal(profile.relayProtocol, "auto");
+  assert.equal(profile.runtimeProvider, "galaxy");
+  await saveProfile({ id: profile.id, name: "Renamed Gemini", kind: "api", model: "gemini-test" }, paths);
+  const restored = await profileForSwitch(profile.id, paths);
+  assert.equal(restored.relayProtocol, "auto");
+  assert.equal(restored.apiKey, "synthetic-only");
+  assert.doesNotMatch(await fs.readFile(paths.profiles, "utf8"), /synthetic-only/);
+});
+
 test("API profiles use provider-scoped keys and preserve official login identity", async () => {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), "codex-galaxy-profile-auth-mode-"));
   const paths = { root, profiles: path.join(root, "profiles.json"), vault: path.join(root, "vault.json"), library: path.join(root, "library.json") };

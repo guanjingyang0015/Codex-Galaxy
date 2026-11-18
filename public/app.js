@@ -1,7 +1,7 @@
 const $ = (selector) => document.querySelector(selector);
 const state = {
   profiles: [],
-  version: "3.3.1",
+  version: "3.4.0",
   openaiStatus: null,
   threads: [],
   projects: [],
@@ -31,7 +31,7 @@ const state = {
   releases: [],
   update: {
     phase: "idle",
-    currentVersion: "3.3.1",
+    currentVersion: "3.4.0",
     latestVersion: null,
     available: false,
     action: "install",
@@ -252,11 +252,12 @@ const translations = {
     "profileForm.model": "模型 ID（也是检测期望型号）",
     "profileForm.optional": "（可选）",
     "profileForm.modelPlaceholder": "留空自动发现，或填 gpt-5.6、provider/model",
-    "profileForm.protocol": "API 账号始终使用独立纯 API 登录，不需要官方账号。模型 ID 可留空，由中转站模型列表自动选择；接口必须兼容 OpenAI Responses API。",
+    "profileForm.protocol": "自动适配支持 Responses、Chat Completions、Claude Messages 与 Gemini 原生接口；Galaxy 转换后交给 Codex。填写 Base URL、Key 和准确模型名称即可；上游权限、模型可用性与工具支持仍由服务商决定。",
     "profileForm.homepage": "平台主页（可选）",
     "profileForm.homepagePlaceholder": "https://example.com",
     "profileForm.runtimeMode": "运行方式",
-    "profileForm.direct": "API 直连（推荐）",
+    "profileForm.auto": "自动适配（推荐）",
+    "profileForm.direct": "Responses 直连（无需网关）",
     "profileForm.gateway": "兼容网关（Galaxy 需运行）",
     "switch.target": "准备切换到",
     "switch.open": "切换并打开 Codex",
@@ -489,7 +490,7 @@ const translations = {
     "diagnostics.opened": "已打开本地日志文件。",
     "diagnostics.truncated": "日志较长，当前只显示最后一段。",
     "tutorial.title": "分阶段使用教程",
-    "tutorial.intro": "按使用阶段阅读教程：先完成一次账号配置，日常按步骤切换，出问题先看日志，超大聊天先复制深度链接新建聊天继续，最后了解本地历史和其他特色功能。当前版本为 v3.3.1。",
+    "tutorial.intro": "按使用阶段阅读教程：先完成一次账号配置，日常按步骤切换，出问题先看日志，超大聊天先复制深度链接新建聊天继续，最后了解本地历史和其他特色功能。当前版本为 v3.4.0。",
     "tutorial.stageNav": "教程阶段",
     "tutorial.stage1.tab": "首次配置",
     "tutorial.stage1.short": "添加账号和模型",
@@ -518,7 +519,7 @@ const translations = {
     "tutorial.setup.apiTitle": "添加 API 账号",
     "tutorial.setup.api1": "点击“+”，类型选择“中转 API”，填写名称、Base URL 和 API Key。",
     "tutorial.setup.api2": "模型 ID 可留空自动发现；首次切换时 Galaxy 会读取中转站模型列表。",
-    "tutorial.setup.api3": "优先选择“API 直连”。它不依赖官方登录，也不需要 Galaxy 一直运行。",
+    "tutorial.setup.api3": "新配置优先选择“自动适配”，支持 Responses、Chat Completions、Claude Messages 和 Gemini 原生地址；上游本来兼容 Responses 时也可选直连。已有配置不会自动改变。",
     "tutorial.setup.safety": "账号配置完成后，进入第二阶段，按照对应方向完成一次切换。API Key 和官方登录快照都会留在本机安全存储中。",
     "tutorial.switch.commonTitle": "每次切换前",
     "tutorial.switch.commonHeading": "先完成这 3 件事",
@@ -531,10 +532,10 @@ const translations = {
     "tutorial.switch.apiToOfficial3": "已有快照时，Galaxy 会自动恢复并验证官方配置，并清理旧的 [model_providers.openai] 覆盖。",
     "tutorial.switch.apiToOfficial4": "等待 Galaxy 进度到 100%，再从项目列表点击“在 Codex 中继续”。",
     "tutorial.switch.officialToApiTitle": "官方 → API",
-    "tutorial.switch.officialToApi1": "选中目标 API 账号，建议使用“API 直连”，点击“切换并打开 Codex”。",
+    "tutorial.switch.officialToApi1": "添加或编辑 API 配置，选择“自动适配”，填写站点地址、Key 和准确模型名；也可保留已有的 Responses 直连。选中配置后点击“切换并打开 Codex”。",
     "tutorial.switch.officialToApi2": "Galaxy 会先保存官方快照，安全关闭空闲 Codex，并移除实时官方 OAuth，只留下目标 API provider。",
     "tutorial.switch.officialToApi3": "等待进度到 100%，确认 Codex 显示 API 账号后，再点击“在 Codex 中继续”。",
-    "tutorial.switch.officialToApi4": "直连模式可以退出 Galaxy；“兼容网关”模式必须保持 Galaxy 运行。",
+    "tutorial.switch.officialToApi4": "自动适配使用本机网关，需要后台服务运行；普通关窗会保留后台，明确退出时可交接给受控助手。Responses 直连不需要网关。",
     "tutorial.switch.apiToApiTitle": "API → API",
     "tutorial.switch.apiToApi1": "选中目标 API 账号，确认 Base URL、Key 和模型 ID 正确后点击“切换并打开 Codex”。",
     "tutorial.switch.apiToApi2": "API 之间不会改写整套历史文件，只更新当前 provider、模型和必要的线程索引，通常比跨官方账号切换更快。",
@@ -555,7 +556,7 @@ const translations = {
     "tutorial.feature.modelsTitle": "模型目录",
     "tutorial.feature.modelsText": "API 模型 ID 可留空自动发现；填写具体 GPT 型号时仍会读取完整目录，并保留你的型号作为默认值。",
     "tutorial.feature.gatewayTitle": "直连与兼容网关",
-    "tutorial.feature.gatewayText": "直连模式让 Codex 直接访问 Base URL；兼容网关模式使用本机回环网关，需要 Galaxy 保持运行。",
+    "tutorial.feature.gatewayText": "自动适配在本机把 Chat Completions、Claude Messages、Gemini 原生转换成 Codex Responses，支持流式和工具结果回传。认证失败、限流、超时和 5xx 不会触发换协议重试。私有工具、远程压缩和部分图片/结构化输出需原生 Responses，不会丢弃内容假装成功。",
     "tutorial.feature.auditTitle": "后台 API 检测",
     "tutorial.feature.auditText": "点击原有 API 检测即可在后台完成全部步骤；GPT 会自动增加三次行为指纹归因，无需复制提示词或粘贴回答。结果仍显示一个总分，详情列出协议、模型声明、行为指纹、能力、稳定性和速度。",
     "tutorial.feature.healthTitle": "OpenAI 健康度时间线",
@@ -777,11 +778,12 @@ const translations = {
     "profileForm.model": "Model ID (also the expected audit model)",
     "profileForm.optional": "(optional)",
     "profileForm.modelPlaceholder": "Leave blank to detect, or enter gpt-5.6, provider/model",
-    "profileForm.protocol": "API accounts always use an independent pure-API login and require no official account. Model ID may be left blank for relay catalog discovery. The endpoint must support the OpenAI Responses API.",
+    "profileForm.protocol": "Auto compatibility supports Responses, Chat Completions, Claude Messages, and native Gemini endpoints, converting them locally for Codex. Enter a Base URL, key, and exact model ID. Provider permissions, availability, and tool support still apply.",
     "profileForm.homepage": "Platform homepage (optional)",
     "profileForm.homepagePlaceholder": "https://example.com",
     "profileForm.runtimeMode": "Runtime mode",
-    "profileForm.direct": "Direct API (recommended)",
+    "profileForm.auto": "Auto compatibility (recommended)",
+    "profileForm.direct": "Direct Responses (no gateway)",
     "profileForm.gateway": "Compatibility gateway (Galaxy must run)",
     "switch.target": "Switch target",
     "switch.open": "Switch and open Codex",
@@ -1014,7 +1016,7 @@ const translations = {
     "diagnostics.opened": "The local log file was opened.",
     "diagnostics.truncated": "The log is long; only its latest section is shown.",
     "tutorial.title": "Phased usage guide",
-    "tutorial.intro": "Read the guide by stage: configure accounts once, follow the daily switch steps, preserve the scene when something fails, use a deep link to continue oversized chats in a new thread, then learn local history and other features. Current version: v3.3.1.",
+    "tutorial.intro": "Read the guide by stage: configure accounts once, follow the daily switch steps, preserve the scene when something fails, use a deep link to continue oversized chats in a new thread, then learn local history and other features. Current version: v3.4.0.",
     "tutorial.stageNav": "Tutorial stages",
     "tutorial.stage1.tab": "First setup",
     "tutorial.stage1.short": "Accounts and models",
@@ -1043,7 +1045,7 @@ const translations = {
     "tutorial.setup.apiTitle": "Add an API account",
     "tutorial.setup.api1": "Click +, choose “Relay API”, and enter a name, Base URL, and API Key.",
     "tutorial.setup.api2": "The model ID can be blank for automatic discovery; Galaxy reads the relay catalog on the first switch.",
-    "tutorial.setup.api3": "Direct API is recommended. It does not depend on official login or require Galaxy to stay open.",
+    "tutorial.setup.api3": "Use Auto compatibility for Responses, Chat Completions, Claude Messages, or native Gemini addresses. Native Responses can also use direct mode. Existing profiles are not automatically changed.",
     "tutorial.setup.safety": "After setup, open stage 2 and follow the steps for the direction you need. API keys and the official login snapshot stay in local secure storage.",
     "tutorial.switch.commonTitle": "Before every switch",
     "tutorial.switch.commonHeading": "Do these 3 things first",
@@ -1056,10 +1058,10 @@ const translations = {
     "tutorial.switch.apiToOfficial3": "With an existing snapshot, Galaxy restores and verifies the official configuration and removes an old [model_providers.openai] override.",
     "tutorial.switch.apiToOfficial4": "Wait for Galaxy to reach 100%, then click Continue in Codex from the project list.",
     "tutorial.switch.officialToApiTitle": "official → API",
-    "tutorial.switch.officialToApi1": "Select the target API account, preferably Direct API, and click Switch and open Codex.",
+    "tutorial.switch.officialToApi1": "Add or edit the API profile, select Auto compatibility, and enter the service URL, key and exact model ID; existing Responses direct profiles can remain unchanged. Select it and click Switch and open Codex.",
     "tutorial.switch.officialToApi2": "Galaxy saves the official snapshot, gracefully closes idle Codex, removes live official OAuth, and leaves only the target API provider.",
     "tutorial.switch.officialToApi3": "Wait for 100%, confirm Codex shows the API account, then click Continue in Codex.",
-    "tutorial.switch.officialToApi4": "Direct API can run after Galaxy exits; Compatibility gateway requires Galaxy to stay running.",
+    "tutorial.switch.officialToApi4": "Auto compatibility needs its local gateway service. Closing the window keeps it in the background; explicit exit can hand it to an owned helper. Direct Responses needs no gateway.",
     "tutorial.switch.apiToApiTitle": "API → API",
     "tutorial.switch.apiToApi1": "Select the target API profile, verify its Base URL, key, and model ID, then click Switch and open Codex.",
     "tutorial.switch.apiToApi2": "API-to-API switching does not rewrite the entire history. It updates the active provider, model, and necessary thread indexes, so it is normally faster than switching across the official account.",
@@ -1080,7 +1082,7 @@ const translations = {
     "tutorial.feature.modelsTitle": "Model catalog",
     "tutorial.feature.modelsText": "Leave the API model ID blank for discovery; an exact GPT ID still loads the full catalog and remains the default.",
     "tutorial.feature.gatewayTitle": "Direct API and gateway",
-    "tutorial.feature.gatewayText": "Direct API connects Codex to the Base URL; Compatibility gateway uses a local loopback gateway and requires Galaxy to run.",
+    "tutorial.feature.gatewayText": "Auto compatibility locally translates Chat Completions, Claude Messages, and native Gemini into Codex Responses, including streaming and tool-result rounds. Authentication, rate limits, timeouts and 5xx do not retry other protocols. Unsupported hosted tools, remote compaction, or content formats require native Responses; unsupported content is not silently dropped.",
     "tutorial.feature.auditTitle": "Background API audit",
     "tutorial.feature.auditText": "Use the existing API Audit action and let the background workflow finish every step. GPT audits automatically add three behavior-fingerprint probes without prompt copying or pasted answers. The result remains one total score with protocol, model declaration, fingerprint, capability, stability, and latency details.",
     "tutorial.feature.healthTitle": "OpenAI health timeline",
@@ -1524,6 +1526,7 @@ function profileModelLabel(profile) {
 
 function profileLoginModeLabel(profile) {
   if (profile.kind === "official") return t("profile.loginMode.official");
+  if (profile.relayProtocol === "auto") return `${t("profile.loginMode.pure")} · ${t("profileForm.auto")}`;
   return profile.runtimeMode === "gateway"
     ? `${t("profile.loginMode.pure")} · ${t("profileForm.gateway")}`
     : `${t("profile.loginMode.pure")} · ${t("profileForm.direct")}`;
@@ -2051,7 +2054,7 @@ function openProfileForm(profile = null) {
   form.elements.id.value = profile?.id || "";
   form.elements.name.value = profile?.name || "";
   form.elements.kind.value = profile?.kind || "official";
-  form.elements.runtimeMode.value = profile?.runtimeMode || "direct";
+  form.elements.runtimeMode.value = profile?.relayProtocol === "auto" ? "auto" : profile?.runtimeMode || "auto";
   form.elements.baseUrl.value = profile?.baseUrl || "";
   form.elements.homepage.value = profile?.homepage || "";
   form.elements.apiKey.value = "";
@@ -2320,6 +2323,7 @@ async function runRelayAudit(event) {
         baseUrl: data.baseUrl,
         apiKey: data.apiKey,
         model: data.model,
+        relayProtocol: "auto",
       },
     }));
     state.auditTasks[started.taskId] = { taskId: started.taskId, status: started.queued ? "queued" : "running", percent: 0, stage: started.queued ? t("audit.queued") : t("audit.running"), estimatedRemainingMs: started.estimatedTotalMs, progressAt: Date.now(), items: [{ name: data.providerName || "API", percent: 0, message: started.queued ? t("audit.queued") : t("audit.running") }] };

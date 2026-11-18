@@ -17,7 +17,7 @@ function providerKeyFor(profile) {
 
 function normalizeRuntimeMode(profile) {
   if (profile?.kind !== "api") return "direct";
-  return profile?.runtimeMode === "gateway" ? "gateway" : "direct";
+  return ["gateway", "auto"].includes(profile?.runtimeMode) ? "gateway" : "direct";
 }
 
 function normalizeModelCatalog(entries) {
@@ -109,8 +109,8 @@ export async function saveProfile(input, paths = runtimePaths()) {
     }
   }
   const runtimeMode = input.kind === "api"
-    ? (input.runtimeMode === "gateway" || input.runtimeMode === "direct"
-      ? input.runtimeMode
+    ? (["gateway", "auto", "direct"].includes(input.runtimeMode)
+      ? input.runtimeMode === "auto" ? "gateway" : input.runtimeMode
       : normalizeRuntimeMode(previous || { kind: "api" }))
     : "direct";
   if (!name) throw new Error("请填写账号名称。");
@@ -135,6 +135,7 @@ export async function saveProfile(input, paths = runtimePaths()) {
         ? providerKeyFor({ id, providerKey: input.providerKey || previous?.providerKey || id })
         : "openai",
     runtimeMode,
+    relayProtocol: input.kind === "api" && (input.runtimeMode === "auto" || (!input.runtimeMode && previous?.relayProtocol === "auto")) ? "auto" : "responses",
     model: model.slice(0, 160),
     preserveOfficialLogin: input.kind === "api",
     resolvedModel: previous?.model === model && previous?.baseUrl === baseUrl ? previous.resolvedModel || null : null,

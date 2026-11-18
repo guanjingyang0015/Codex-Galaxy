@@ -90,3 +90,36 @@ test("gateway-host cleanup never terminates a PID solely from its state file", a
   assert.equal(stopped.timedOut, true);
   assert.equal(child.exitCode, null);
 });
+
+test("auto Gemini helper handoff carries tool signatures only through stdin, never the host-state file", async (t) => {
+  let round = 0;
+  const upstream = http.createServer(async (request, response) => {
+    let text = "";
+    for await (const chunk of request) text += chunk;
+    assert.equal(request.url, "/v1beta/models/gemini-test:generateContent");
+    const body = JSON.parse(text);
+    round++;
+    if (round === 2) assert.equal(body.contents[1].parts[0].thoughtSignature, "private-provider-signature");
+    response.setHeader("content-type", "application/json");
+    response.end(JSON.stringify({ candidates: [{ content: { parts: round === 1
+      ? [{ functionCall: { name: "probe", args: { marker: "ok" } }, thoughtSignature: "private-provider-signature" }]
+      : [{ text: "done" }] }, finishReason: "STOP" }] }));
+  });
+  const base = await listen(upstream);
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), "codex-galaxy-auto-host-"));
+  const gateway = new ResponsesGateway({ port: 0 });
+  gateway.configure({ id: "native-gemini", kind: "api", model: "gemini-test", baseUrl: `${base}/v1beta/models`, apiKey: "synthetic-key", relayProtocol: "auto" });
+  await gateway.start();
+  t.after(async () => { await gateway.stop(); await stopOwnedGatewayHost(root); await close(upstream); await fs.rm(root, { recursive: true, force: true }); });
+  const tool = { type: "function", name: "probe", parameters: { type: "object", properties: { marker: { type: "string" } } } };
+  const send = (url, input) => fetch(`${url}/responses`, { method: "POST", headers: { authorization: "Bearer synthetic-key", "content-type": "application/json" }, body: JSON.stringify({ model: "gemini-test", input, tools: [tool] }) });
+  const input = [{ role: "user", content: "call probe" }];
+  const first = await (await send(gateway.baseUrl, input)).json();
+  const call = first.output[0];
+  const handoff = await handoffGatewayToHost({ gateway, root, timeoutMs: 5000 });
+  const metadata = await fs.readFile(stateFile(root), "utf8");
+  assert.doesNotMatch(metadata, /private-provider-signature|synthetic-key/);
+  const second = await (await send(`http://127.0.0.1:${handoff.port}/v1`, [...input, call, { type: "function_call_output", call_id: call.call_id, output: "ok" }])).json();
+  assert.equal(second.output[0].content[0].text, "done");
+  assert.equal(round, 2);
+});

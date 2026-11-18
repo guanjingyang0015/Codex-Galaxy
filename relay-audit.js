@@ -1,6 +1,7 @@
 import { modelsUrl } from "./responses-gateway.js";
 import { profileForSwitch, recordProfileTest } from "./profiles.js";
 import { analyzeGptModelTrace, generateModelTraceChallenges, isGptModel, parseNumbers } from "./modeltrace.js";
+import { createRelayTransport } from "./relay-protocol.js";
 
 const DEFAULT_TIMEOUT_MS = 12_000;
 const MAX_RESPONSE_BYTES = 512 * 1024;
@@ -296,7 +297,10 @@ function modelRelation(expected, actual) {
 function observedModelsOf(payloads) {
   const values = [];
   for (const payload of payloads) {
-    for (const candidate of [payload?.model, payload?.response?.model, payload?.data?.model]) {
+    const roots = [payload, payload?.response, payload?.data];
+    for (const root of roots) {
+      if (root?._galaxy_adapter?.upstream_model_declared === false) continue;
+      const candidate = root?.model;
       const value = String(candidate || "").trim();
       if (value && !values.some((item) => item.toLowerCase() === value.toLowerCase())) values.push(value.slice(0, 160));
     }
@@ -317,7 +321,9 @@ function performanceScore(results) {
 
 function modelVerdictFor(expectedModel, requestedModel, modelIds, observedModels) {
   const expected = String(expectedModel || "").trim();
-  const evidenceModels = observedModels.length ? observedModels : modelIds.slice(0, 8);
+  // A /models listing is not a response identity declaration, especially
+  // after adapting a protocol that omits modelVersion/model entirely.
+  const evidenceModels = observedModels;
   const requested = String(requestedModel || "").trim();
   const listedRelations = expected ? modelIds.map((item) => modelRelation(expected, item)) : [];
   const observedRelations = expected ? evidenceModels.map((item) => modelRelation(expected, item)) : [];
@@ -609,6 +615,12 @@ export async function auditRelay(input, {
   const testedAt = new Date().toISOString();
   if (!baseUrl) return { status: "invalid", testedAt, reason: "Base URL 格式不正确", findings: ["Base URL 格式不正确"] };
   if (!apiKey) return { status: "auth", testedAt, reason: "API Key 不能为空", findings: ["API Key 不能为空"] };
+  if (input?.relayProtocol === "auto") {
+    const transport = createRelayTransport({ baseUrl: baseUrl.toString(), apiKey, fetcher });
+    fetcher = async (_url, options = {}) => options.method === "GET"
+      ? transport.models({ signal: options.signal })
+      : transport.request(JSON.parse(options.body), { signal: options.signal });
+  }
   let steps = efforts.filter((item) => EFFORTS.includes(item));
   let total = steps.length + 1;
   let estimateMs = Math.max(1000, total * Math.max(1000, Number(timeoutMs) || DEFAULT_TIMEOUT_MS));
@@ -744,6 +756,7 @@ export async function auditApiProfile(id, paths, options = {}) {
     apiKey: profile.apiKey,
     model: profile.resolvedModel || profile.model,
     expectedModel: profile.model,
+    relayProtocol: profile.relayProtocol,
   }, options);
   if (options.persist !== false) await recordProfileTest(id, result, paths);
   return { ...result, profile: { id: profile.id, name: profile.name, homepage: profile.homepage || null } };

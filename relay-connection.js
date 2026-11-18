@@ -1,6 +1,7 @@
 import { modelsUrl } from "./responses-gateway.js";
 import { profileForSwitch, recordProfileTest } from "./profiles.js";
 import { auditApiProfile, auditRelay } from "./relay-audit.js";
+import { createRelayTransport } from "./relay-protocol.js";
 
 function classifyHttp(status) {
   if (status === 401 || status === 403) return "auth";
@@ -37,11 +38,13 @@ export async function testApiProfile(id, paths, { fetcher = globalThis.fetch, ti
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), Math.max(1000, Number(timeoutMs) || 10000));
   try {
-    const response = await fetcher(url.toString(), {
+    const response = profile.relayProtocol === "auto"
+      ? await createRelayTransport({ baseUrl: profile.baseUrl, apiKey: profile.apiKey, fetcher }).models({ signal: controller.signal })
+      : await fetcher(url.toString(), {
       method: "GET",
       headers: { authorization: `Bearer ${profile.apiKey}` },
       signal: controller.signal,
-    });
+      });
     const status = classifyHttp(response.status);
     const result = { status, httpStatus: response.status, testedAt };
     // Discard without buffering the response because some providers may echo
