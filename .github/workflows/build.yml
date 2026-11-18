@@ -47,6 +47,7 @@ jobs:
   macos:
     name: macOS ${{ matrix.arch }}
     needs: test
+    timeout-minutes: 60
     runs-on: ${{ matrix.runner }}
     strategy:
       fail-fast: false
