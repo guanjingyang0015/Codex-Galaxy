@@ -6,7 +6,7 @@
 
 Codex Galaxy is a local desktop utility for switching between Codex accounts and compatible APIs while continuing project tasks saved on the same computer.
 
-**Current version: Codex Galaxy 3.4.0**
+**Current version: Codex Galaxy 3.4.1**
 
 The in-app guide is now organized by stage: **first account setup → daily account switching → failure recovery → features**. Open **Guide** and choose only the stage you need instead of reading one long page.
 
@@ -39,6 +39,8 @@ The in-app guide is now organized by stage: **first account setup → daily acco
 API profiles can use Auto compatibility: Galaxy locally translates common OpenAI Chat Completions, Anthropic Claude Messages, and native Gemini `generateContent` into Codex Responses; native Responses services can use direct mode. API keys stay in encrypted local settings and are not written to project documents or logs.
 
 ## API relay audit and ranking
+
+3.4.1 Auto compatibility retains the full catalog returned by the key's `/models` endpoint; Model ID selects the default, not the dropdown scope. Resync the API profile after upgrading. Optional hosted-search declarations no longer block ordinary converted chats; explicit search still requires native upstream support.
 
 - Clicking **API audit** on a saved API profile now reads its encrypted local configuration and starts immediately, without asking for the platform, Base URL, API key, or model again. Only **Test new API** opens the temporary-input form.
 - Every click on a saved profile's **API audit** adds another background job without waiting for the previous one. Galaxy runs up to three audits concurrently and queues the rest with separate status and progress; there is no separate bulk button.

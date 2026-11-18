@@ -6,7 +6,7 @@
 
 Codex Galaxy 是一款本地桌面工具，帮助你在不同 Codex 账号和兼容 API 之间切换，并继续本机保存的项目任务。
 
-**当前版本：Codex Galaxy 3.4.0**
+**当前版本：Codex Galaxy 3.4.1**
 
 使用教程已按使用阶段重新整理：**第一次添加账号配置 → 日常使用切换账号 → 异常故障处理 → 特色功能**。打开应用内“使用教程”后，点击对应阶段查看，不需要一次读完全部内容。
 
@@ -39,6 +39,8 @@ Codex Galaxy 是一款本地桌面工具，帮助你在不同 Codex 账号和兼
 API 账号可选择“自动适配”：Galaxy 在本机把常见 OpenAI Chat Completions、Anthropic Claude Messages、Gemini `generateContent` 转换为 Codex Responses；Responses 原生服务也可使用直连。API Key 只保存在本机加密配置中，不会写入项目文档或日志。
 
 ## API 中转站检测与排名
+
+3.4.1 自动适配显示密钥 `/models` 返回的完整目录，模型 ID 是默认型号，不限制下拉列表。升级后在 Galaxy 重新同步该 API。转换协议会关闭托管联网搜索；普通聊天不受附带的可选 `web_search` 阻断，明确联网搜索仍需要上游原生支持。
 
 - 已保存的 API 账号点击“API 检测”后会直接读取本机加密配置开始测试，不再要求重复填写平台、Base URL、API Key 或模型；只有“测试新 API”才显示临时输入表单。
 - 每次点击一个 API 账号的“API 检测”都会新增一个后台任务，不需要等待前一个结束；Galaxy 同时运行最多 3 个，其余任务自动排队，并分别显示状态与进度。界面不再提供单独的批量按钮。

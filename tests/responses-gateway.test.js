@@ -35,6 +35,22 @@ function profile(baseUrl, model = "gpt-5.6-sol") {
   };
 }
 
+test("auto profiles expose the whole relay catalog and honor cross-vendor selections without model fallback", async (t) => {
+  const seen = [];
+  const gateway = new ResponsesGateway({ port: 0, fetchUpstream: async (url, options) => {
+    if (url.endsWith("/models")) return Response.json({ data: ["gemini-flash", "gemini-pro", "claude-model", "gpt-model"].map((id) => ({ id })) });
+    seen.push(JSON.parse(options.body).model);
+    return Response.json({ model: seen.at(-1), output: [] });
+  } });
+  t.after(() => gateway.stop());
+  const runtime = await prepareGatewayRuntime(gateway, { ...profile("https://relay.test/v1", "gemini-flash"), relayProtocol: "auto", runtimeMode: "gateway" });
+  assert.equal(runtime.profile.singleModel, false);
+  assert.equal(runtime.profile.modelCatalog.length, 4);
+  assert.deepEqual(runtime.profile.modelCandidates, []);
+  await post(`${gateway.baseUrl}/responses`, { model: "claude-model", input: "hello" });
+  assert.deepEqual(seen, ["claude-model"]);
+});
+
 test("model-family matching supports arbitrary GPT versions and tiers", () => {
   for (const [configured, candidate] of [
     ["gpt-5.6", "gpt-5.6-sol"],

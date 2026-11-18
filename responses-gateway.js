@@ -378,9 +378,10 @@ function catalogItemId(item) {
   return String(item?.sourceId || item?.slug || item?.id || item?.model || "").trim();
 }
 
-function catalogForSelection(entries, selectedModel, singleModel, providerName) {
+function catalogForSelection(entries, selectedModel, singleModel, providerName, fullCatalog = false) {
   const source = Array.isArray(entries) && entries.length ? entries : [selectedModel];
   const normalized = catalogEntries({ models: source }, providerName);
+  if (fullCatalog) return normalized;
   if (singleModel) {
     const selected = normalized.find((entry) => catalogItemId(entry).toLowerCase() === selectedModel.toLowerCase());
     return selected ? [selected] : catalogEntries({ models: [selectedModel] }, providerName);
@@ -478,14 +479,15 @@ export class ResponsesGateway {
     }
     const transport = this.fetchUpstream || globalThis.fetch;
     const providerName = profile.name || profile.providerKey || "API";
-    const fallbackSingleModel = fallbackModel ? !isGptFamily(fallbackModel) : false;
+    const fullCatalog = profile.relayProtocol === "auto";
+    const fallbackSingleModel = fullCatalog ? false : fallbackModel ? !isGptFamily(fallbackModel) : false;
     const fallback = fallbackModel ? {
       ...profile,
       model: fallbackModel,
       configuredModel,
       modelResolved: fallbackModel !== configuredModel,
       modelCandidates: fallbackSingleModel ? [] : (Array.isArray(profile.modelCandidates) ? profile.modelCandidates : []),
-      modelCatalog: catalogForSelection(profile.modelCatalog, fallbackModel, fallbackSingleModel, providerName),
+      modelCatalog: catalogForSelection(profile.modelCatalog, fallbackModel, fallbackSingleModel, providerName, fullCatalog),
       singleModel: fallbackSingleModel,
     } : null;
     if (typeof transport !== "function") {
@@ -537,14 +539,14 @@ export class ResponsesGateway {
         || fallbackCandidate
         || (configuredModel ? fallback?.model : null)
         || compatible[0];
-      const singleModel = !isGptFamily(resolvedModel);
-      const resolvedCatalog = catalogForSelection(modelCatalog, resolvedModel, singleModel, providerName);
+      const singleModel = !fullCatalog && !isGptFamily(resolvedModel);
+      const resolvedCatalog = catalogForSelection(modelCatalog, resolvedModel, singleModel, providerName, fullCatalog);
       return {
         ...profile,
         model: resolvedModel,
         configuredModel,
         modelResolved: resolvedModel !== configuredModel,
-        modelCandidates: singleModel ? [] : compatible.filter((model) => model.toLowerCase() !== resolvedModel.toLowerCase()),
+        modelCandidates: fullCatalog || singleModel ? [] : compatible.filter((model) => model.toLowerCase() !== resolvedModel.toLowerCase()),
         modelCatalog: resolvedCatalog,
         singleModel,
       };

@@ -71,6 +71,15 @@ async function boundedText(response, maximum = MAX_UPSTREAM_BYTES) {
 function toolSpecs(body) {
   const specs = new Map();
   const add = (tool, prefix = "") => {
+    if (["web_search", "web_search_preview"].includes(tool.type)) {
+      // Codex includes optional hosted-search declarations even for ordinary
+      // text turns. These upstream protocols cannot execute OpenAI search.
+      // Drop only the optional declaration, never a requested search action.
+      const required = body.tool_choice === "required" && (body.tools || []).every((entry) => ["web_search", "web_search_preview"].includes(entry.type));
+      const chosen = typeof body.tool_choice === "object" && ["web_search", "web_search_preview"].includes(body.tool_choice.type);
+      if (required || chosen) throw invalid("当前中转协议不支持指定的联网搜索，请使用原生 Responses 搜索服务。");
+      return;
+    }
     if (tool.type === "namespace") {
       for (const entry of tool.tools || []) add(entry, `${prefix}${tool.name}.`);
       return;
@@ -144,7 +153,7 @@ export function convertRelayRequest(body, protocol, signatures = new Map()) {
   const messages = normalizedInput(body, specs);
   const tools = [...specs.values()];
   const choiceName = typeof body.tool_choice === "object" ? `${body.tool_choice.namespace ? `${body.tool_choice.namespace}.` : ""}${body.tool_choice.name}` : null;
-  const chosen = choiceName ? specs.get(choiceName)?.wireName || body.tool_choice.name : body.tool_choice;
+  const chosen = specs.size ? choiceName ? specs.get(choiceName)?.wireName || body.tool_choice.name : body.tool_choice : null;
   const maxTokens = Number(body.max_output_tokens) > 0 ? Math.floor(body.max_output_tokens) : 8192;
   if (body.text?.format && body.text.format.type !== "text") throw invalid("该转换通道不支持 Responses 结构化输出约束，请使用原生 Responses。");
   if (protocol === "chat") {

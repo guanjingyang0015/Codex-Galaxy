@@ -191,7 +191,7 @@ export async function switchProfile(paths, profile, vaultFile, { allowUncaptured
   const catalog = profile.kind === "api"
     ? singleModel
       ? buildSingleModelCatalog(selectedEntry, { providerName: profile.name || profile.providerKey || "API", platformLabel: profile.providerKey || profile.name || "API" })
-      : buildModelCatalog(gptCatalog.length ? gptCatalog : [activeModel].filter(Boolean), { providerName: profile.name || profile.providerKey || "API" })
+      : buildModelCatalog(profile.relayProtocol === "auto" ? suppliedCatalog : gptCatalog.length ? gptCatalog : [activeModel].filter(Boolean), { providerName: profile.name || profile.providerKey || "API" })
     : null;
   if (catalog && profile.relayProtocol === "auto") {
     // Translated protocols accept client-side tools, not OpenAI-only hosted
@@ -276,6 +276,7 @@ function buildApiConfig(profile, liveConfig = "", catalogPath = "") {
   enforceFileCredentials(config);
   config.model = model;
   config.model_provider = provider;
+  if (profile.relayProtocol === "auto") config.web_search = "disabled";
   // Galaxy owns the active provider route.  Keeping stale provider tables from
   // an older relay makes Codex show multiple choices and can make users select
   // a URL that is not running anymore, so write only the current provider.

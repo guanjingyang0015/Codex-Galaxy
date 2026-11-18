@@ -23,6 +23,18 @@ function sse(parts, { fragment = false, closed = true } = {}) {
 }
 const eventsOf = (text) => text.split(/\r?\n/).filter((line) => line.startsWith("data:")).map((line) => JSON.parse(line.slice(5)));
 
+test("ordinary Gemini/Claude/chat turns tolerate optional web_search while explicit search stays blocked", () => {
+  for (const protocol of ["chat", "anthropic", "gemini"]) {
+    const converted = convertRelayRequest({ ...request, tools: [{ type: "web_search" }, tool], tool_choice: "auto" }, protocol);
+    assert.equal(converted.specs.size, 1);
+    const noFunctions = convertRelayRequest({ ...request, tools: [{ type: "web_search" }], tool_choice: "auto" }, protocol);
+    assert.equal(noFunctions.body.tools, undefined);
+    assert.equal(noFunctions.body.toolConfig, undefined);
+    assert.throws(() => convertRelayRequest({ ...request, tools: [{ type: "web_search" }], tool_choice: "required" }, protocol), /搜索/);
+    assert.throws(() => convertRelayRequest({ ...request, input: [{ type: "web_search_call", id: "search" }] }, protocol), /输入项/);
+  }
+});
+
 test("relay URLs accept root, /v1, endpoint and Gemini catalog addresses without duplicate segments", () => {
   for (const base of ["https://relay.test", "https://relay.test/v1", "https://relay.test/v1/responses", "https://relay.test/v1/chat/completions", "https://relay.test/v1/messages", "https://relay.test/v1beta/models"]) {
     assert.equal(relayEndpoint(base, "responses"), "https://relay.test/v1/responses");
@@ -198,7 +210,8 @@ test("adapter fails on incomplete streams, malformed tool JSON and unknown servi
   await assert.rejects(broken.request(request), /JSON/);
   const lengthLimited = make(json({ choices: [{ message: { tool_calls: [{ id: "call", function: { name: "get_value", arguments: '{"value":"partial"}' } }] }, finish_reason: "length" }] }));
   await assert.rejects(lengthLimited.request(request), /截断/);
-  assert.throws(() => convertRelayRequest({ ...request, tools: [{ type: "web_search" }] }, "chat"), /工具类型/);
+  assert.throws(() => convertRelayRequest({ ...request, tools: [{ type: "web_search" }], tool_choice: { type: "web_search" } }, "chat"), /搜索/);
+  assert.throws(() => convertRelayRequest({ ...request, tools: [{ type: "file_search" }] }, "chat"), /工具类型/);
   assert.throws(() => convertRelayRequest({ ...request, previous_response_id: "resp_old" }, "chat"), /previous_response_id/);
 });
 
