@@ -1,7 +1,7 @@
 const $ = (selector) => document.querySelector(selector);
 const state = {
   profiles: [],
-  version: "3.4.2",
+  version: "3.4.3",
   openaiStatus: null,
   threads: [],
   projects: [],
@@ -21,9 +21,9 @@ const state = {
   cleaning: false,
   repairing: false,
   gatewayRunning: false,
+  gatewayStarting: false,
   gatewayError: null,
   codexRunning: false,
-  codexProvider: null,
   librarySyncedAt: null,
   plugins: [],
   automation: { settings: { autoCleanCompleted: false }, completedFiles: 0, completedBytes: 0 },
@@ -31,7 +31,7 @@ const state = {
   releases: [],
   update: {
     phase: "idle",
-    currentVersion: "3.4.2",
+    currentVersion: "3.4.3",
     latestVersion: null,
     available: false,
     action: "install",
@@ -490,7 +490,7 @@ const translations = {
     "diagnostics.opened": "已打开本地日志文件。",
     "diagnostics.truncated": "日志较长，当前只显示最后一段。",
     "tutorial.title": "分阶段使用教程",
-    "tutorial.intro": "按使用阶段阅读教程：先完成一次账号配置，日常按步骤切换，出问题先看日志，超大聊天先复制深度链接新建聊天继续，最后了解本地历史和其他特色功能。当前版本为 v3.4.2。",
+    "tutorial.intro": "按使用阶段阅读教程：先完成一次账号配置，日常按步骤切换，出问题先看日志，超大聊天先复制深度链接新建聊天继续，最后了解本地历史和其他特色功能。当前版本为 v3.4.3。",
     "tutorial.stageNav": "教程阶段",
     "tutorial.stage1.tab": "首次配置",
     "tutorial.stage1.short": "添加账号和模型",
@@ -535,7 +535,7 @@ const translations = {
     "tutorial.switch.officialToApi1": "添加或编辑 API 配置，选择“自动适配”，填写站点地址、Key 和准确模型名；也可保留已有的 Responses 直连。选中配置后点击“切换并打开 Codex”。",
     "tutorial.switch.officialToApi2": "Galaxy 会先保存官方快照，安全关闭空闲 Codex，并移除实时官方 OAuth，只留下目标 API provider。",
     "tutorial.switch.officialToApi3": "等待进度到 100%，确认 Codex 显示 API 账号后，再点击“在 Codex 中继续”。",
-    "tutorial.switch.officialToApi4": "重新同步时，自动适配先验证当前模型的 Responses 流式接口；验证成功则直连，否则保留转换网关。Windows 安装版在登录系统时无窗口恢复转换网关。",
+    "tutorial.switch.officialToApi4": "关闭 Galaxy 不影响官方或直连 API。转换模式可选择保留网关，或彻底退出并停止网关和自启；彻底退出会中断依赖网关的请求。",
     "tutorial.switch.apiToApiTitle": "API → API",
     "tutorial.switch.apiToApi1": "选中目标 API 账号，确认 Base URL、Key 和模型 ID 正确后点击“切换并打开 Codex”。",
     "tutorial.switch.apiToApi2": "API 之间不会改写整套历史文件，只更新当前 provider、模型和必要的线程索引，通常比跨官方账号切换更快。",
@@ -1016,7 +1016,7 @@ const translations = {
     "diagnostics.opened": "The local log file was opened.",
     "diagnostics.truncated": "The log is long; only its latest section is shown.",
     "tutorial.title": "Phased usage guide",
-    "tutorial.intro": "Read the guide by stage: configure accounts once, follow the daily switch steps, preserve the scene when something fails, use a deep link to continue oversized chats in a new thread, then learn local history and other features. Current version: v3.4.2.",
+    "tutorial.intro": "Read the guide by stage: configure accounts once, follow the daily switch steps, preserve the scene when something fails, use a deep link to continue oversized chats in a new thread, then learn local history and other features. Current version: v3.4.3.",
     "tutorial.stageNav": "Tutorial stages",
     "tutorial.stage1.tab": "First setup",
     "tutorial.stage1.short": "Accounts and models",
@@ -1061,7 +1061,7 @@ const translations = {
     "tutorial.switch.officialToApi1": "Add or edit the API profile, select Auto compatibility, and enter the service URL, key and exact model ID; existing Responses direct profiles can remain unchanged. Select it and click Switch and open Codex.",
     "tutorial.switch.officialToApi2": "Galaxy saves the official snapshot, gracefully closes idle Codex, removes live official OAuth, and leaves only the target API provider.",
     "tutorial.switch.officialToApi3": "Wait for 100%, confirm Codex shows the API account, then click Continue in Codex.",
-    "tutorial.switch.officialToApi4": "Resync verifies native Responses streaming for the selected model before choosing direct mode. Other routes keep the conversion gateway, which the installed Windows app restores without a window at sign-in.",
+    "tutorial.switch.officialToApi4": "Closing Galaxy does not affect official or direct API routes. For conversion routes, keep the gateway running or fully quit to stop it and disable login startup. Fully quitting interrupts requests using the gateway.",
     "tutorial.switch.apiToApiTitle": "API → API",
     "tutorial.switch.apiToApi1": "Select the target API profile, verify its Base URL, key, and model ID, then click Switch and open Codex.",
     "tutorial.switch.apiToApi2": "API-to-API switching does not rewrite the entire history. It updates the active provider, model, and necessary thread indexes, so it is normally faster than switching across the official account.",
@@ -1481,7 +1481,7 @@ function updateStatusBoard() {
   const current = state.profiles.find((profile) => profile.id === state.currentId);
   $("#statusProfile").textContent = current?.name || t("common.notSelected");
   $("#statusLoginMode").textContent = current ? profileLoginModeLabel(current) : t("common.notSelected");
-  $("#statusGateway").textContent = state.gatewayRunning ? t("common.running") : t("common.notRunning");
+  $("#statusGateway").textContent = state.gatewayStarting ? t("common.detecting") : state.gatewayRunning ? t("common.running") : t("common.notRunning");
   const projectNotice = $("#localProjectsProviderNotice");
   if (projectNotice) {
     projectNotice.hidden = false;
@@ -1668,12 +1668,23 @@ function populateProjects() {
   if (values.includes(previous)) $("#projectFilter").value = previous;
 }
 
-function openLocalProjects() {
-  if (operationBusy()) return;
+async function refreshProjectView() {
+  const library = unwrap(await bridge.getLocalProjects());
+  state.threads = library.threads;
+  state.projects = library.projects || [];
+  state.librarySyncedAt = library.syncedAt || null;
   populateProjects();
   renderLocalProjectRegistry();
   renderThreads();
+}
+
+async function openLocalProjects() {
+  if (operationBusy()) return;
   $("#localProjectsDialog").showModal();
+  try {
+    await refreshProjectView();
+    if (!state.librarySyncedAt && $("#localProjectsDialog").open) await sync();
+  } catch (error) { notice(error.message, true); }
 }
 
 async function refresh() {
@@ -1682,16 +1693,10 @@ async function refresh() {
   $("#appVersionInline").textContent = state.version;
   state.currentId = snapshot.profiles.currentId;
   state.profiles = snapshot.profiles.profiles;
-  state.threads = snapshot.library.threads;
-  state.projects = snapshot.library.projects || [];
-  state.plugins = snapshot.plugins || [];
-  state.automation = snapshot.automation || state.automation;
   state.releases = Array.isArray(snapshot.releases) ? snapshot.releases : [];
   state.update = snapshot.update || state.update;
   state.gatewayRunning = Boolean(snapshot.gateway?.running);
-  state.codexRunning = Boolean(snapshot.codex.running);
-  state.codexProvider = snapshot.codex.provider || null;
-  state.librarySyncedAt = snapshot.library.syncedAt || null;
+  state.gatewayStarting = Boolean(snapshot.gateway?.starting);
   const activeAuditIds = new Set((snapshot.audits || []).map((audit) => audit.taskId));
   for (const taskId of Object.keys(state.auditTasks)) {
     if (!activeAuditIds.has(taskId)) delete state.auditTasks[taskId];
@@ -1727,11 +1732,18 @@ function renderPlugins() {
   root.innerHTML = state.plugins.map((plugin) => `<div class="message event"><strong>${escapeHtml(plugin.name)}</strong> <small>v${escapeHtml(plugin.version)}</small><br><code>${escapeHtml(plugin.path)}</code></div>`).join("");
 }
 
-function openPlugins() {
-  if (operationBusy()) return;
+async function refreshPluginView() {
+  const { plugins, settings } = unwrap(await bridge.getPluginState());
+  state.plugins = plugins;
+  state.automation.settings = settings;
   renderPlugins();
-  $("#autoCleanupCompleted").checked = state.automation.settings?.autoCleanCompleted === true;
+  $("#autoCleanupCompleted").checked = settings?.autoCleanCompleted === true;
+}
+
+async function openPlugins() {
+  if (operationBusy()) return;
   $("#pluginDialog").showModal();
+  try { await refreshPluginView(); } catch (error) { notice(error.message, true); }
 }
 
 function formatBytes(value) {
@@ -1840,7 +1852,7 @@ async function sync() {
     const synced = unwrap(await bridge.sync(state.refreshOperationId));
     updateRefreshProgress({ percent: 100, message: t("refresh.done", { count: synced.threads }), completed: synced.threads, total: synced.threads });
     notice(t("refresh.doneNotice", { count: synced.threads }));
-    await refresh();
+    await refreshProjectView();
   } catch (error) {
     updateRefreshProgress({ percent: 0, message: t("refresh.failed", { message: error.message }), completed: 0, total: 0 });
     notice(error.message, true);
@@ -2004,6 +2016,7 @@ function renderThreadDialog(thread) {
 
 async function showThread(id) {
   const thread = unwrap(await bridge.getThread(id));
+  state.codexRunning = thread.codexRunning === true;
   state.selectedThread = thread;
   renderThreadDialog(thread);
   $("#threadDialog").showModal();
@@ -2491,8 +2504,7 @@ $("#installLocalPlugin").addEventListener("click", async () => {
     const result = unwrap(await bridge.installLocalPlugin());
     if (!result.cancelled) {
       notice(t("plugin.installed", { name: result.installed.name }));
-      await refresh();
-      renderPlugins();
+      await refreshPluginView();
     }
   } catch (error) { notice(error.message, true); }
 });
@@ -2503,8 +2515,7 @@ $("#expandPluginMarketplace").addEventListener("click", async () => {
     if (result.cancelled) return;
     const count = Array.isArray(result.installed) ? result.installed.length : 0;
     notice(count ? t("plugin.marketplaceExpanded", { count }) : t("plugin.marketplaceEmpty"), !count);
-    await refresh();
-    renderPlugins();
+    await refreshPluginView();
   } catch (error) { notice(error.message, true); }
 });
 $("#addMarketplace").addEventListener("click", async () => {
@@ -2696,6 +2707,7 @@ if (!bridge) {
   bridge.onAuditProgress(updateAuditProgress);
   startAuditCountdown();
   bridge.onUpdateStatus(applyUpdateStatus);
+  bridge.onGatewayReady(() => { refresh().catch(() => {}); });
   bridge.onSwitchConfirmation(showSwitchConfirmation);
   refresh().catch((error) => notice(error.message, true));
   loadOpenAIStatus();

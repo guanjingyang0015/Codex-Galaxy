@@ -21,6 +21,30 @@ async function close(server) {
   await once(server, "close");
 }
 
+test("full gateway exit closes an active stream and releases its listener", async (t) => {
+  const upstream = http.createServer((_request, response) => {
+    response.writeHead(200, { "content-type": "text/event-stream" });
+    response.write("data: {\"type\":\"response.output_text.delta\",\"delta\":\"waiting\"}\n\n");
+  });
+  const upstreamUrl = await listen(upstream);
+  const gateway = new ResponsesGateway({ port: 0, fetchUpstream: fetch });
+  t.after(async () => { await gateway.stop({ force: true }); upstream.closeAllConnections(); await close(upstream); });
+  gateway.configure({ id: "relay-b", kind: "api", baseUrl: `${upstreamUrl}/v1`, apiKey: "relay-secret", model: "synthetic" });
+  await gateway.start();
+  const url = `${gateway.baseUrl}/responses`;
+  const send = () => fetch(url, {
+    method: "POST", headers: { authorization: "Bearer relay-secret", "content-type": "application/json" },
+    body: JSON.stringify({ input: "synthetic", stream: true }), signal: AbortSignal.timeout(5000),
+  });
+  const response = await send();
+  const reader = response.body.getReader();
+  const first = await reader.read();
+  assert.equal(first.done, false);
+  await gateway.stop({ force: true });
+  assert.equal(gateway.status.running, false);
+  await assert.rejects(send());
+});
+
 test("API gateway can be handed to a detached host and stopped without touching Codex", async (t) => {
   const upstream = http.createServer(async (request, response) => {
     for await (const _chunk of request) {}

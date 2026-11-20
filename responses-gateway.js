@@ -618,12 +618,13 @@ export class ResponsesGateway {
     return this.status;
   }
 
-  async stop() {
+  async stop({ force = false } = {}) {
     const server = this.server;
     this.server = null;
     if (!server?.listening) return;
     server.close();
     server.closeIdleConnections?.();
+    if (force) server.closeAllConnections?.();
     await once(server, "close");
   }
 

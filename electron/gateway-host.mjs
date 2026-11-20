@@ -78,7 +78,7 @@ export async function readGatewayHostState(root) {
   return readJson(stateFile(root));
 }
 
-export async function stopOwnedGatewayHost(root, { timeoutMs = DEFAULT_TIMEOUT_MS } = {}) {
+export async function stopOwnedGatewayHost(root, { timeoutMs = DEFAULT_TIMEOUT_MS, force = false } = {}) {
   const file = stateFile(root);
   const stop = stopFile(root);
   const state = await readJson(file);
@@ -92,7 +92,7 @@ export async function stopOwnedGatewayHost(root, { timeoutMs = DEFAULT_TIMEOUT_M
     await removeFile(stop);
     return { stopped: false, stale: true, pid: state.pid };
   }
-  await writeJson(stop, { owner: OWNER, pid: state.pid, token: state.token, requestedAt: new Date().toISOString() });
+  await writeJson(stop, { owner: OWNER, pid: state.pid, token: state.token, force, requestedAt: new Date().toISOString() });
   const deadline = Date.now() + Math.max(1000, timeoutMs);
   while (Date.now() < deadline) {
     if (!isPidAlive(state.pid)) {
@@ -189,15 +189,15 @@ async function runGatewayHost() {
   });
   gateway.configure(request.profile);
   let stopping = false;
-  const cleanup = async () => {
+  const cleanup = async (force = false) => {
     if (stopping) return;
     stopping = true;
-    await gateway.stop().catch(() => {});
+    await gateway.stop({ force }).catch(() => {});
     await removeFile(statePath);
     await removeFile(stopPath);
   };
-  const exit = async (code = 0) => {
-    await cleanup();
+  const exit = async (code = 0, force = false) => {
+    await cleanup(force);
     process.exit(code);
   };
   process.once("SIGINT", () => { exit().catch(() => process.exit(1)); });
@@ -229,7 +229,7 @@ async function runGatewayHost() {
     const command = await readJson(stopPath);
     if (command?.owner === OWNER && command.pid === process.pid && command.token === request.token) {
       clearInterval(poll);
-      await exit();
+      await exit(0, command.force === true);
     }
   }, 250);
   poll.unref?.();

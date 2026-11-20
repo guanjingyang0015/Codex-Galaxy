@@ -34,7 +34,7 @@ test("release identity stays compatible with 0.1.0 upgrades and preserves user d
   const modelTraceLicense = await fs.readFile(path.join(root, "modeltrace", "LICENSE"), "utf8");
   const releaseNotes = await fs.readFile(path.join(root, "release-notes", `v${packageJson.version}.md`), "utf8");
   const workflow = await fs.readFile(path.join(root, ".github", "workflows", "build.yml"), "utf8");
-  assert.equal(packageJson.version, "3.4.2");
+  assert.equal(packageJson.version, "3.4.3");
   assert.equal(packageJson.author, "Guan Jingyang <guanjingyang@gmail.com>");
   assert.equal(packageJson.license, "MIT");
   assert.equal(packageJson.build.appId, "io.github.codex-galaxy.app");
@@ -98,7 +98,8 @@ test("release identity stays compatible with 0.1.0 upgrades and preserves user d
   assert.match(electronMain, /waitForCodexDesktopWindow/);
   assert.match(electronMain, /resumeThreadInCodex/);
   assert.match(electronMain, /codex:\/\/threads/);
-  assert.match(electronMain, /initialLibrarySyncDone/);
+  assert.match(electronMain, /getLocalProjects/);
+  assert.match(electronMain, /gatewayStartup/);
   assert.match(gatewayHost, /ELECTRON_RUN_AS_NODE/);
   assert.match(gatewayHost, /gateway-host\.json/);
   assert.match(gatewayHost, /unrelated process/);
@@ -121,11 +122,11 @@ test("release identity stays compatible with 0.1.0 upgrades and preserves user d
   assert.match(releaseInfo, /c7e0034525e895bbd0f855cc5edd229098e1f938/);
   assert.match(releaseInfo, /33521136697/);
   assert.deepEqual(releaseHistory(packageJson.version)[0], {
-    version: "3.4.2",
-    tag: "v3.4.2",
+    version: "3.4.3",
+    tag: "v3.4.3",
     commit: null,
     actionsRun: null,
-    url: "https://github.com/guanjingyang0015/Codex-Galaxy/releases/tag/v3.4.2",
+    url: "https://github.com/guanjingyang0015/Codex-Galaxy/releases/tag/v3.4.3",
   });
   assert.match(profilesJs, /PROFILE_SCHEMA_VERSION = 6/);
   assert.match(relayTest, /\/models/);
@@ -206,13 +207,15 @@ test("release identity stays compatible with 0.1.0 upgrades and preserves user d
   assert.match(html, /id="localProjectsDialog"/);
   assert.match(html, /id="localProjectsProviderNotice"/);
   assert.match(html, /id="localProjectRegistry"/);
-  assert.match(renderer, /state\.projects = snapshot\.library\.projects/);
+  assert.match(renderer, /state\.projects = library\.projects/);
   assert.match(renderer, /function renderLocalProjectRegistry/);
   assert.match(renderer, /projectRootFilter/);
   assert.match(syncModule, /export async function readLocalProjects/);
   assert.match(syncModule, /project_roots/);
   assert.match(syncModule, /rolloutFilesForSync/);
-  assert.match(electronMain, /projects: await readLocalProjects\(codexPaths\.home\)/);
+  assert.match(electronMain, /readLocalProjects\(codexPaths\.home\)/);
+  const firstScreen = electronMain.slice(electronMain.indexOf("async function getState()"), electronMain.indexOf("async function getLocalProjects()"));
+  assert.doesNotMatch(firstScreen, /syncConversations|readLibrary|findCodexWriterProcesses|listLocalPlugins|previewCompletedAutomations/);
   assert.match(renderer, /threads\.providerNotice/);
   assert.match(html, /id="localProjectsBtn"/);
   assert.match(renderer, /\$\("#localProjectsBtn"\)\.addEventListener/);

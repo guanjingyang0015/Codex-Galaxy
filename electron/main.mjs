@@ -4,7 +4,7 @@ import path from "node:path";
 import os from "node:os";
 import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
-import { defaultPaths, inspectCodex, captureCurrent, liveProfileMatch, setOfficialWindowsSandboxFallback, switchProfile as applyProfile } from "../codex.js";
+import { defaultPaths, captureCurrent, liveProfileMatch, setOfficialWindowsSandboxFallback, switchProfile as applyProfile } from "../codex.js";
 import { runtimePaths, loadProfiles, publicProfiles, saveProfile, profileForSwitch, recordProfileTest, setCurrent, setResolvedModel, setModelCatalog, deleteProfile, clearApiKey, reorderProfiles } from "../profiles.js";
 import { syncConversations, readLibrary, readLocalProjects, readThreadDetail } from "../sync.js";
 import { setPlatformSecretProvider } from "../vault.js";
@@ -14,7 +14,7 @@ import { switchAccountTransaction } from "../account-switch.js";
 import { findCodexDesktopWindows, findCodexWriterProcesses, stopCodexDesktopAndWait } from "../desktop-process.js";
 import { codexOverlayBounds, CODEX_VERSION_OVERLAY_SIZE, selectCodexOverlayTarget } from "./codex-overlay.mjs";
 import { modelCanResolveVariants, prepareGatewayRuntime, ResponsesGateway } from "../responses-gateway.js";
-import { handoffGatewayToHost, stopOwnedGatewayHost } from "./gateway-host.mjs";
+import { handoffGatewayToHost, readGatewayHostState, stopOwnedGatewayHost } from "./gateway-host.mjs";
 import { relayResponsesBase } from "../relay-protocol.js";
 import { recentThreadModels, targetProviderForProfile } from "../provider-sync.js";
 import { addMarketplace, expandMarketplace, installLocalPlugin, listLocalPlugins } from "../plugin-manager.js";
@@ -64,7 +64,7 @@ let codexVersionOverlayIntervalMs = 0;
 let nativeCodexWindowApiPromise = null;
 let nativeCodexWindowApi = null;
 let updateCheckTimer = null;
-let initialLibrarySyncDone = false;
+let gatewayStartup = null;
 const responsesGateway = new ResponsesGateway({
   fetchUpstream: (url, options) => net.fetch(url, options),
   onModelResolved: ({ profileId, configuredModel, resolvedModel }) => setResolvedModel(profileId, configuredModel, resolvedModel, dataPaths),
@@ -92,37 +92,20 @@ function result(task, operation = "ipc") {
 
 async function getState() {
   const profiles = await publicProfiles(dataPaths);
-  let library = await readLibrary(dataPaths.library);
-  if (!initialLibrarySyncDone || Number(library.version || 1) < 2 || Number(library.catalogVersion || 1) < 5) {
-    await syncConversations({
-      codexHome: codexPaths.home,
-      libraryFile: dataPaths.library,
-      accountId: profiles.currentId,
-      preserveLocalProjects: true,
-    });
-    initialLibrarySyncDone = true;
-    library = await readLibrary(dataPaths.library);
-  }
-  const codex = await inspectCodex(codexPaths);
-  const running = await findCodexWriterProcesses();
-  const plugins = await listLocalPlugins(codexPaths.home);
-  const automation = { settings: await getAutomationSettings(dataPaths.settings), preview: await previewCompletedAutomations(codexPaths.home) };
   return {
     version: app.getVersion(),
     profiles,
-    codex: { ...codex, running: running.length > 0 },
-    library: {
-      syncedAt: library.syncedAt,
-      threads: library.threads.map(({ messages, ...thread }) => thread),
-      projects: await readLocalProjects(codexPaths.home),
-    },
-    gateway: { ...responsesGateway.status, error: gatewayStartupError },
-    plugins,
-    automation: { settings: automation.settings, completedFiles: automation.preview.files.length, completedRuns: automation.preview.rows || 0, completedBytes: automation.preview.bytes },
+    codex: { home: codexPaths.home },
+    gateway: { ...responsesGateway.status, starting: Boolean(gatewayStartup), error: gatewayStartupError },
     audits: [...auditTasks.entries()].map(([taskId, task]) => ({ taskId, status: task.status, ...(task.progress || {}) })),
     releases: releaseHistory(app.getVersion()),
     update: { ...appUpdater.status },
   };
+}
+
+async function getLocalProjects() {
+  const [library, projects] = await Promise.all([readLibrary(dataPaths.library), readLocalProjects(codexPaths.home)]);
+  return { syncedAt: library.syncedAt, threads: library.threads.map(({ messages, ...thread }) => thread), projects };
 }
 
 function broadcastUpdateStatus(status) {
@@ -289,28 +272,42 @@ function startCodexVersionOverlay() {
   codexVersionOverlayTimer.unref?.();
 }
 
+let exitPending = false;
 async function quitFromTray() {
-  if (gatewayHandoffCompleted) return;
-  const gatewayMode = responsesGateway.status.running && responsesGateway.status.runtimeMode === "gateway";
+  if (exitPending || quitting) return;
+  if (switching || cleaning || repairing || launching || refreshing) {
+    await dialog.showMessageBox({ message: "请等待账号切换或本地数据操作完成后再退出 Galaxy。" });
+    return;
+  }
+  exitPending = true;
+  try {
+  await gatewayStartup;
+  const detached = await readGatewayHostState(dataPaths.root);
+  const gatewayMode = responsesGateway.status.running || detached?.status === "ready";
   const auditRunning = auditTasks.size > 0;
+  if (!gatewayMode && !auditRunning) {
+    updateGatewayLoginItem(false);
+    quitting = true;
+    app.quit();
+    return;
+  }
   const options = {
     type: "warning",
     title: "退出 Codex Galaxy",
     message: "退出 Galaxy 后，Codex 仍会保持运行。",
-    detail: auditRunning
-      ? "API 检测仍在后台运行。现在退出会中断检测，已完成的本地账号和聊天数据不会受影响。"
-      : gatewayMode
-      ? "Galaxy 会把本地 Responses 网关移交给独立后台服务。这样关闭 Galaxy 不会关闭 Codex，也不会让官方或中转 API 登录失效；请在当前回复完成后再退出。"
-      : "这只会结束 Codex Galaxy 管理窗口，不会关闭 Codex 或修改登录状态。",
-    buttons: ["保持运行", "仍然退出"],
+    detail: (gatewayMode
+      ? "彻底退出会停止本地网关并取消登录自启：如果 Codex 正使用协议转换，当前请求会中断，重新打开 Galaxy 可恢复连接。保留网关可让 Codex 继续联网。官方账号和直连 API 不受影响。"
+      : "退出会停止 Galaxy 的后台工作，不关闭 Codex 或修改登录状态。")
+      + (auditRunning ? " 正在执行的 API 检测也会停止。" : ""),
+    buttons: gatewayMode ? ["取消", "保留网关并退出", "彻底退出"] : ["取消", "彻底退出"],
     defaultId: 0,
     cancelId: 0,
     noLink: true,
   };
   const owner = mainWindow && !mainWindow.isDestroyed() ? mainWindow : undefined;
   const choice = owner ? await dialog.showMessageBox(owner, options) : await dialog.showMessageBox(options);
-  if (choice.response !== 1) return;
-  if (gatewayMode) {
+  if (choice.response === 0) return;
+  if (gatewayMode && choice.response === 1 && responsesGateway.status.running) {
     const handedOff = await handoffGatewayToHost({ gateway: responsesGateway, root: dataPaths.root }).catch((error) => ({ handedOff: false, error }));
     if (!handedOff.handedOff) {
       const message = handedOff.reason === "busy"
@@ -330,8 +327,19 @@ async function quitFromTray() {
     }
     gatewayHandoffCompleted = true;
   }
+  if (!gatewayMode || choice.response === 2) {
+    const stopped = await stopOwnedGatewayHost(dataPaths.root, { force: true });
+    if (stopped.timedOut) throw new Error("后台网关尚未确认退出，请稍后重试。");
+    await responsesGateway.stop({ force: true });
+    updateGatewayLoginItem(false);
+  }
   quitting = true;
   app.quit();
+  } catch {
+    dialog.showErrorBox("暂时无法退出 Galaxy", "后台工作尚未安全停止，请稍后重试。");
+  } finally {
+    exitPending = false;
+  }
 }
 
 function updateGatewayTray() {
@@ -603,6 +611,7 @@ async function bootstrapOfficialCodex(profile) {
 }
 
 async function exclusiveSwitch(task) {
+  if (exitPending) throw new Error("Galaxy 正在退出，请取消退出后再切换账号。");
   if (switching) throw new Error("另一个账号切换仍在进行，请等待完成。");
   if (refreshing) throw new Error("项目刷新仍在进行，请等待完成后再切换账号。");
   if (cleaning) throw new Error("数据清理仍在进行，请等待完成后再切换账号。");
@@ -610,6 +619,7 @@ async function exclusiveSwitch(task) {
   if (launching) throw new Error("Codex 正在启动，请等待完成后再切换账号。");
   switching = true;
   try {
+    await gatewayStartup;
     return await task();
   } finally {
     switching = false;
@@ -617,6 +627,7 @@ async function exclusiveSwitch(task) {
 }
 
 async function exclusiveRefresh(task) {
+  if (exitPending) throw new Error("Galaxy 正在退出。");
   if (switching) throw new Error("账号切换仍在进行，请等待完成后再刷新项目。");
   if (refreshing) throw new Error("另一个项目刷新仍在进行，请等待完成。");
   if (cleaning) throw new Error("数据清理仍在进行，请等待完成后再刷新项目。");
@@ -631,6 +642,7 @@ async function exclusiveRefresh(task) {
 }
 
 async function exclusiveCleanup(task) {
+  if (exitPending) throw new Error("Galaxy 正在退出。");
   if (switching) throw new Error("账号切换仍在进行，请等待完成后再清理数据。");
   if (refreshing) throw new Error("项目刷新仍在进行，请等待完成后再清理数据。");
   if (cleaning) throw new Error("另一个数据清理仍在进行，请等待完成。");
@@ -645,6 +657,7 @@ async function exclusiveCleanup(task) {
 }
 
 async function exclusiveRepair(task) {
+  if (exitPending) throw new Error("Galaxy 正在退出。");
   if (switching) throw new Error("账号切换仍在进行，请等待完成后再修复旧会话。");
   if (refreshing) throw new Error("项目刷新仍在进行，请等待完成后再修复旧会话。");
   if (cleaning) throw new Error("数据清理仍在进行，请等待完成后再修复旧会话。");
@@ -659,6 +672,7 @@ async function exclusiveRepair(task) {
 }
 
 async function exclusiveLaunch(task) {
+  if (exitPending) throw new Error("Galaxy 正在退出。");
   if (switching) throw new Error("账号切换仍在进行，请等待完成后再打开项目。");
   if (refreshing) throw new Error("项目刷新仍在进行，请等待完成后再打开项目。");
   if (cleaning) throw new Error("数据清理仍在进行，请等待完成后再打开项目。");
@@ -666,6 +680,7 @@ async function exclusiveLaunch(task) {
   if (launching) throw new Error("另一个 Codex 启动操作仍在进行，请等待完成。");
   launching = true;
   try {
+    await gatewayStartup;
     return await task();
   } finally {
     launching = false;
@@ -921,6 +936,11 @@ function registerHandlers() {
   }, "open-active-task"));
   ipcMain.handle("codex-galaxy:reorder-profiles", (_, ids) => result(() => reorderProfiles(ids, dataPaths), "reorder-profiles"));
   ipcMain.handle("codex-galaxy:get-state", () => result(getState, "get-state"));
+  ipcMain.handle("codex-galaxy:get-local-projects", () => result(getLocalProjects, "get-local-projects"));
+  ipcMain.handle("codex-galaxy:get-plugin-state", () => result(async () => {
+    const [plugins, settings] = await Promise.all([listLocalPlugins(codexPaths.home), getAutomationSettings(dataPaths.settings)]);
+    return { plugins, settings };
+  }, "get-plugin-state"));
   ipcMain.handle("codex-galaxy:check-update", () => result(() => appUpdater.check(), "check-update"));
   ipcMain.handle("codex-galaxy:install-update", (event, request) => result(async () => {
     const status = appUpdater.status.available
@@ -1064,7 +1084,7 @@ function registerHandlers() {
     const detail = health.status === "repairable" || health.status === "blocked"
       ? { ...thread, messages: [] }
       : await readThreadDetail(thread, codexPaths.home);
-    return { ...detail, health };
+    return { ...detail, health, codexRunning: (await findCodexWriterProcesses()).length > 0 };
   }));
   ipcMain.handle("codex-galaxy:repair-thread", (_, id) => result(() => exclusiveRepair(async () => {
     await assertCodexWritersStopped();
@@ -1232,9 +1252,9 @@ function createWindow() {
   window.loadFile(path.join(appRoot, "public", "index.html"));
   window.once("ready-to-show", () => window.show());
   window.on("close", (event) => {
-    if (!quitting && (auditTasks.size > 0 || (responsesGateway.status.running && responsesGateway.status.runtimeMode === "gateway"))) {
+    if (!quitting) {
       event.preventDefault();
-      window.hide();
+      void quitFromTray();
     }
   });
   window.on("closed", () => { if (mainWindow === window) mainWindow = null; });
@@ -1260,19 +1280,29 @@ if (!hasSingleInstanceLock) {
         decrypt: (value) => safeStorage.decryptString(Buffer.from(value, "base64")),
       });
     }
-    await stopOwnedGatewayHost(dataPaths.root).catch(() => {});
-    await restoreCurrentApiGateway().catch((error) => {
+    registerHandlers();
+    gatewayStartup = (async () => {
+      const stopped = await stopOwnedGatewayHost(dataPaths.root);
+      if (stopped.timedOut) throw new Error("原有后台网关尚未退出，未启动第二个网关。");
+      await restoreCurrentApiGateway();
+    })().catch((error) => {
       gatewayStartupError = error instanceof Error ? error.message : String(error);
+    }).finally(() => {
+      gatewayStartup = null;
+      if (mainWindow && !mainWindow.isDestroyed() && !mainWindow.webContents.isDestroyed()) {
+        mainWindow.webContents.send("codex-galaxy:gateway-ready");
+      }
     });
-    await diagnostics.info("app-started", "Codex Galaxy started", {
+    void diagnostics.info("app-started", "Codex Galaxy started", {
       platform: process.platform,
       arch: process.arch,
-    });
-    registerHandlers();
-    if (gatewayOnlyLaunch && !responsesGateway.status.running) { app.quit(); return; }
+    }).catch(() => {});
     if (!gatewayOnlyLaunch) {
       createWindow();
       startCodexVersionOverlay();
+    } else {
+      await gatewayStartup;
+      if (!responsesGateway.status.running && !mainWindow) { app.quit(); return; }
     }
     startUpdateChecks();
     app.on("activate", () => {
@@ -1285,20 +1315,10 @@ if (!hasSingleInstanceLock) {
   });
 }
 
-let quitHandoffPending = false;
 app.on("before-quit", (event) => {
-  if (!quitting && !gatewayHandoffCompleted && (quitHandoffPending || responsesGateway.status.running)) {
+  if (hasSingleInstanceLock && !quitting && (mainWindow || gatewayStartup || responsesGateway.status.running || auditTasks.size)) {
     event.preventDefault();
-    if (quitHandoffPending) return;
-    quitHandoffPending = true;
-    handoffGatewayToHost({ gateway: responsesGateway, root: dataPaths.root })
-      .then(({ handedOff }) => {
-        if (!handedOff) throw new Error("请等待当前回复完成，再退出 Galaxy。");
-        gatewayHandoffCompleted = true;
-        app.quit();
-      })
-      .catch(() => dialog.showErrorBox("暂时无法安全退出", "本地 API 网关未能移交，Galaxy 会继续运行。请等待当前请求完成后再试。"))
-      .finally(() => { quitHandoffPending = false; });
+    void quitFromTray();
     return;
   }
   quitting = true;

@@ -2,6 +2,9 @@ const { contextBridge, ipcRenderer } = require("electron");
 
 contextBridge.exposeInMainWorld("codexGalaxy", {
   getState: () => ipcRenderer.invoke("codex-galaxy:get-state"),
+  getLocalProjects: () => ipcRenderer.invoke("codex-galaxy:get-local-projects"),
+  getPluginState: () => ipcRenderer.invoke("codex-galaxy:get-plugin-state"),
+  onGatewayReady: (listener) => ipcRenderer.on("codex-galaxy:gateway-ready", () => listener()),
   checkUpdate: () => ipcRenderer.invoke("codex-galaxy:check-update"),
   installUpdate: (language) => ipcRenderer.invoke("codex-galaxy:install-update", { language }),
   sync: (operationId) => ipcRenderer.invoke("codex-galaxy:sync", { operationId }),

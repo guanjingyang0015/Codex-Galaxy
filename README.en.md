@@ -6,7 +6,9 @@
 
 Codex Galaxy is a local desktop utility for switching between Codex accounts and compatible APIs while continuing project tasks saved on the same computer.
 
-**Current version: Codex Galaxy 3.4.2**
+**Current version: Codex Galaxy 3.4.3**
+
+The account screen loads without waiting for project or plugin scans. Closing the window exits Galaxy. With a conversion gateway active, you can keep it running or fully quit, which stops the gateway and disables its login startup. Fully quitting does not close Codex, but interrupts requests using that gateway. Official and direct API routes are unaffected.
 
 After upgrading, resync the current API profile once. Auto compatibility sends a short streaming Responses probe for the default model before choosing direct mode. The installed Windows app restores any required conversion gateway in the background at sign-in without opening the management window. Official and direct profiles do not need this login item.
 
@@ -58,7 +60,7 @@ API profiles can use Auto compatibility: Galaxy locally translates common OpenAI
 ## Usage and recovery notes
 
 - Before switching, Galaxy protects unfinished work and lists the matching chat or scheduled task in the prompt.
-- Galaxy refreshes the local project list when it starts so existing tasks remain easy to find.
+- Local projects loads the saved project list on demand; use Refresh projects to scan for the latest records.
 - Task details show history saved on this computer.
 - The current installed version is placed first in the release record, so a new installation does not continue to display an older release as the latest record.
 - If recovery is needed, open **Log** and keep redacted screenshots and error text. Do not delete `config.toml`, `~/.codex`, or `~/.codex-galaxy`.
