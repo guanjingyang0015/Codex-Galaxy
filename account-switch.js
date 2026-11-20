@@ -215,7 +215,7 @@ export async function switchAccountTransaction({
     let lastPhase = null;
     providerSync = await syncProviderMetadata({
       codexHome: codexPaths.home,
-      targetProvider: targetProviderForProfile(profile),
+      targetProvider: targetProviderForProfile(effectiveProfile),
       targetModel: profile.kind === "official" ? profile.model : null,
       messageIdScanThreadId: profile.kind === "official" ? threadId : null,
       rewriteSessionFiles: !(currentProfile?.kind === "api" && profile.kind === "api"),
@@ -270,7 +270,7 @@ export async function switchAccountTransaction({
     report({ percent: 92, stage: "activated", message: "账号和项目记录已切换完成" });
     report({ percent: 96, stage: "launch", message: launchMessage });
     resumeThreadId = threadId || conversationSync.latestThreadId || preSwitchSync.latestThreadId || null;
-    const launched = await launch(profile, resumeThreadId);
+    const launched = await launch(effectiveProfile, resumeThreadId);
     if (launchVerificationDelayMs > 0) await wait(launchVerificationDelayMs);
     report({ percent: 98, stage: "verify-launch", message: "正在确认 Codex 启动后的登录状态" });
     const launchedMatch = await waitForProfileMatch(

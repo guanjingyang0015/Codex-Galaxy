@@ -15,6 +15,7 @@ import { findCodexDesktopWindows, findCodexWriterProcesses, stopCodexDesktopAndW
 import { codexOverlayBounds, CODEX_VERSION_OVERLAY_SIZE, selectCodexOverlayTarget } from "./codex-overlay.mjs";
 import { modelCanResolveVariants, prepareGatewayRuntime, ResponsesGateway } from "../responses-gateway.js";
 import { handoffGatewayToHost, stopOwnedGatewayHost } from "./gateway-host.mjs";
+import { relayResponsesBase } from "../relay-protocol.js";
 import { recentThreadModels, targetProviderForProfile } from "../provider-sync.js";
 import { addMarketplace, expandMarketplace, installLocalPlugin, listLocalPlugins } from "../plugin-manager.js";
 import { cleanupCompletedAutomations, getAutomationSettings, previewCompletedAutomations, setAutomationSettings } from "../automation-cleanup.js";
@@ -34,6 +35,8 @@ const dataPaths = runtimePaths();
 const diagnostics = createDiagnosticLogger(dataPaths.root, () => app.getVersion());
 if (process.env.CODEX_GALAXY_HOME || process.env.GALAXY_CHANNEL_HOME) app.setPath("userData", dataPaths.root);
 const hasSingleInstanceLock = app.requestSingleInstanceLock();
+const gatewayLoginArgs = ["--restore-api-gateway"];
+const gatewayOnlyLaunch = process.argv.includes(gatewayLoginArgs[0]);
 let switching = false;
 let refreshing = false;
 let cleaning = false;
@@ -356,7 +359,22 @@ function updateGatewayTray() {
       : "Codex Galaxy - 本地 Responses 网关运行中");
 }
 
-async function prepareProfileRuntime(profile) {
+function updateGatewayLoginItem(openAtLogin) {
+  if (process.platform === "win32" && app.isPackaged && !process.env.CODEX_GALAXY_HOME && !process.env.GALAXY_CHANNEL_HOME) {
+    app.setLoginItemSettings({ openAtLogin, path: process.execPath, args: gatewayLoginArgs, name: "CodexGalaxyApiGateway" });
+  }
+}
+
+async function matchIndependentApi(profile) {
+  if (profile.relayProtocol !== "auto" || profile.runtimeMode !== "gateway") return null;
+  let baseUrl;
+  try { baseUrl = relayResponsesBase(profile.baseUrl); } catch { return null; }
+  const direct = { ...profile, baseUrl, runtimeMode: "direct" };
+  return (await liveProfileMatch(codexPaths, direct, dataPaths.vault)).matches ? direct : null;
+}
+
+async function prepareProfileRuntime(profile, { keepGateway = false } = {}) {
+  const wasGatewayRunning = responsesGateway.status.running;
   let preferredModels = [];
   const needsModelDiscovery = profile.kind === "api"
     && (profile.runtimeMode === "gateway" || !String(profile.model || "").trim() || modelCanResolveVariants(profile.model));
@@ -367,7 +385,7 @@ async function prepareProfileRuntime(profile) {
     ]);
     preferredModels = [...new Set([...providerModels, ...recentModels])];
   }
-  const runtime = await prepareGatewayRuntime(responsesGateway, profile, { preferredModels });
+  const runtime = await prepareGatewayRuntime(responsesGateway, profile, { preferredModels, keepGateway });
   gatewayStartupError = null;
   updateGatewayTray();
   return {
@@ -380,10 +398,12 @@ async function prepareProfileRuntime(profile) {
       if (profile.kind === "api" && Array.isArray(runtime.profile?.modelCatalog)) {
         await setModelCatalog(profile.id, profile.model, profile.baseUrl, runtime.profile.modelCatalog, dataPaths);
       }
+      updateGatewayLoginItem(runtime.profile?.runtimeMode === "gateway");
       updateGatewayTray();
     },
     rollback: async () => {
       await runtime.rollback?.();
+      updateGatewayLoginItem(wasGatewayRunning);
       updateGatewayTray();
     },
   };
@@ -391,19 +411,29 @@ async function prepareProfileRuntime(profile) {
 
 async function restoreCurrentApiGateway() {
   const { data } = await loadProfiles(dataPaths);
-  if (!data.currentId) return;
+  if (!data.currentId) { updateGatewayLoginItem(false); return; }
   const profile = await profileForSwitch(data.currentId, dataPaths);
-  if (profile.kind !== "api") return;
+  if (profile.kind !== "api") { updateGatewayLoginItem(false); return; }
   if (profile.runtimeMode !== "gateway") {
+    updateGatewayLoginItem(false);
     await responsesGateway.stop().catch(() => {});
     updateGatewayTray();
     return;
   }
+  if (await matchIndependentApi(profile)) {
+    updateGatewayLoginItem(false);
+    return;
+  }
   const live = await liveProfileMatch(codexPaths, profile, dataPaths.vault);
-  if (!live.matches && !live.recoverableConfig) return;
-  const runtime = await prepareProfileRuntime(profile);
-  await applyProfile(codexPaths, runtime.profile, dataPaths.vault);
-  await runtime.commit?.();
+  if (!live.matches && !live.recoverableConfig) { updateGatewayLoginItem(false); return; }
+  const runtime = await prepareProfileRuntime(profile, { keepGateway: true });
+  try {
+    if (!(await liveProfileMatch(codexPaths, runtime.profile, dataPaths.vault)).matches) await applyProfile(codexPaths, runtime.profile, dataPaths.vault);
+    await runtime.commit?.();
+  } catch (error) {
+    await runtime.rollback?.();
+    throw error;
+  }
   updateGatewayTray();
 }
 
@@ -438,7 +468,8 @@ async function launchableThread(id) {
 
 async function launchThread(id, selectedProfile = null) {
   const thread = await launchableThread(id);
-  const profile = selectedProfile || await currentProfile();
+  let profile = selectedProfile || await currentProfile();
+  profile = await matchIndependentApi(profile) || profile;
   if (profile.kind === "api") {
     const live = await liveProfileMatch(codexPaths, profile, dataPaths.vault);
     const requiresGateway = profile.runtimeMode === "gateway";
@@ -1218,7 +1249,9 @@ function createWindow() {
 if (!hasSingleInstanceLock) {
   app.quit();
 } else {
-  app.on("second-instance", showMainWindow);
+  app.on("second-instance", (_event, argv) => {
+    if (!argv.includes(gatewayLoginArgs[0])) showMainWindow();
+  });
   app.whenReady().then(async () => {
     if (safeStorage.isEncryptionAvailable()) {
       setPlatformSecretProvider({
@@ -1236,8 +1269,11 @@ if (!hasSingleInstanceLock) {
       arch: process.arch,
     });
     registerHandlers();
-    createWindow();
-    startCodexVersionOverlay();
+    if (gatewayOnlyLaunch && !responsesGateway.status.running) { app.quit(); return; }
+    if (!gatewayOnlyLaunch) {
+      createWindow();
+      startCodexVersionOverlay();
+    }
     startUpdateChecks();
     app.on("activate", () => {
       if (BrowserWindow.getAllWindows().length === 0) createWindow();
@@ -1249,7 +1285,22 @@ if (!hasSingleInstanceLock) {
   });
 }
 
-app.on("before-quit", () => {
+let quitHandoffPending = false;
+app.on("before-quit", (event) => {
+  if (!quitting && !gatewayHandoffCompleted && (quitHandoffPending || responsesGateway.status.running)) {
+    event.preventDefault();
+    if (quitHandoffPending) return;
+    quitHandoffPending = true;
+    handoffGatewayToHost({ gateway: responsesGateway, root: dataPaths.root })
+      .then(({ handedOff }) => {
+        if (!handedOff) throw new Error("请等待当前回复完成，再退出 Galaxy。");
+        gatewayHandoffCompleted = true;
+        app.quit();
+      })
+      .catch(() => dialog.showErrorBox("暂时无法安全退出", "本地 API 网关未能移交，Galaxy 会继续运行。请等待当前请求完成后再试。"))
+      .finally(() => { quitHandoffPending = false; });
+    return;
+  }
   quitting = true;
   if (updateCheckTimer) {
     clearInterval(updateCheckTimer);

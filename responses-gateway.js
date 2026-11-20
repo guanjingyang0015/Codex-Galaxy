@@ -3,7 +3,7 @@ import https from "node:https";
 import crypto from "node:crypto";
 import { once } from "node:events";
 import { catalogEntries, catalogModelIds, isGptFamily } from "./model-catalog.js";
-import { createRelayTransport } from "./relay-protocol.js";
+import { createRelayTransport, probeDirectResponses } from "./relay-protocol.js";
 
 const DEFAULT_PORT = 43821;
 const MAX_REQUEST_BYTES = 128 * 1024 * 1024;
@@ -795,9 +795,11 @@ export async function prepareGatewayRuntime(gateway, profile, options = {}) {
           runtimeMode,
         }
         : await gateway.resolveProfile({ ...profile, runtimeMode }, options);
-      if (runtimeMode === "direct") {
+      const verifiedBase = runtimeMode === "gateway" && profile.relayProtocol === "auto" && !options.keepGateway
+        ? await probeDirectResponses(resolvedProfile, gateway.fetchUpstream || globalThis.fetch) : null;
+      if (runtimeMode === "direct" || verifiedBase) {
         return {
-          profile: { ...resolvedProfile, baseUrl: profile.baseUrl, runtimeMode },
+          profile: { ...resolvedProfile, baseUrl: verifiedBase || profile.baseUrl, runtimeMode: "direct" },
           forceApply: true,
           commit: async () => {
             if (before.running) await gateway.stop();

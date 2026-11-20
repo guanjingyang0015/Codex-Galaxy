@@ -42,6 +42,29 @@ export function relayResponsesBase(baseUrl) {
   return relayEndpoint(baseUrl, "responses").replace(/\/responses$/, "");
 }
 
+export async function probeDirectResponses(profile, fetcher = globalThis.fetch) {
+  try {
+    const { hint } = urlParts(profile.baseUrl);
+    if (hint && hint !== "responses") return null;
+    const baseUrl = relayResponsesBase(profile.baseUrl);
+    const signal = AbortSignal.timeout(8000);
+    const res = await fetcher(`${baseUrl}/responses`, {
+      method: "POST", redirect: "error", signal,
+      headers: { authorization: `Bearer ${profile.apiKey}`, "content-type": "application/json", accept: "text/event-stream" },
+      body: JSON.stringify({ model: profile.model, input: "Reply OK.", max_output_tokens: 64, store: false, stream: true }),
+    });
+    if (!res.ok || !res.headers.get("content-type")?.includes("text/event-stream")) {
+      await res.body?.cancel();
+      return null;
+    }
+    for await (const event of sseJson(res)) {
+      if (["error", "response.failed", "response.incomplete"].includes(event.type)) return null;
+      if (event.type === "response.completed") return event.response?.status === "completed" ? baseUrl : null;
+    }
+    return null;
+  } catch { return null; }
+}
+
 async function boundedText(response, maximum = MAX_UPSTREAM_BYTES) {
   if (!response.body?.getReader) {
     const text = await response.text();

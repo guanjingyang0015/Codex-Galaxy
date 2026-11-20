@@ -6,7 +6,9 @@
 
 Codex Galaxy is a local desktop utility for switching between Codex accounts and compatible APIs while continuing project tasks saved on the same computer.
 
-**Current version: Codex Galaxy 3.4.1**
+**Current version: Codex Galaxy 3.4.2**
+
+After upgrading, resync the current API profile once. Auto compatibility sends a short streaming Responses probe for the default model before choosing direct mode. The installed Windows app restores any required conversion gateway in the background at sign-in without opening the management window. Official and direct profiles do not need this login item.
 
 The in-app guide is now organized by stage: **first account setup → daily account switching → failure recovery → features**. Open **Guide** and choose only the stage you need instead of reading one long page.
 

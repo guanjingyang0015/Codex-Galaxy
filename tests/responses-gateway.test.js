@@ -43,12 +43,28 @@ test("auto profiles expose the whole relay catalog and honor cross-vendor select
     return Response.json({ model: seen.at(-1), output: [] });
   } });
   t.after(() => gateway.stop());
-  const runtime = await prepareGatewayRuntime(gateway, { ...profile("https://relay.test/v1", "gemini-flash"), relayProtocol: "auto", runtimeMode: "gateway" });
+  const runtime = await prepareGatewayRuntime(gateway, { ...profile("https://relay.test/v1", "gemini-flash"), relayProtocol: "auto", runtimeMode: "gateway" }, { keepGateway: true });
   assert.equal(runtime.profile.singleModel, false);
   assert.equal(runtime.profile.modelCatalog.length, 4);
   assert.deepEqual(runtime.profile.modelCandidates, []);
   await post(`${gateway.baseUrl}/responses`, { model: "claude-model", input: "hello" });
   assert.deepEqual(seen, ["claude-model"]);
+});
+
+test("auto mode detects native Responses rather than assuming /v1 is direct", async (t) => {
+  for (const supportsResponses of [true, false]) {
+    const gateway = new ResponsesGateway({ port: 0, fetchUpstream: async (url) => url.endsWith("/models")
+      ? Response.json({ data: [{ id: "gemini-test" }, { id: "model-two" }] })
+      : supportsResponses
+        ? new Response('data: {"type":"response.completed","response":{"status":"completed"}}\n\n', { headers: { "content-type": "text/event-stream" } })
+        : Response.json({ error: { message: "unsupported endpoint" } }, { status: 404 }) });
+    t.after(() => gateway.stop());
+    const runtime = await prepareGatewayRuntime(gateway, { ...profile("https://relay.test/v1", "gemini-test"), relayProtocol: "auto", runtimeMode: "gateway" });
+    assert.equal(runtime.profile.runtimeMode, supportsResponses ? "direct" : "gateway");
+    assert.equal(runtime.profile.baseUrl, supportsResponses ? "https://relay.test/v1" : gateway.baseUrl);
+    assert.equal(runtime.profile.modelCatalog.length, 2);
+    assert.equal(gateway.status.running, !supportsResponses);
+  }
 });
 
 test("model-family matching supports arbitrary GPT versions and tiers", () => {

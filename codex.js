@@ -66,8 +66,9 @@ export async function liveProfileMatch(paths, profile, vaultFile) {
     const providerExists = Boolean(definition && typeof definition === "object" && !Array.isArray(definition));
     const expectedBaseUrl = String(profile.baseUrl || "").trim().replace(/\/+$/, "");
     const actualBaseUrl = String(definition?.base_url || "").trim().replace(/\/+$/, "");
+    const loopbackGateway = /^http:\/\/127\.0\.0\.1(?::\d+)?\/v1$/i;
     const baseUrlMatches = mode === "gateway"
-      ? /^https?:\/\/127\.0\.0\.1(?::\d+)?\/v1$/i.test(actualBaseUrl)
+      ? loopbackGateway.test(actualBaseUrl) && (!loopbackGateway.test(expectedBaseUrl) || actualBaseUrl === expectedBaseUrl)
       : Boolean(expectedBaseUrl) && actualBaseUrl === expectedBaseUrl;
     const providerValid = providerExists
       && String(definition.wire_api || "").toLowerCase() === "responses"

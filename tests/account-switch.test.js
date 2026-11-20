@@ -472,6 +472,26 @@ test("API switching writes the prepared local gateway URL and commits its runtim
   assert.equal(result.profile.baseUrl, "https://relay.invalid/v1");
 });
 
+test("verified auto direct route replaces loopback and remains usable without a running gateway", async () => {
+  const { ResponsesGateway, prepareGatewayRuntime } = await import("../responses-gateway.js");
+  const { liveProfileMatch } = await import("../codex.js");
+  const item = await fixture();
+  const api = await saveProfile({ ...item.api, runtimeMode: "auto" }, item.dataPaths);
+  const saved = await profileForSwitch(api.id, item.dataPaths);
+  await switchProfile(item.codexPaths, { ...saved, baseUrl: "http://127.0.0.1:43821/v1" }, item.dataPaths.vault);
+  const gateway = new ResponsesGateway({ port: 0, fetchUpstream: async (url) => url.endsWith("/models")
+    ? Response.json({ data: [{ id: saved.model }] })
+    : new Response('data: {"type":"response.completed","response":{"status":"completed"}}\n\n', { headers: { "content-type": "text/event-stream" } }) });
+  await switchAccountTransaction({
+    profileId: saved.id, codexPaths: item.codexPaths, dataPaths: item.dataPaths,
+    stopCodexDesktop: async () => ({ stopped: 0 }), prepareRuntime: (profile) => prepareGatewayRuntime(gateway, profile),
+    launch: async (profile) => { assert.equal(profile.runtimeMode, "direct"); assert.equal(gateway.status.running, false); },
+  });
+  const config = TOML.parse(await fs.readFile(item.codexPaths.config, "utf8"));
+  assert.equal(config.model_providers.galaxy.base_url, saved.baseUrl);
+  assert.equal((await liveProfileMatch(item.codexPaths, { ...saved, runtimeMode: "direct" }, item.dataPaths.vault)).matches, true);
+});
+
 test("reselecting the active API profile repairs a missing provider table before launch", async () => {
   const item = await fixture();
   const effectiveProfile = {
