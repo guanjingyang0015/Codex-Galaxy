@@ -5,6 +5,13 @@ import os from "node:os";
 import path from "node:path";
 import { clearApiKey, deleteProfile, recordProfileTest, saveProfile, profileForSwitch, publicProfiles, setCurrent, setModelCatalog, setResolvedModel } from "../profiles.js";
 
+test("official accounts can be saved without a model override", async () => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), "galaxy-official-model-"));
+  const paths = { root, profiles: path.join(root, "profiles.json"), vault: path.join(root, "vault.json") };
+  const saved = await saveProfile({ name: "Official", kind: "official", model: "" }, paths);
+  assert.equal((await profileForSwitch(saved.id, paths)).model, "");
+});
+
 test("profiles persist API keys in the encrypted vault only", async () => {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), "codex-galaxy-profiles-"));
   const paths = { root, profiles: path.join(root, "profiles.json"), vault: path.join(root, "vault.json"), library: path.join(root, "library.json") };

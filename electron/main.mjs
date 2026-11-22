@@ -140,13 +140,21 @@ function startUpdateChecks() {
 }
 
 function showMainWindow() {
+  if (!app.isReady() || quitting) return;
   if (!mainWindow || mainWindow.isDestroyed()) createWindow();
-  mainWindow?.show();
-  mainWindow?.focus();
+  else focusMainWindow(mainWindow);
   if (auditCompletionPending) {
     auditCompletionPending = false;
     updateGatewayTray();
   }
+}
+
+function focusMainWindow(window) {
+  if (window.isDestroyed() || quitting) return;
+  if (window.isMinimized()) window.restore();
+  window.show();
+  window.focus();
+  if (!window.webContents.isDestroyed()) window.webContents.focus();
 }
 
 function hideCodexVersionOverlay() {
@@ -1249,8 +1257,18 @@ function createWindow() {
     },
   });
   window.removeMenu();
-  window.loadFile(path.join(appRoot, "public", "index.html"));
-  window.once("ready-to-show", () => window.show());
+  mainWindow = window;
+  window.once("ready-to-show", () => {
+    if (!window.isVisible()) focusMainWindow(window);
+  });
+  window.loadFile(path.join(appRoot, "public", "index.html")).then(() => {
+    if (!window.isDestroyed() && !window.isVisible()) focusMainWindow(window);
+  }).catch(() => {
+    if (!window.isDestroyed() && !quitting) {
+      dialog.showErrorBox("Codex Galaxy 启动失败", "无法加载主窗口，请重新启动或覆盖安装。");
+      window.destroy();
+    }
+  });
   window.on("close", (event) => {
     if (!quitting) {
       event.preventDefault();
@@ -1262,7 +1280,6 @@ function createWindow() {
     if (url.startsWith("https://")) shell.openExternal(url);
     return { action: "deny" };
   });
-  mainWindow = window;
   return window;
 }
 

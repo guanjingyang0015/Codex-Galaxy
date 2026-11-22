@@ -114,7 +114,6 @@ export async function saveProfile(input, paths = runtimePaths()) {
       : normalizeRuntimeMode(previous || { kind: "api" }))
     : "direct";
   if (!name) throw new Error("请填写账号名称。");
-  if (input.kind === "official" && !model) throw new Error("请填写官方账号要使用的模型 ID。");
   if (model && !/^[a-zA-Z0-9][a-zA-Z0-9._:/@+-]*$/.test(model)) throw new Error("模型 ID 包含不受支持的字符。");
   const providedApiKey = typeof input.apiKey === "string" ? input.apiKey.trim() : "";
   if (input.kind === 'api' && (!baseUrl || (!providedApiKey && !vault.profiles[id]?.apiKey))) throw new Error("中转账号需要 Base URL 和 API Key。");

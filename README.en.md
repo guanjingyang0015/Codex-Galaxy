@@ -6,7 +6,7 @@
 
 Codex Galaxy is a local desktop utility for switching between Codex accounts and compatible APIs while continuing project tasks saved on the same computer.
 
-**Current version: Codex Galaxy 3.4.3**
+**Current version: Codex Galaxy 3.4.4**
 
 The account screen loads without waiting for project or plugin scans. Closing the window exits Galaxy. With a conversion gateway active, you can keep it running or fully quit, which stops the gateway and disables its login startup. Fully quitting does not close Codex, but interrupts requests using that gateway. Official and direct API routes are unaffected.
 

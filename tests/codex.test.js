@@ -72,6 +72,21 @@ test("API switching preserves common config and writes an arbitrary model", asyn
   assert.equal(catalog.models[0].model_messages.instructions_template, "{{ personality }}");
 });
 
+test("official profile may omit a model and Codex uses its default", async () => {
+  const home = await fs.mkdtemp(path.join(os.tmpdir(), "galaxy-official-default-model-"));
+  const paths = { home, config: path.join(home, "config.toml"), auth: path.join(home, "auth.json"), modelCatalog: path.join(home, "catalog.json"), backupDir: path.join(home, "backups") };
+  const vault = path.join(home, "vault.json");
+  await fs.writeFile(paths.config, "model = \"old\"\nmodel_provider = \"relay\"\n");
+  const profile = { id: "official", name: "Official", kind: "official", model: "" };
+  await fs.writeFile(paths.auth, '{"auth_mode":"chatgpt","tokens":{"account_id":"official","access_token":"token"}}');
+  await captureCurrent(paths, profile, vault);
+  await fs.writeFile(paths.auth, '{"auth_mode":"apikey","OPENAI_API_KEY":"old"}\n');
+  await switchProfile(paths, profile, vault);
+  const config = TOML.parse(await fs.readFile(paths.config, "utf8"));
+  assert.equal(config.model_provider, "openai");
+  assert.equal(config.model, undefined);
+});
+
 test("GPT relay switching keeps every GPT catalog entry and excludes other vendors", async () => {
   const home = await fs.mkdtemp(path.join(os.tmpdir(), "galaxy-codex-gpt-catalog-"));
   const paths = {

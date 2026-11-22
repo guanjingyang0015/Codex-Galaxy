@@ -206,7 +206,7 @@ export async function switchProfile(paths, profile, vaultFile, { allowUncaptured
   const config = profile.kind === "api"
     ? buildApiConfig(profile, liveConfig, modelCatalogPath(paths))
     : selectProfileModel(
-      mergeCommonConfig(currentConfig || buildOfficialConfig(profile), liveConfig, { skipKeys: ["windows"] }),
+      mergeCommonConfig(currentConfig || buildOfficialConfig(), liveConfig, { skipKeys: ["windows"] }),
       profile,
       "openai",
     );
@@ -255,13 +255,12 @@ export async function setOfficialWindowsSandboxFallback(paths) {
   return { sandbox: "unelevated" };
 }
 
-function buildOfficialConfig(profile) {
-  const model = profile.model || "gpt-5.6";
+function buildOfficialConfig() {
   // `openai` is a built-in provider in current Codex. Writing a
   // [model_providers.openai] table makes Codex reject the whole config as an
   // attempt to override a reserved provider, which Desktop surfaces as the
   // misleading Windows setup screen.
-  return `model = "${model}"\nmodel_provider = "openai"\ncli_auth_credentials_store = "file"\n`;
+  return 'model_provider = "openai"\ncli_auth_credentials_store = "file"\n';
 }
 
 function buildApiConfig(profile, liveConfig = "", catalogPath = "") {
@@ -326,7 +325,8 @@ function selectProfileModel(configText, profile, provider) {
     delete config.model_providers;
   }
   enforceFileCredentials(config);
-  config.model = profile.model;
+  if (profile.model) config.model = profile.model;
+  else delete config.model;
   config.model_provider = provider;
   if (provider !== "openai") {
     const existing = config.model_providers?.[provider];

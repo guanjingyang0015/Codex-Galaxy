@@ -1,7 +1,7 @@
 const $ = (selector) => document.querySelector(selector);
 const state = {
   profiles: [],
-  version: "3.4.3",
+  version: "3.4.4",
   openaiStatus: null,
   threads: [],
   projects: [],
@@ -31,7 +31,7 @@ const state = {
   releases: [],
   update: {
     phase: "idle",
-    currentVersion: "3.4.3",
+    currentVersion: "3.4.4",
     latestVersion: null,
     available: false,
     action: "install",
@@ -252,6 +252,8 @@ const translations = {
     "profileForm.model": "模型 ID（也是检测期望型号）",
     "profileForm.optional": "（可选）",
     "profileForm.modelPlaceholder": "留空自动发现，或填 gpt-5.6、provider/model",
+    "profileForm.officialModelPlaceholder": "留空使用 Codex 默认模型",
+    "profileForm.officialModel": "模型 ID",
     "profileForm.protocol": "自动适配支持 Responses、Chat Completions、Claude Messages 与 Gemini 原生接口；Galaxy 转换后交给 Codex。填写 Base URL、Key 和准确模型名称即可；上游权限、模型可用性与工具支持仍由服务商决定。",
     "profileForm.homepage": "平台主页（可选）",
     "profileForm.homepagePlaceholder": "https://example.com",
@@ -490,7 +492,7 @@ const translations = {
     "diagnostics.opened": "已打开本地日志文件。",
     "diagnostics.truncated": "日志较长，当前只显示最后一段。",
     "tutorial.title": "分阶段使用教程",
-    "tutorial.intro": "按使用阶段阅读教程：先完成一次账号配置，日常按步骤切换，出问题先看日志，超大聊天先复制深度链接新建聊天继续，最后了解本地历史和其他特色功能。当前版本为 v3.4.3。",
+    "tutorial.intro": "按使用阶段阅读教程：先完成一次账号配置，日常按步骤切换，出问题先看日志，超大聊天先复制深度链接新建聊天继续，最后了解本地历史和其他特色功能。当前版本为 v3.4.4。",
     "tutorial.stageNav": "教程阶段",
     "tutorial.stage1.tab": "首次配置",
     "tutorial.stage1.short": "添加账号和模型",
@@ -778,6 +780,8 @@ const translations = {
     "profileForm.model": "Model ID (also the expected audit model)",
     "profileForm.optional": "(optional)",
     "profileForm.modelPlaceholder": "Leave blank to detect, or enter gpt-5.6, provider/model",
+    "profileForm.officialModelPlaceholder": "Leave blank to use the Codex default",
+    "profileForm.officialModel": "Model ID",
     "profileForm.protocol": "Auto compatibility supports Responses, Chat Completions, Claude Messages, and native Gemini endpoints, converting them locally for Codex. Enter a Base URL, key, and exact model ID. Provider permissions, availability, and tool support still apply.",
     "profileForm.homepage": "Platform homepage (optional)",
     "profileForm.homepagePlaceholder": "https://example.com",
@@ -1016,7 +1020,7 @@ const translations = {
     "diagnostics.opened": "The local log file was opened.",
     "diagnostics.truncated": "The log is long; only its latest section is shown.",
     "tutorial.title": "Phased usage guide",
-    "tutorial.intro": "Read the guide by stage: configure accounts once, follow the daily switch steps, preserve the scene when something fails, use a deep link to continue oversized chats in a new thread, then learn local history and other features. Current version: v3.4.3.",
+    "tutorial.intro": "Read the guide by stage: configure accounts once, follow the daily switch steps, preserve the scene when something fails, use a deep link to continue oversized chats in a new thread, then learn local history and other features. Current version: v3.4.4.",
     "tutorial.stageNav": "Tutorial stages",
     "tutorial.stage1.tab": "First setup",
     "tutorial.stage1.short": "Accounts and models",
@@ -2057,7 +2061,12 @@ async function launch(id) {
 function updateProfileFields() {
   const isApi = $("#profileForm [name=kind]").value === "api";
   document.querySelectorAll("#profileForm .api-field").forEach((field) => { field.hidden = !isApi; });
-  $("#profileForm [name=model]").required = !isApi;
+  const model = $("#profileForm [name=model]");
+  model.dataset.i18nPlaceholder = isApi ? "profileForm.modelPlaceholder" : "profileForm.officialModelPlaceholder";
+  model.placeholder = t(model.dataset.i18nPlaceholder);
+  const label = $("#profileModelLabel");
+  label.dataset.i18n = isApi ? "profileForm.model" : "profileForm.officialModel";
+  label.textContent = t(label.dataset.i18n);
 }
 
 function openProfileForm(profile = null) {
